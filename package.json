@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "postinstall": "prisma generate",
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
@@ -41,7 +42,7 @@
     "@prisma/client": "^5.7.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": "20.x"
   },
   "packageManager": "npm@10.2.0"
 }
