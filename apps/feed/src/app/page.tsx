@@ -1,4 +1,3 @@
-import { prisma } from '@/lib/prisma';
 import { FeedHeader } from '@/components/feed-header';
 import { NewsFeed } from '@/components/news-feed';
 import { PricesColumn } from '@/components/prices-column';
@@ -10,6 +9,7 @@ export const dynamic = 'force-dynamic';
 
 async function getInitialArticles(): Promise<FeedArticle[]> {
   try {
+    const { prisma } = await import('@/lib/prisma');
     const articles = await prisma.article.findMany({
       where: {
         status: { in: ['FETCHED', 'ENRICHED'] },

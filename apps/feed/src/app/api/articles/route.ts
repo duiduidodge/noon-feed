@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    const { prisma } = await import('@/lib/prisma');
     const searchParams = request.nextUrl.searchParams;
     const tag = searchParams.get('tag');
     const sentiment = searchParams.get('sentiment');
