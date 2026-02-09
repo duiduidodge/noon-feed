@@ -10,6 +10,16 @@ interface MarketOverviewData {
   sparkline: number[];
 }
 
+interface CoinCapAsset {
+  marketCapUsd?: string;
+  volumeUsd24Hr?: string;
+  changePercent24Hr?: string;
+}
+
+interface CoinCapAssetsResponse {
+  data?: CoinCapAsset[];
+}
+
 interface OverviewCache {
   data: MarketOverviewData;
   timestamp: number;
@@ -65,8 +75,8 @@ async function fetchGlobalFromCoinCap() {
     headers: { Accept: 'application/json' },
   });
   if (!res.ok) throw new Error(`CoinCap: ${res.status}`);
-  const json = await res.json();
-  const assets: any[] = json.data;
+  const json = (await res.json()) as CoinCapAssetsResponse;
+  const assets = json.data ?? [];
 
   const totalMcap = assets.reduce((s, a) => s + parseFloat(a.marketCapUsd || '0'), 0);
   const totalVol = assets.reduce((s, a) => s + parseFloat(a.volumeUsd24Hr || '0'), 0);

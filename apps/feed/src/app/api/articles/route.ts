@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import type { Prisma, Sentiment } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
+
+const VALID_SENTIMENTS: Sentiment[] = ['BULLISH', 'BEARISH', 'NEUTRAL'];
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,23 +19,20 @@ export async function GET(request: NextRequest) {
     const cursor = searchParams.get('cursor');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50);
 
-    const where: any = {
+    const where: Prisma.ArticleWhereInput = {
       status: { in: ['FETCHED', 'ENRICHED'] },
     };
 
-    if (tag) {
-      where.enrichment = {
-        isNot: null,
-        tags: { array_contains: [tag] },
-      };
+    const enrichmentWhere: Prisma.EnrichmentWhereInput = {};
+    if (tag) enrichmentWhere.tags = { array_contains: [tag] };
+
+    const sentimentFilter = sentiment?.toUpperCase();
+    if (sentimentFilter && VALID_SENTIMENTS.includes(sentimentFilter as Sentiment)) {
+      enrichmentWhere.sentiment = sentimentFilter as Sentiment;
     }
 
-    if (sentiment && ['BULLISH', 'BEARISH', 'NEUTRAL'].includes(sentiment)) {
-      where.enrichment = {
-        ...where.enrichment,
-        isNot: null,
-        sentiment: sentiment,
-      };
+    if (Object.keys(enrichmentWhere).length > 0) {
+      where.enrichment = { is: enrichmentWhere };
     }
 
     const articles = await prisma.article.findMany({
@@ -69,7 +74,7 @@ export async function GET(request: NextRequest) {
       url: article.url,
       sentiment: article.enrichment?.sentiment || 'NEUTRAL',
       marketImpact: article.enrichment?.marketImpact || 'LOW',
-      tags: (article.enrichment?.tags as string[]) || [],
+      tags: toStringArray(article.enrichment?.tags),
     }));
 
     return NextResponse.json(

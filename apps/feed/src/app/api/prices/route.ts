@@ -1,7 +1,80 @@
 import { NextResponse } from 'next/server';
 
+interface CoinPrice {
+  id: string;
+  rank: number;
+  name: string;
+  symbol: string;
+  image: string | null;
+  priceUsd: number;
+  changePercent24Hr: number;
+  marketCapUsd: number;
+  volumeUsd24Hr: number;
+}
+
+interface PricesResponseData {
+  majors: CoinPrice[];
+  trending: CoinPrice[];
+  prices: CoinPrice[];
+  global: {
+    totalMcap: number;
+    totalVolume: number;
+    btcDominance: number;
+    avgChange24h: number;
+  };
+  asOf?: string;
+}
+
+interface CoinGeckoMarketCoin {
+  id?: string;
+  market_cap_rank?: number;
+  name?: string;
+  symbol?: string;
+  image?: string | null;
+  current_price?: number | string;
+  price_change_percentage_24h?: number | string;
+  market_cap?: number | string;
+  total_volume?: number | string;
+}
+
+interface TrendingCoinItem {
+  id?: string;
+  market_cap_rank?: number;
+  name?: string;
+  symbol?: string;
+  small?: string;
+  thumb?: string;
+  data?: {
+    price?: number | string;
+    market_cap?: number | string;
+    total_volume?: number | string;
+    price_change_percentage_24h?: {
+      usd?: number | string;
+    };
+  };
+}
+
+interface CoinGeckoTrendingResponse {
+  coins?: Array<{ item?: TrendingCoinItem }>;
+}
+
+interface CoinCapAsset {
+  id: string;
+  rank: string;
+  name: string;
+  symbol: string;
+  priceUsd: string;
+  changePercent24Hr: string;
+  marketCapUsd: string;
+  volumeUsd24Hr: string;
+}
+
+interface CoinCapResponse {
+  data?: CoinCapAsset[];
+}
+
 interface PriceCache {
-  data: any;
+  data: PricesResponseData;
   timestamp: number;
 }
 
@@ -32,14 +105,14 @@ async function fetchFromCoinGecko() {
     throw new Error(`CoinGecko API error: ${response.status}`);
   }
 
-  const coins: any[] = await response.json();
+  const coins = (await response.json()) as CoinGeckoMarketCoin[];
 
-  const allPrices = coins.map((coin, index) => ({
-    id: coin.id,
+  const allPrices: CoinPrice[] = coins.map((coin, index) => ({
+    id: coin.id || '',
     rank: coin.market_cap_rank || index + 1,
-    name: coin.name,
-    symbol: coin.symbol.toUpperCase(),
-    image: coin.image,
+    name: coin.name || '',
+    symbol: coin.symbol?.toUpperCase() || '',
+    image: coin.image || null,
     priceUsd: toNumber(coin.current_price),
     changePercent24Hr: toNumber(coin.price_change_percentage_24h),
     marketCapUsd: toNumber(coin.market_cap),
@@ -51,32 +124,32 @@ async function fetchFromCoinGecko() {
   const others = allPrices.filter((p) => !MAJOR_IDS.includes(p.id));
 
   // Fetch trending
-  let trending: any[] = [];
+  let trending: CoinPrice[] = [];
   try {
     const trendingRes = await fetch('https://api.coingecko.com/api/v3/search/trending', {
       headers: { Accept: 'application/json' },
       cache: 'no-store',
     });
     if (trendingRes.ok) {
-      const trendingData = await trendingRes.json();
+      const trendingData = (await trendingRes.json()) as CoinGeckoTrendingResponse;
       const trendingCoins = trendingData.coins || [];
 
       // Filter out majors and get first 5
       trending = trendingCoins
-        .filter((t: any) => !MAJOR_IDS.includes(t.item?.id))
+        .filter((t) => !MAJOR_IDS.includes(t.item?.id || ''))
         .slice(0, 5)
-        .map((t: any) => {
+        .map((t) => {
           const item = t.item;
           return {
-            id: item.id,
-            rank: item.market_cap_rank || 0,
-            name: item.name,
-            symbol: item.symbol?.toUpperCase() || '',
-            image: item.small || item.thumb,
-            priceUsd: toNumber(item.data?.price),
-            changePercent24Hr: toNumber(item.data?.price_change_percentage_24h?.usd),
-            marketCapUsd: toNumber(item.data?.market_cap),
-            volumeUsd24Hr: toNumber(item.data?.total_volume),
+            id: item?.id || '',
+            rank: item?.market_cap_rank || 0,
+            name: item?.name || '',
+            symbol: item?.symbol?.toUpperCase() || '',
+            image: item?.small || item?.thumb || null,
+            priceUsd: toNumber(item?.data?.price),
+            changePercent24Hr: toNumber(item?.data?.price_change_percentage_24h?.usd),
+            marketCapUsd: toNumber(item?.data?.market_cap),
+            volumeUsd24Hr: toNumber(item?.data?.total_volume),
           };
         });
     }
@@ -112,12 +185,12 @@ async function fetchFromCoinCap() {
     throw new Error(`CoinCap API error: ${response.status}`);
   }
 
-  const json = await response.json();
-  const assets: any[] = json.data;
+  const json = (await response.json()) as CoinCapResponse;
+  const assets = json.data ?? [];
 
-  const allPrices = assets.map((asset) => ({
+  const allPrices: CoinPrice[] = assets.map((asset) => ({
     id: asset.id,
-    rank: parseInt(asset.rank),
+    rank: parseInt(asset.rank, 10),
     name: asset.name,
     symbol: asset.symbol,
     image: null,
@@ -161,7 +234,7 @@ export async function GET() {
 
   try {
     // Try CoinGecko first, fall back to CoinCap
-    let result;
+    let result: Omit<PricesResponseData, 'asOf'>;
     try {
       result = await fetchFromCoinGecko();
     } catch {
