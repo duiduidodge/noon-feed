@@ -1,0 +1,174 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Source {
+  id        String    @id @default(cuid())
+  name      String
+  type      SourceType
+  url       String    @unique
+  enabled   Boolean   @default(true)
+  category  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  articles  Article[]
+
+  @@index([enabled])
+  @@index([type])
+}
+
+enum SourceType {
+  RSS
+  API
+  MANUAL
+}
+
+model Article {
+  id                 String       @id @default(cuid())
+  sourceId           String
+  source             Source       @relation(fields: [sourceId], references: [id])
+  originalSourceName String?      // Original outlet name from API (CNBC, Crypto.news, etc.)
+  url                String
+  urlNormalized      String       @unique
+  titleOriginal      String
+  publishedAt        DateTime?
+  fetchedAt          DateTime     @default(now())
+  rawHtml            String?
+  extractedText      String?
+  hash               String       @unique
+  language           String?      @default("en")
+  status             ArticleStatus @default(PENDING)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  enrichment         Enrichment?
+  postings           Posting[]
+
+  @@index([sourceId])
+  @@index([publishedAt])
+  @@index([status])
+  @@index([urlNormalized])
+  @@index([hash])
+}
+
+enum ArticleStatus {
+  PENDING
+  FETCHED
+  ENRICHED
+  FAILED
+  SKIPPED
+}
+
+model Enrichment {
+  id           String   @id @default(cuid())
+  articleId    String   @unique
+  article      Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  titleTh      String
+  summaryTh    String
+  takeawaysTh  Json     // string[]
+  tags         Json     // string[]
+  sentiment    Sentiment
+  marketImpact MarketImpact
+  hooksTh      Json     // string[]
+  threadTh     Json     // string[]
+  contentDraftTh String? // manual social post draft (article-style)
+  cautions     Json?    // string[] optional
+  mustQuote    Json?    // string[] optional
+  llmModel     String
+  llmProvider  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([sentiment])
+  @@index([marketImpact])
+}
+
+enum Sentiment {
+  BULLISH
+  BEARISH
+  NEUTRAL
+}
+
+enum MarketImpact {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model Posting {
+  id               String        @id @default(cuid())
+  articleId        String
+  article          Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  discordChannelId String
+  discordMessageId String?
+  postedAt         DateTime?
+  status           PostingStatus @default(PENDING)
+  error            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@index([articleId])
+  @@index([discordChannelId])
+  @@index([status])
+  @@index([postedAt])
+}
+
+enum PostingStatus {
+  PENDING
+  POSTED
+  FAILED
+}
+
+model JobAudit {
+  id        String    @id @default(cuid())
+  jobType   String
+  articleId String?
+  status    JobStatus
+  error     String?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+
+  @@index([jobType])
+  @@index([articleId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum JobStatus {
+  STARTED
+  COMPLETED
+  FAILED
+}
+
+model UserPost {
+  id        String   @id @default(cuid())
+  content   String
+  imageUrl  String?
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([published])
+  @@index([createdAt])
+}
+
+model MarketSummary {
+  id              String    @id @default(cuid())
+  scheduleType    String    // 'morning' | 'evening'
+  summaryText     String    // Thai market summary paragraph
+  headlines       Json      // Array of { title, url, source } objects
+  prices          Json      // { btc, eth, sol, hype, marketCap, fearGreed }
+  articleCount    Int       // Number of articles included
+  discordPosted   Boolean   @default(false)
+  discordPostedAt DateTime?
+  error           String?
+  createdAt       DateTime  @default(now())
+
+  @@index([scheduleType])
+  @@index([createdAt])
+}

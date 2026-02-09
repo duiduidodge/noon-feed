@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 30% 98%;
+    --foreground: 224 32% 13%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 32% 13%;
+
+    --primary: 190 95% 34%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 28% 94%;
+    --secondary-foreground: 222 25% 20%;
+
+    --muted: 215 22% 95%;
+    --muted-foreground: 220 14% 39%;
+
+    --accent: 188 65% 92%;
+    --accent-foreground: 222 25% 20%;
+
+    --border: 214 25% 87%;
+    --input: 214 25% 87%;
+    --ring: 190 95% 34%;
+
+    --radius: 0.7rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 0% 0%, hsl(188 65% 92% / 0.45), transparent 32%),
+      radial-gradient(circle at 100% 100%, hsl(190 95% 34% / 0.09), transparent 30%);
+    font-family: 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: 'Sora', 'Noto Sans Thai', sans-serif;
+    letter-spacing: -0.02em;
+  }
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+}
