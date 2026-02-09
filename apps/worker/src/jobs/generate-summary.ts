@@ -6,7 +6,7 @@ const logger = createLogger('worker:job:generate-summary');
 
 export interface GenerateSummaryJobData {
   scheduleType: 'morning' | 'evening';
-  webhookUrl: string;
+  webhookUrl?: string;
 }
 
 interface HeadlineItem {
@@ -300,7 +300,6 @@ export async function processGenerateSummaryJob(
 
   // 1. Get articles since the last summary (fallback: 14 hours if no previous summary)
   const lastSummary = await prisma.marketSummary.findFirst({
-    where: { discordPosted: true },
     orderBy: { createdAt: 'desc' },
     select: { createdAt: true },
   });
@@ -372,33 +371,36 @@ export async function processGenerateSummaryJob(
     },
   });
 
-  // 5. Post to Discord
-  try {
-    await postSummaryToDiscord(
-      webhookUrl,
-      summaryText,
-      sectionTitle,
-      headlines,
-      prices,
-      scheduleType
-    );
+  // 5. Post to Discord (optional)
+  if (webhookUrl) {
+    try {
+      await postSummaryToDiscord(
+        webhookUrl,
+        summaryText,
+        sectionTitle,
+        headlines,
+        prices,
+        scheduleType
+      );
 
-    await prisma.marketSummary.update({
-      where: { id: summary.id },
-      data: {
-        discordPosted: true,
-        discordPostedAt: new Date(),
-      },
-    });
+      await prisma.marketSummary.update({
+        where: { id: summary.id },
+        data: {
+          discordPosted: true,
+          discordPostedAt: new Date(),
+        },
+      });
 
-    logger.info({ summaryId: summary.id, scheduleType }, 'Bi-daily summary posted to Discord');
-  } catch (error) {
-    await prisma.marketSummary.update({
-      where: { id: summary.id },
-      data: { error: (error as Error).message },
-    });
-    logger.error({ error: (error as Error).message }, 'Failed to post summary to Discord');
-    throw error;
+      logger.info({ summaryId: summary.id, scheduleType }, 'Bi-daily summary posted to Discord');
+    } catch (error) {
+      await prisma.marketSummary.update({
+        where: { id: summary.id },
+        data: { error: (error as Error).message },
+      });
+      logger.error({ error: (error as Error).message }, 'Failed to post summary to Discord');
+    }
+  } else {
+    logger.warn({ summaryId: summary.id }, 'DISCORD_WEBHOOK_URL is missing; stored summary without Discord post');
   }
 
   // 6. Audit

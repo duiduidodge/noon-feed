@@ -11,6 +11,7 @@ import { processFetchArticleJob, type FetchArticleJobData } from './jobs/fetch-a
 import { processEnrichArticleJob, type EnrichArticleJobData } from './jobs/enrich-article.js';
 import { processPostDiscordWebhookJob, type PostDiscordWebhookJobData } from './jobs/post-discord-webhook.js';
 import { processGenerateSummaryJob, type GenerateSummaryJobData } from './jobs/generate-summary.js';
+import type { LLMProviderInterface } from '@crypto-news/shared';
 
 const logger = createLogger('worker');
 const config = buildConfig();
@@ -58,13 +59,28 @@ function getLlmApiKey(): string {
   throw new Error(`Unknown LLM provider: ${config.llm.provider}`);
 }
 
-const llmApiKey = getLlmApiKey();
+function createFallbackLlmProvider(reason: string): LLMProviderInterface {
+  return {
+    name: config.llm.provider,
+    async complete() {
+      throw new Error(`LLM unavailable: ${reason}`);
+    },
+  };
+}
 
-const llmProvider = createLLMProvider(
-  config.llm.provider,
-  llmApiKey,
-  config.llm.model
-);
+let llmProvider: LLMProviderInterface;
+try {
+  const llmApiKey = getLlmApiKey();
+  llmProvider = createLLMProvider(
+    config.llm.provider,
+    llmApiKey,
+    config.llm.model
+  );
+} catch (error) {
+  const reason = (error as Error).message;
+  logger.error({ reason }, 'LLM provider init failed; worker will continue with fallback summaries');
+  llmProvider = createFallbackLlmProvider(reason);
+}
 
 // Redis connection options
 const redisConnection = {
@@ -317,29 +333,81 @@ async function processPendingPosts() {
 // Bi-daily summary scheduler
 // Runs at 7:00 AM and 7:00 PM Bangkok time (00:00 and 12:00 UTC)
 // ============================================================
-const SUMMARY_HOURS_BANGKOK = [7, 19];
+const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
+const SUMMARY_WINDOW_MS = 12 * 60 * 60 * 1000;
 let lastSummaryKey = '';
 
+function formatBangkokDateKey(dateBangkokProxy: Date): string {
+  const y = dateBangkokProxy.getUTCFullYear();
+  const m = String(dateBangkokProxy.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(dateBangkokProxy.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getActiveSummarySlot(nowUtc: Date): {
+  scheduleType: 'morning' | 'evening';
+  summaryKey: string;
+  slotStartUtc: Date;
+} | null {
+  const nowBangkokProxy = new Date(nowUtc.getTime() + BANGKOK_OFFSET_MS);
+
+  const slotCandidates = [
+    { dayOffset: -1, hour: 19, scheduleType: 'evening' as const },
+    { dayOffset: 0, hour: 7, scheduleType: 'morning' as const },
+    { dayOffset: 0, hour: 19, scheduleType: 'evening' as const },
+  ];
+
+  const active = slotCandidates
+    .map((slot) => {
+      const slotBangkokProxy = new Date(
+        Date.UTC(
+          nowBangkokProxy.getUTCFullYear(),
+          nowBangkokProxy.getUTCMonth(),
+          nowBangkokProxy.getUTCDate() + slot.dayOffset,
+          slot.hour,
+          0,
+          0
+        )
+      );
+      const slotStartUtc = new Date(slotBangkokProxy.getTime() - BANGKOK_OFFSET_MS);
+      const slotEndUtc = new Date(slotStartUtc.getTime() + SUMMARY_WINDOW_MS);
+      const dateKey = formatBangkokDateKey(slotBangkokProxy);
+      const summaryKey = `${dateKey}-${slot.scheduleType}`;
+      return { ...slot, slotStartUtc, slotEndUtc, summaryKey };
+    })
+    .filter((slot) => nowUtc >= slot.slotStartUtc && nowUtc < slot.slotEndUtc)
+    .sort((a, b) => b.slotStartUtc.getTime() - a.slotStartUtc.getTime())[0];
+
+  if (!active) return null;
+  return {
+    scheduleType: active.scheduleType,
+    summaryKey: active.summaryKey,
+    slotStartUtc: active.slotStartUtc,
+  };
+}
+
 async function checkSummarySchedule() {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) return;
-
   const now = new Date();
-  const bangkokHour = (now.getUTCHours() + 7) % 24;
-  const dateKey = now.toISOString().split('T')[0]; // YYYY-MM-DD
-  const scheduleType = bangkokHour >= 7 && bangkokHour < 19 ? 'morning' : 'evening';
-  const summaryKey = `${dateKey}-${scheduleType}`;
+  const activeSlot = getActiveSummarySlot(now);
+  if (!activeSlot) {
+    return;
+  }
+  const { scheduleType, summaryKey, slotStartUtc } = activeSlot;
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
 
-  // Only fire once per schedule window
-  if (!SUMMARY_HOURS_BANGKOK.includes(bangkokHour) || lastSummaryKey === summaryKey) {
+  // Only fire once per active window while this process is up.
+  if (lastSummaryKey === summaryKey) {
     return;
   }
 
-  // Double-check against database to prevent duplicates after restart
+  // Double-check against database to prevent duplicates after restarts.
   const recentSummary = await prisma.marketSummary.findFirst({
     where: {
       scheduleType,
-      createdAt: { gt: new Date(Date.now() - 10 * 60 * 60 * 1000) }, // Within last 10 hours
+      createdAt: {
+        gte: slotStartUtc,
+        lt: new Date(slotStartUtc.getTime() + SUMMARY_WINDOW_MS),
+      },
     },
   });
 
@@ -351,7 +419,7 @@ async function checkSummarySchedule() {
 
   lastSummaryKey = summaryKey;
 
-  logger.info({ scheduleType, bangkokHour }, 'Scheduling bi-daily summary generation');
+  logger.info({ scheduleType, summaryKey, webhookConfigured: Boolean(webhookUrl) }, 'Scheduling bi-daily summary generation');
 
   await summaryQueue.add(
     `summary-${summaryKey}`,
