@@ -19,7 +19,7 @@ interface PostCardProps {
 }
 
 const FIXED_AVATAR_URL =
-  'https://grleehzftxkszwherpma.supabase.co/storage/v1/object/public/posts/posts/1770637133179-wqvy1s.png';
+  'https://grleehzftxkszwherpma.supabase.co/storage/v1/object/public/posts/posts/1770636237169-r6948j.png';
 
 export function PostCard({ post }: PostCardProps) {
   const [open, setOpen] = useState(false);
@@ -66,6 +66,18 @@ export function PostCard({ post }: PostCardProps) {
               {post.title}
             </h4>
 
+            {post.imageUrl && (
+              <div className="relative mt-2 overflow-hidden rounded-md border border-border/30">
+                <Image
+                  src={post.imageUrl}
+                  alt={post.title}
+                  width={800}
+                  height={360}
+                  className="h-24 w-full object-cover"
+                />
+              </div>
+            )}
+
             <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">
               {previewText}
             </p>
@@ -86,7 +98,7 @@ export function PostCard({ post }: PostCardProps) {
             className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-card via-card to-surface shadow-[0_30px_120px_hsl(0_0%_0%/0.6)]"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="max-h-[86vh] overflow-y-auto custom-scrollbar">
+            <div className="max-h-[86vh] overflow-hidden">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
@@ -96,7 +108,7 @@ export function PostCard({ post }: PostCardProps) {
                 <X className="h-4 w-4" />
               </button>
 
-              <div className="flex items-center gap-3 border-b border-border/35 px-5 py-4 pr-12">
+              <div className="sticky top-0 z-[1] flex items-center gap-3 border-b border-border/35 bg-card/95 px-5 py-4 pr-12 backdrop-blur">
                 <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-accent/30 bg-surface/70">
                   <Image src={FIXED_AVATAR_URL} alt="Profile picture" fill className="object-cover" />
                 </div>
@@ -110,23 +122,25 @@ export function PostCard({ post }: PostCardProps) {
                 </div>
               </div>
 
-              {post.imageUrl && (
-                <div className="relative m-5 mb-0 overflow-hidden rounded-xl border border-border/30">
-                  <Image
-                    src={post.imageUrl}
-                    alt={post.title}
-                    width={900}
-                    height={500}
-                    className="max-h-[60vh] w-full object-cover"
-                  />
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/30 to-transparent" />
-                </div>
-              )}
+              <div className="max-h-[calc(86vh-90px)] overflow-y-auto custom-scrollbar">
+                {post.imageUrl && (
+                  <div className="relative m-5 mb-0 overflow-hidden rounded-xl border border-border/30">
+                    <Image
+                      src={post.imageUrl}
+                      alt={post.title}
+                      width={900}
+                      height={500}
+                      className="max-h-[60vh] w-full object-cover"
+                    />
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/30 to-transparent" />
+                  </div>
+                )}
 
-              <div className="px-5 pb-5 pt-4">
-                <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/95">
-                  {post.content}
-                </p>
+                <div className="px-5 pb-5 pt-4">
+                  <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/95">
+                    {post.content}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
