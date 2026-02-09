@@ -35,8 +35,13 @@ export function PostCard({ post }: PostCardProps) {
         setOpen(false);
       }
     };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [open]);
 
   return (
@@ -77,44 +82,60 @@ export function PostCard({ post }: PostCardProps) {
 
       {mounted && open && createPortal(
         <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4"
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/75 p-4"
           onClick={() => setOpen(false)}
         >
           <div
-            className="relative w-full max-w-xl rounded-xl border border-border/40 bg-card p-4 shadow-2xl"
+            className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-card via-card to-surface shadow-[0_30px_120px_hsl(0_0%_0%/0.6)]"
             onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-surface/60 hover:text-foreground"
+              className="absolute right-4 top-4 z-10 rounded-full border border-border/40 bg-background/70 p-1.5 text-muted-foreground backdrop-blur hover:text-foreground"
               aria-label="Close post"
             >
               <X className="h-4 w-4" />
             </button>
 
-            <div className="pr-8">
-              <h3 className="text-base font-semibold text-foreground">{post.title}</h3>
-              <p className="mt-1 font-mono-data text-[11px] text-muted-foreground/60">
-                {formatTimeAgo(post.createdAt)}
-              </p>
+            <div className="flex items-center gap-3 border-b border-border/35 px-5 py-4 pr-12">
+              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-accent/30 bg-surface/70">
+                {post.imageUrl ? (
+                  <Image src={post.imageUrl} alt={post.title} fill className="object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center font-mono-data text-xs text-muted-foreground">
+                    U
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <h3 className="line-clamp-2 text-xl font-bold tracking-tight text-foreground">
+                  {post.title}
+                </h3>
+                <p className="mt-0.5 font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/65">
+                  {formatTimeAgo(post.createdAt)}
+                </p>
+              </div>
             </div>
 
             {post.imageUrl && (
-              <div className="relative mt-3 overflow-hidden rounded-lg border border-border/30">
+              <div className="relative m-5 mb-0 overflow-hidden rounded-xl border border-border/30">
                 <Image
                   src={post.imageUrl}
                   alt={post.title}
                   width={900}
                   height={500}
-                  className="max-h-[46vh] w-full object-cover"
+                  className="max-h-[52vh] w-full object-cover"
                 />
+                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/30 to-transparent" />
               </div>
             )}
 
-            <p className="mt-3 max-h-[35vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-foreground/95 custom-scrollbar">
-              {post.content}
-            </p>
+            <div className="px-5 pb-5 pt-4">
+              <p className="max-h-[28vh] overflow-y-auto whitespace-pre-wrap text-[15px] leading-relaxed text-foreground/95 custom-scrollbar">
+                {post.content}
+              </p>
+            </div>
           </div>
         </div>,
         document.body
