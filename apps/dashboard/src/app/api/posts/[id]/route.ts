@@ -22,10 +22,25 @@ export async function PATCH(
 ) {
   const body = await request.json();
 
+  if (
+    body.title !== undefined &&
+    (typeof body.title !== 'string' || body.title.trim().length === 0)
+  ) {
+    return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+  }
+
+  if (
+    body.content !== undefined &&
+    (typeof body.content !== 'string' || body.content.trim().length === 0)
+  ) {
+    return NextResponse.json({ error: 'Content is required' }, { status: 400 });
+  }
+
   const post = await prisma.userPost.update({
     where: { id: params.id },
     data: {
-      ...(body.content !== undefined && { content: body.content }),
+      ...(body.title !== undefined && { title: body.title.trim() }),
+      ...(body.content !== undefined && { content: body.content.trim() }),
       ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
       ...(body.published !== undefined && { published: body.published }),
     },

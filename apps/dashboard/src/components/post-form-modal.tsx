@@ -6,6 +6,7 @@ import { X, Upload, Loader2, Trash2, Image as ImageIcon } from 'lucide-react';
 interface PostFormModalProps {
   post?: {
     id: string;
+    title: string;
     content: string;
     imageUrl: string | null;
     published: boolean;
@@ -17,6 +18,7 @@ interface PostFormModalProps {
 const MAX_IMAGE_SIZE_MB = 8;
 
 export function PostFormModal({ post, onClose, onSuccess }: PostFormModalProps) {
+  const [title, setTitle] = useState(post?.title || '');
   const [content, setContent] = useState(post?.content || '');
   const [imageUrl, setImageUrl] = useState(post?.imageUrl || '');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -81,8 +83,12 @@ export function PostFormModal({ post, onClose, onSuccess }: PostFormModalProps) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!title.trim()) {
+      setError('Title is required');
+      return;
+    }
     if (!content.trim()) {
-      setError('Content is required');
+      setError('Post body is required');
       return;
     }
 
@@ -102,7 +108,8 @@ export function PostFormModal({ post, onClose, onSuccess }: PostFormModalProps) 
         });
 
         if (!uploadRes.ok) {
-          throw new Error('Failed to upload image');
+          const uploadData = await uploadRes.json().catch(() => ({}));
+          throw new Error(uploadData.error || 'Failed to upload image');
         }
 
         const uploadData = await uploadRes.json();
@@ -117,6 +124,7 @@ export function PostFormModal({ post, onClose, onSuccess }: PostFormModalProps) 
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          title: title.trim(),
           content: content.trim(),
           imageUrl: finalImageUrl || null,
           published,
@@ -160,8 +168,25 @@ export function PostFormModal({ post, onClose, onSuccess }: PostFormModalProps) 
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
+            <label className="mb-1.5 block text-sm font-medium" htmlFor="post-title">
+              Title
+            </label>
+            <input
+              id="post-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              maxLength={160}
+              placeholder="Post title..."
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p className="mt-1 text-right text-xs text-muted-foreground">
+              {title.length}/160
+            </p>
+          </div>
+
+          <div>
             <label className="mb-1.5 block text-sm font-medium" htmlFor="post-caption">
-              Caption
+              Post Body
             </label>
             <textarea
               id="post-caption"
@@ -178,7 +203,7 @@ export function PostFormModal({ post, onClose, onSuccess }: PostFormModalProps) 
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Image (optional)</label>
+            <label className="mb-1.5 block text-sm font-medium">Cover Image (optional)</label>
 
             {imagePreview ? (
               <div className="relative">
@@ -257,7 +282,7 @@ export function PostFormModal({ post, onClose, onSuccess }: PostFormModalProps) 
             </button>
             <button
               type="submit"
-              disabled={saving || !content.trim()}
+              disabled={saving || !title.trim() || !content.trim()}
               className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
             >
               {saving ? (

@@ -12,7 +12,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { content, imageUrl, published } = body;
+  const { title, content, imageUrl, published } = body;
+
+  if (!title || typeof title !== 'string' || title.trim().length === 0) {
+    return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+  }
 
   if (!content || typeof content !== 'string' || content.trim().length === 0) {
     return NextResponse.json({ error: 'Content is required' }, { status: 400 });
@@ -20,6 +24,7 @@ export async function POST(request: NextRequest) {
 
   const post = await prisma.userPost.create({
     data: {
+      title: title.trim(),
       content: content.trim(),
       imageUrl: imageUrl || null,
       published: published ?? true,

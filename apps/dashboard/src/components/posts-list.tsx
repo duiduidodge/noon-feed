@@ -17,6 +17,7 @@ import { PostFormModal } from './post-form-modal';
 
 interface UserPost {
   id: string;
+  title: string;
   content: string;
   imageUrl: string | null;
   published: boolean;
@@ -138,6 +139,7 @@ export function PostsList({ posts }: PostsListProps) {
               )}
 
               <div className="p-4">
+                <h3 className="line-clamp-1 text-sm font-semibold">{post.title}</h3>
                 <p className="line-clamp-3 text-sm">{post.content}</p>
 
                 <div className="mt-3 flex items-center justify-between">

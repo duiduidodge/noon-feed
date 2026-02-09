@@ -3,6 +3,7 @@ import Image from 'next/image';
 
 export interface UserPostItem {
   id: string;
+  title: string;
   content: string;
   imageUrl: string | null;
   createdAt: string;
@@ -29,7 +30,11 @@ export function PostCard({ post }: PostCardProps) {
         </div>
       )}
 
-      <p className="whitespace-pre-wrap text-xs leading-relaxed text-foreground">
+      <h4 className="line-clamp-2 text-sm font-semibold text-foreground">
+        {post.title}
+      </h4>
+
+      <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-foreground">
         {post.content}
       </p>
 

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
 
+const DEFAULT_BUCKET = 'Image';
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -17,32 +19,37 @@ export async function POST(request: NextRequest) {
     const ext = file.name.split('.').pop() || 'jpg';
     const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
     const path = `posts/${filename}`;
+    const bucket = process.env.SUPABASE_STORAGE_BUCKET || DEFAULT_BUCKET;
 
     const supabase = getSupabase();
 
     const { error } = await supabase.storage
-      .from('Image')
+      .from(bucket)
       .upload(path, buffer, {
         contentType: file.type,
         upsert: false,
       });
 
     if (error) {
-      throw error;
+      return NextResponse.json(
+        { error: `Upload failed (${bucket}): ${error.message}` },
+        { status: 500 }
+      );
     }
 
     const { data: urlData } = supabase.storage
-      .from('Image')
+      .from(bucket)
       .getPublicUrl(path);
 
     return NextResponse.json({
       url: urlData.publicUrl,
       path,
+      bucket,
     });
   } catch (error) {
     console.error('Upload error:', error);
     return NextResponse.json(
-      { error: 'Failed to upload image' },
+      { error: `Failed to upload image: ${(error as Error).message}` },
       { status: 500 }
     );
   }
