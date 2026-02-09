@@ -1,9 +1,10 @@
- 'use client';
+'use client';
 
 import { formatTimeAgo } from '@/lib/utils';
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 export interface UserPostItem {
   id: string;
@@ -19,8 +20,24 @@ interface PostCardProps {
 
 export function PostCard({ post }: PostCardProps) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const previewText =
     post.content.length > 140 ? `${post.content.slice(0, 140).replace(/\s+\S*$/, '')}...` : post.content;
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   return (
     <>
@@ -58,9 +75,15 @@ export function PostCard({ post }: PostCardProps) {
         </div>
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="relative w-full max-w-xl rounded-xl border border-border/40 bg-card p-4 shadow-2xl">
+      {mounted && open && createPortal(
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-xl rounded-xl border border-border/40 bg-card p-4 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -93,7 +116,8 @@ export function PostCard({ post }: PostCardProps) {
               {post.content}
             </p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
