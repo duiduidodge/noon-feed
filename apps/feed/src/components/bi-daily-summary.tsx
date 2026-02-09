@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 interface Headline {
   title: string;
@@ -60,13 +61,28 @@ function formatDate(isoString: string): string {
   return `${day} ${month}`;
 }
 
+const COIN_LOGOS: Record<string, string> = {
+  BTC: 'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png',
+  ETH: 'https://coin-images.coingecko.com/coins/images/279/large/ethereum.png',
+  SOL: 'https://coin-images.coingecko.com/coins/images/4128/large/solana.png',
+};
+
 function PriceIndicator({ coin, price, change }: { coin: string; price: number; change: number }) {
   const isPositive = change >= 0;
+  const coinLogo = COIN_LOGOS[coin];
 
   return (
     <div className="group relative">
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-xs text-muted-foreground tracking-wider">{coin}</span>
+        {coinLogo ? (
+          <span className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded-full border border-border/30 bg-surface/50">
+            <Image src={coinLogo} alt={coin} width={16} height={16} className="h-4 w-4" />
+          </span>
+        ) : (
+          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border/30 bg-surface/50 font-mono-data text-[9px] text-muted-foreground">
+            H
+          </span>
+        )}
         <span className="font-mono text-sm font-medium text-foreground">{formatPrice(price)}</span>
         <span className={`font-mono text-xs font-semibold ${isPositive ? 'text-bullish' : 'text-bearish'}`}>
           {formatChange(change)}
@@ -95,23 +111,23 @@ function SummaryCard({ summary }: { summary: Summary }) {
       {/* Decorative corner accent */}
       <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-accent/5 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-      {/* Time badge */}
-      <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface/60 border border-border/40 backdrop-blur-sm">
-        <span className="text-lg leading-none">{timeEmoji}</span>
-        <span className="font-mono-data text-xs text-muted-foreground tracking-wide">
-          {formatTime(summary.createdAt)}
-        </span>
-      </div>
-
       <div className="relative p-4">
         {/* Header */}
         <div className="mb-6 space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="h-px flex-1 bg-gradient-to-r from-accent/40 to-transparent" />
-            <span className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-accent/80">
-              {summaryLabel}
-            </span>
-            <div className="h-px flex-1 bg-gradient-to-l from-accent/40 to-transparent" />
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div className="h-px flex-1 bg-gradient-to-r from-accent/40 to-transparent" />
+              <span className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-accent/80">
+                {summaryLabel}
+              </span>
+              <div className="h-px flex-1 bg-gradient-to-l from-accent/40 to-transparent" />
+            </div>
+            <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/40 bg-surface/60 px-2.5 py-1 backdrop-blur-sm">
+              <span className="text-sm leading-none">{timeEmoji}</span>
+              <span className="font-mono-data text-[11px] text-muted-foreground tracking-wide">
+                {formatTime(summary.createdAt)}
+              </span>
+            </div>
           </div>
           <div className="flex items-baseline justify-between gap-4">
             <h3 className="font-display text-sm text-muted-foreground tracking-tight">
