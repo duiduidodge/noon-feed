@@ -9,43 +9,48 @@ import type { FeedArticle } from '@/components/news-card';
 export const dynamic = 'force-dynamic';
 
 async function getInitialArticles(): Promise<FeedArticle[]> {
-  const articles = await prisma.article.findMany({
-    where: {
-      status: { in: ['FETCHED', 'ENRICHED'] },
-    },
-    select: {
-      id: true,
-      titleOriginal: true,
-      url: true,
-      publishedAt: true,
-      extractedText: true,
-      originalSourceName: true,
-      source: { select: { name: true } },
-      enrichment: {
-        select: {
-          sentiment: true,
-          marketImpact: true,
-          tags: true,
+  try {
+    const articles = await prisma.article.findMany({
+      where: {
+        status: { in: ['FETCHED', 'ENRICHED'] },
+      },
+      select: {
+        id: true,
+        titleOriginal: true,
+        url: true,
+        publishedAt: true,
+        extractedText: true,
+        originalSourceName: true,
+        source: { select: { name: true } },
+        enrichment: {
+          select: {
+            sentiment: true,
+            marketImpact: true,
+            tags: true,
+          },
         },
       },
-    },
-    orderBy: { publishedAt: 'desc' },
-    take: 20,
-  });
+      orderBy: { publishedAt: 'desc' },
+      take: 20,
+    });
 
-  return articles.map((article) => ({
-    id: article.id,
-    title: article.titleOriginal,
-    snippet: article.extractedText
-      ? article.extractedText.substring(0, 200).replace(/\s+\S*$/, '') + '...'
-      : '',
-    sourceName: article.originalSourceName || article.source.name,
-    publishedAt: article.publishedAt?.toISOString() || null,
-    url: article.url,
-    sentiment: article.enrichment?.sentiment || 'NEUTRAL',
-    marketImpact: article.enrichment?.marketImpact || 'LOW',
-    tags: (article.enrichment?.tags as string[]) || [],
-  }));
+    return articles.map((article) => ({
+      id: article.id,
+      title: article.titleOriginal,
+      snippet: article.extractedText
+        ? article.extractedText.substring(0, 200).replace(/\s+\S*$/, '') + '...'
+        : '',
+      sourceName: article.originalSourceName || article.source.name,
+      publishedAt: article.publishedAt?.toISOString() || null,
+      url: article.url,
+      sentiment: article.enrichment?.sentiment || 'NEUTRAL',
+      marketImpact: article.enrichment?.marketImpact || 'LOW',
+      tags: (article.enrichment?.tags as string[]) || [],
+    }));
+  } catch (error) {
+    console.error('Failed to fetch initial feed articles:', error);
+    return [];
+  }
 }
 
 export default async function FeedPage() {
