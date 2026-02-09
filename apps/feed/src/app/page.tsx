@@ -60,16 +60,20 @@ export default async function FeedPage() {
     <div className="min-h-screen">
       <FeedHeader />
       <main className="mx-auto max-w-[1800px] px-4">
-        {/* 3-column layout: News | Summary+Posts | Prices */}
-        <div className="grid h-[calc(100vh-60px)] min-h-0 grid-cols-1 gap-4 lg:grid-cols-[1fr_420px_300px]">
+        {/* 4-column layout (desktop): News | Summary | My Posts | Prices */}
+        <div className="grid h-[calc(100vh-60px)] min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px_340px_300px]">
           {/* Left: News Feed */}
           <div className="glass flex min-h-0 flex-col overflow-hidden rounded-lg max-h-[calc(100vh-76px)] lg:max-h-[calc(100vh-76px)]">
             <NewsFeed initialArticles={initialArticles} />
           </div>
 
-          {/* Center: Summary + My Posts */}
-          <div className="min-h-0 space-y-4 overflow-y-auto custom-scrollbar max-h-[calc(100vh-76px)]">
+          {/* Summary */}
+          <div className="min-h-0 overflow-y-auto custom-scrollbar max-h-[calc(100vh-76px)]">
             <BiDailySummary />
+          </div>
+
+          {/* My Posts */}
+          <div className="min-h-0 overflow-y-auto custom-scrollbar max-h-[calc(100vh-76px)]">
             <MyPostsWidget />
           </div>
 
