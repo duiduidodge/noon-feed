@@ -42,7 +42,7 @@
     "@prisma/client": "^5.7.0"
   },
   "engines": {
-    "node": "20.x"
+    "node": ">=20"
   },
   "packageManager": "npm@10.2.0"
 }
