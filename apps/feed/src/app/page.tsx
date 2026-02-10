@@ -73,19 +73,18 @@ export default async function FeedPage() {
   return (
     <div className="min-h-screen">
       <FeedHeader />
-      <main className="mx-auto max-w-[1620px] px-4 pb-4 pt-3 lg:px-5">
-        <div className="grid min-h-0 grid-cols-1 gap-3 lg:h-[calc(100vh-76px)] lg:grid-cols-[minmax(0,1.26fr)_minmax(0,0.76fr)] xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.8fr)_minmax(280px,0.42fr)] xl:gap-3.5">
+      <main className="mx-auto max-w-[1780px] px-4 pb-4 pt-3 lg:px-5">
+        <div className="grid min-h-0 grid-cols-1 gap-3 lg:h-[calc(100vh-76px)] lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.8fr)_minmax(280px,0.46fr)] xl:grid-cols-[minmax(0,0.96fr)_minmax(0,0.76fr)_minmax(0,0.62fr)_minmax(280px,0.44fr)] xl:gap-3.5">
           <section className="glass panel-shell min-h-0 overflow-hidden rounded-2xl">
             <NewsFeed initialArticles={initialArticles} />
           </section>
 
-          <section className="grid min-h-0 grid-cols-1 gap-3 lg:grid-rows-[minmax(0,0.57fr)_minmax(0,0.43fr)]">
-            <div className="glass panel-shell min-h-0 overflow-y-auto rounded-2xl custom-scrollbar">
-              <BiDailySummary />
-            </div>
-            <div className="glass panel-shell min-h-0 overflow-hidden rounded-2xl">
-              <MyPostsWidget />
-            </div>
+          <section className="glass panel-shell min-h-0 overflow-y-auto rounded-2xl custom-scrollbar">
+            <BiDailySummary />
+          </section>
+
+          <section className="glass panel-shell min-h-0 overflow-hidden rounded-2xl">
+            <MyPostsWidget />
           </section>
 
           <aside className="glass panel-shell min-h-0 overflow-y-auto rounded-2xl p-3.5 custom-scrollbar">
