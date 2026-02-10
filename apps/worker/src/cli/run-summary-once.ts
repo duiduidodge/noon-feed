@@ -5,7 +5,6 @@ import { createLLMProvider } from '../services/llm-provider.js';
 import { processGenerateSummaryJob } from '../jobs/generate-summary.js';
 
 const logger = createLogger('worker:cli:summary-once');
-const config = buildConfig();
 const prisma = new PrismaClient();
 
 const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
@@ -48,7 +47,7 @@ function getSlotStartUtc(nowUtc: Date, scheduleType: ScheduleType): Date {
   return new Date(previousDaySlotBangkokProxy.getTime() - BANGKOK_OFFSET_MS);
 }
 
-function getLlmApiKey(): string {
+function getLlmApiKey(config: ReturnType<typeof buildConfig>): string {
   if (config.llm.provider === 'openai') {
     if (!config.llm.openaiApiKey) throw new Error('Missing OPENAI_API_KEY for provider=openai');
     return config.llm.openaiApiKey;
@@ -65,17 +64,18 @@ function getLlmApiKey(): string {
 }
 
 function createFallbackLlmProvider(reason: string): LLMProviderInterface {
+  const provider = (process.env.LLM_PROVIDER as LLMProviderInterface['name']) || 'openai';
   return {
-    name: config.llm.provider,
+    name: provider,
     async complete() {
       throw new Error(`LLM unavailable: ${reason}`);
     },
   };
 }
 
-function buildLlmProvider(): LLMProviderInterface {
+function buildLlmProvider(config: ReturnType<typeof buildConfig>): LLMProviderInterface {
   try {
-    const llmApiKey = getLlmApiKey();
+    const llmApiKey = getLlmApiKey(config);
     return createLLMProvider(config.llm.provider, llmApiKey, config.llm.model);
   } catch (error) {
     const reason = (error as Error).message;
@@ -85,6 +85,11 @@ function buildLlmProvider(): LLMProviderInterface {
 }
 
 async function main() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('Missing DATABASE_URL. Add it to GitHub Actions secrets.');
+  }
+
+  const config = buildConfig();
   const scheduleType = resolveScheduleType();
   const now = new Date();
   const slotStartUtc = getSlotStartUtc(now, scheduleType);
@@ -111,7 +116,7 @@ async function main() {
     return;
   }
 
-  const llmProvider = buildLlmProvider();
+  const llmProvider = buildLlmProvider(config);
   const result = await processGenerateSummaryJob(
     {
       scheduleType,
@@ -126,7 +131,10 @@ async function main() {
 
 main()
   .catch((error) => {
-    logger.error({ error: (error as Error).message }, 'One-shot summary run failed');
+    logger.error(
+      { error: (error as Error).message, stack: (error as Error).stack },
+      'One-shot summary run failed'
+    );
     process.exitCode = 1;
   })
   .finally(async () => {

@@ -8,29 +8,23 @@ import { processFetchAPINewsJob } from '../jobs/fetch-api-news.js';
 import { processFetchArticleJob } from '../jobs/fetch-article.js';
 
 const logger = createLogger('worker:cli:ingest-once');
-const config = buildConfig();
 const prisma = new PrismaClient();
-
-const rssFetcher = new RSSFetcher({
-  userAgent: config.fetcher.userAgent,
-  timeoutMs: config.fetcher.timeoutMs,
-});
-
-const apiNewsFetcher = new APINewsFetcher({
-  userAgent: config.fetcher.userAgent,
-  timeoutMs: config.fetcher.timeoutMs,
-});
-
-const articleFetcher = new ArticleFetcher({
-  userAgent: config.fetcher.userAgent,
-  timeoutMs: config.fetcher.timeoutMs,
-});
 
 const backfillHours = Number(process.env.INGEST_BACKFILL_HOURS || '6');
 const pendingBatchSize = Number(process.env.INGEST_PENDING_BATCH_SIZE || '25');
 const pendingMaxBatches = Number(process.env.INGEST_PENDING_MAX_BATCHES || '10');
 
-async function runSourceFetches() {
+async function runSourceFetches(config: ReturnType<typeof buildConfig>) {
+  const rssFetcher = new RSSFetcher({
+    userAgent: config.fetcher.userAgent,
+    timeoutMs: config.fetcher.timeoutMs,
+  });
+
+  const apiNewsFetcher = new APINewsFetcher({
+    userAgent: config.fetcher.userAgent,
+    timeoutMs: config.fetcher.timeoutMs,
+  });
+
   const rssSources = await prisma.source.findMany({ where: { enabled: true, type: 'RSS' } });
   const apiSources = await prisma.source.findMany({ where: { enabled: true, type: 'API' } });
 
@@ -71,7 +65,12 @@ async function runSourceFetches() {
   }
 }
 
-async function processPendingArticles() {
+async function processPendingArticles(config: ReturnType<typeof buildConfig>) {
+  const articleFetcher = new ArticleFetcher({
+    userAgent: config.fetcher.userAgent,
+    timeoutMs: config.fetcher.timeoutMs,
+  });
+
   let totalProcessed = 0;
 
   for (let i = 0; i < pendingMaxBatches; i++) {
@@ -120,10 +119,16 @@ async function printStatus() {
 }
 
 async function main() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('Missing DATABASE_URL. Add it to GitHub Actions secrets.');
+  }
+
+  const config = buildConfig();
+
   logger.info('Starting one-shot ingest run');
 
-  await runSourceFetches();
-  await processPendingArticles();
+  await runSourceFetches(config);
+  await processPendingArticles(config);
   await printStatus();
 
   logger.info('One-shot ingest run complete');
@@ -131,7 +136,10 @@ async function main() {
 
 main()
   .catch((error) => {
-    logger.error({ error: (error as Error).message }, 'One-shot ingest run failed');
+    logger.error(
+      { error: (error as Error).message, stack: (error as Error).stack },
+      'One-shot ingest run failed'
+    );
     process.exitCode = 1;
   })
   .finally(async () => {
