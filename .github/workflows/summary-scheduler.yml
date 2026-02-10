@@ -51,9 +51,40 @@ jobs:
       - name: Build shared package
         run: npm run build --workspace=@crypto-news/shared
 
+      - name: Normalize connection secrets
+        shell: bash
+        run: |
+          strip_quotes() {
+            local v="$1"
+            v="${v#\"}"
+            v="${v%\"}"
+            echo "$v"
+          }
+
+          DB_URL="$(strip_quotes '${{ secrets.DATABASE_URL }}')"
+          DIRECT_URL_RAW='${{ secrets.DIRECT_URL }}'
+          REDIS_URL_RAW='${{ secrets.REDIS_URL }}'
+
+          if [ -n "$DIRECT_URL_RAW" ]; then
+            DIRECT_URL="$(strip_quotes "$DIRECT_URL_RAW")"
+          else
+            DIRECT_URL="$DB_URL"
+          fi
+
+          if [ -n "$REDIS_URL_RAW" ]; then
+            REDIS_URL="$(strip_quotes "$REDIS_URL_RAW")"
+          else
+            REDIS_URL=""
+          fi
+
+          echo "DATABASE_URL=$DB_URL" >> "$GITHUB_ENV"
+          echo "DIRECT_URL=$DIRECT_URL" >> "$GITHUB_ENV"
+          echo "REDIS_URL=$REDIS_URL" >> "$GITHUB_ENV"
+
       - name: Validate required secrets
         run: |
           [ -n "$DATABASE_URL" ] || (echo "DATABASE_URL is missing"; exit 1)
+          [[ "$DATABASE_URL" == postgresql://* || "$DATABASE_URL" == postgres://* ]] || (echo "DATABASE_URL must start with postgresql:// or postgres://"; exit 1)
 
       - name: Run one-shot summary
         run: npm run summary:once --workspace=@crypto-news/worker
