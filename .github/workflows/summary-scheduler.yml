@@ -2,7 +2,7 @@ name: Summary Scheduler
 
 on:
   schedule:
-    - cron: '0 0,12 * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       schedule_type:

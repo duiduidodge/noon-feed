@@ -319,8 +319,8 @@ If you want feed ingestion + bi-daily summaries without running Redis/worker loc
    - `LLM_MODEL`
    - one key based on provider: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`
 3. Use included workflows:
-   - `.github/workflows/ingest-scheduler.yml` (every 5 minutes)
-   - `.github/workflows/summary-scheduler.yml` (00:00 and 12:00 UTC = 07:00 and 19:00 Bangkok)
+   - `.github/workflows/ingest-scheduler.yml` (every 15 minutes)
+   - `.github/workflows/summary-scheduler.yml` (every 15 minutes; job logic creates one summary per Bangkok morning/evening slot)
 
 Worker one-shot commands used by workflows:
 ```bash
