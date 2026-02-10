@@ -335,7 +335,8 @@ async function processPendingPosts() {
 // ============================================================
 const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
 const SUMMARY_WINDOW_MS = 12 * 60 * 60 * 1000;
-let lastSummaryKey = '';
+const SUMMARY_RECOVERY_WINDOW_MS = 24 * 60 * 60 * 1000;
+const scheduledSummaryKeys = new Set<string>();
 
 function formatBangkokDateKey(dateBangkokProxy: Date): string {
   const y = dateBangkokProxy.getUTCFullYear();
@@ -344,20 +345,21 @@ function formatBangkokDateKey(dateBangkokProxy: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function getActiveSummarySlot(nowUtc: Date): {
+function getSummarySlotsAroundNow(nowUtc: Date): Array<{
   scheduleType: 'morning' | 'evening';
   summaryKey: string;
   slotStartUtc: Date;
-} | null {
+}> {
   const nowBangkokProxy = new Date(nowUtc.getTime() + BANGKOK_OFFSET_MS);
 
   const slotCandidates = [
     { dayOffset: -1, hour: 19, scheduleType: 'evening' as const },
     { dayOffset: 0, hour: 7, scheduleType: 'morning' as const },
     { dayOffset: 0, hour: 19, scheduleType: 'evening' as const },
+    { dayOffset: 1, hour: 7, scheduleType: 'morning' as const },
   ];
 
-  const active = slotCandidates
+  return slotCandidates
     .map((slot) => {
       const slotBangkokProxy = new Date(
         Date.UTC(
@@ -370,62 +372,60 @@ function getActiveSummarySlot(nowUtc: Date): {
         )
       );
       const slotStartUtc = new Date(slotBangkokProxy.getTime() - BANGKOK_OFFSET_MS);
-      const slotEndUtc = new Date(slotStartUtc.getTime() + SUMMARY_WINDOW_MS);
       const dateKey = formatBangkokDateKey(slotBangkokProxy);
       const summaryKey = `${dateKey}-${slot.scheduleType}`;
-      return { ...slot, slotStartUtc, slotEndUtc, summaryKey };
+      return { scheduleType: slot.scheduleType, slotStartUtc, summaryKey };
     })
-    .filter((slot) => nowUtc >= slot.slotStartUtc && nowUtc < slot.slotEndUtc)
-    .sort((a, b) => b.slotStartUtc.getTime() - a.slotStartUtc.getTime())[0];
-
-  if (!active) return null;
-  return {
-    scheduleType: active.scheduleType,
-    summaryKey: active.summaryKey,
-    slotStartUtc: active.slotStartUtc,
-  };
+    .filter((slot) => {
+      const age = nowUtc.getTime() - slot.slotStartUtc.getTime();
+      return age >= 0 && age <= SUMMARY_RECOVERY_WINDOW_MS;
+    })
+    .sort((a, b) => a.slotStartUtc.getTime() - b.slotStartUtc.getTime());
 }
 
 async function checkSummarySchedule() {
   const now = new Date();
-  const activeSlot = getActiveSummarySlot(now);
-  if (!activeSlot) {
-    return;
-  }
-  const { scheduleType, summaryKey, slotStartUtc } = activeSlot;
+  const candidateSlots = getSummarySlotsAroundNow(now);
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
 
-  // Only fire once per active window while this process is up.
-  if (lastSummaryKey === summaryKey) {
-    return;
-  }
+  for (const slot of candidateSlots) {
+    const { scheduleType, summaryKey, slotStartUtc } = slot;
 
-  // Double-check against database to prevent duplicates after restarts.
-  const recentSummary = await prisma.marketSummary.findFirst({
-    where: {
-      scheduleType,
-      createdAt: {
-        gte: slotStartUtc,
-        lt: new Date(slotStartUtc.getTime() + SUMMARY_WINDOW_MS),
+    // Skip if we already handled this slot in this process.
+    if (scheduledSummaryKeys.has(summaryKey)) {
+      continue;
+    }
+
+    // Double-check database to prevent duplicates across restarts.
+    const recentSummary = await prisma.marketSummary.findFirst({
+      where: {
+        scheduleType,
+        createdAt: {
+          gte: slotStartUtc,
+          lt: new Date(slotStartUtc.getTime() + SUMMARY_WINDOW_MS),
+        },
       },
-    },
-  });
+    });
 
-  if (recentSummary) {
-    lastSummaryKey = summaryKey;
-    logger.info({ scheduleType }, 'Summary already generated for this period, skipping');
-    return;
+    if (recentSummary) {
+      scheduledSummaryKeys.add(summaryKey);
+      logger.info({ scheduleType, summaryKey }, 'Summary already generated for this period, skipping');
+      continue;
+    }
+
+    scheduledSummaryKeys.add(summaryKey);
+
+    logger.info(
+      { scheduleType, summaryKey, webhookConfigured: Boolean(webhookUrl) },
+      'Scheduling bi-daily summary generation'
+    );
+
+    await summaryQueue.add(
+      `summary-${summaryKey}`,
+      { scheduleType, webhookUrl },
+      { jobId: `summary-${summaryKey}`, removeOnComplete: 50, removeOnFail: 20 }
+    );
   }
-
-  lastSummaryKey = summaryKey;
-
-  logger.info({ scheduleType, summaryKey, webhookConfigured: Boolean(webhookUrl) }, 'Scheduling bi-daily summary generation');
-
-  await summaryQueue.add(
-    `summary-${summaryKey}`,
-    { scheduleType, webhookUrl },
-    { jobId: `summary-${summaryKey}`, removeOnComplete: 50, removeOnFail: 20 }
-  );
 }
 
 // Main loop
@@ -481,34 +481,57 @@ async function main() {
   logger.info({ intervalMinutes: config.worker.fetchIntervalMinutes }, 'Worker started, entering main loop');
 
   while (true) {
-    try {
-      // Schedule RSS fetches periodically
-      if (Date.now() - lastRSSFetch >= intervalMs) {
+    // Keep each step isolated so one failure doesn't block summary checks.
+    if (Date.now() - lastRSSFetch >= intervalMs) {
+      try {
         await scheduleRSSFetches();
         lastRSSFetch = Date.now();
+      } catch (error) {
+        logger.error({ error: (error as Error).message }, 'Failed to schedule RSS fetches');
       }
+    }
 
-      // Schedule API news fetches periodically
-      if (Date.now() - lastAPIFetch >= intervalMs) {
+    if (Date.now() - lastAPIFetch >= intervalMs) {
+      try {
         await scheduleAPINewsFetches();
         lastAPIFetch = Date.now();
+      } catch (error) {
+        logger.error({ error: (error as Error).message }, 'Failed to schedule API news fetches');
       }
-
-      // Process pending work
-      await processPendingArticles();
-      await processFetchedArticles();
-      await processEnrichedArticles();
-      await processPendingPosts();
-
-      // Check if it's time for a bi-daily summary
-      await checkSummarySchedule();
-
-      // Wait before next iteration
-      await sleep(10000); // Check every 10 seconds
-    } catch (error) {
-      logger.error({ error: (error as Error).message }, 'Error in main loop');
-      await sleep(30000); // Wait longer on error
     }
+
+    try {
+      await processPendingArticles();
+    } catch (error) {
+      logger.error({ error: (error as Error).message }, 'Failed to process pending articles');
+    }
+
+    try {
+      await processFetchedArticles();
+    } catch (error) {
+      logger.error({ error: (error as Error).message }, 'Failed to process fetched articles');
+    }
+
+    try {
+      await processEnrichedArticles();
+    } catch (error) {
+      logger.error({ error: (error as Error).message }, 'Failed to process enriched articles');
+    }
+
+    try {
+      await processPendingPosts();
+    } catch (error) {
+      logger.error({ error: (error as Error).message }, 'Failed to process pending posts');
+    }
+
+    try {
+      await checkSummarySchedule();
+    } catch (error) {
+      logger.error({ error: (error as Error).message }, 'Failed during summary scheduling check');
+    }
+
+    // Wait before next iteration
+    await sleep(10000); // Check every 10 seconds
   }
 }
 
