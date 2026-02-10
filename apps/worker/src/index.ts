@@ -82,11 +82,23 @@ try {
   llmProvider = createFallbackLlmProvider(reason);
 }
 
-// Redis connection options
-const redisConnection = {
-  host: new URL(config.redis.url).hostname,
-  port: parseInt(new URL(config.redis.url).port || '6379'),
-};
+// Redis connection options (supports local redis:// and managed rediss:// URLs)
+function buildRedisConnection(url: string) {
+  const parsed = new URL(url);
+  const useTls = parsed.protocol === 'rediss:';
+
+  const connection = {
+    host: parsed.hostname,
+    port: parseInt(parsed.port || '6379', 10),
+    username: parsed.username || undefined,
+    password: parsed.password || undefined,
+    tls: useTls ? {} : undefined,
+  };
+
+  return connection;
+}
+
+const redisConnection = buildRedisConnection(config.redis.url);
 
 // Queues
 const rssQueue = new Queue('rss-fetch', { connection: redisConnection });
