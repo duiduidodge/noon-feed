@@ -10,6 +10,14 @@ function toStringArray(value: unknown): string[] {
   return value.filter((item): item is string => typeof item === 'string');
 }
 
+function normalizeHeadlineKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { prisma } = await import('@/lib/prisma');
@@ -56,12 +64,23 @@ export async function GET(request: NextRequest) {
         },
       },
       orderBy: { publishedAt: 'desc' },
-      take: limit + 1,
+      take: limit * 4,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
-    const hasMore = articles.length > limit;
-    const items = articles.slice(0, limit);
+    const dedupedItems = [];
+    const seenHeadlineKeys = new Set<string>();
+    for (const article of articles) {
+      const sourceName = article.originalSourceName || article.source.name;
+      const headlineKey = `${sourceName.toLowerCase()}|${normalizeHeadlineKey(article.titleOriginal)}`;
+      if (seenHeadlineKeys.has(headlineKey)) continue;
+      seenHeadlineKeys.add(headlineKey);
+      dedupedItems.push(article);
+      if (dedupedItems.length >= limit + 1) break;
+    }
+
+    const hasMore = dedupedItems.length > limit;
+    const items = dedupedItems.slice(0, limit);
 
     const feedArticles = items.map((article) => ({
       id: article.id,

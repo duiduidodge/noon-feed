@@ -34,11 +34,25 @@ async function getInitialArticles(): Promise<FeedArticle[]> {
       take: 20,
     });
 
-    return articles.map((article) => ({
+    const seenHeadlineKeys = new Set<string>();
+    const dedupedArticles = [];
+    for (const article of articles) {
+      const sourceName = article.originalSourceName || article.source.name;
+      const headlineKey = `${sourceName.toLowerCase()}|${article.titleOriginal
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()}`;
+      if (seenHeadlineKeys.has(headlineKey)) continue;
+      seenHeadlineKeys.add(headlineKey);
+      dedupedArticles.push(article);
+    }
+
+    return dedupedArticles.map((article) => ({
       id: article.id,
       title: article.titleOriginal,
       snippet: article.extractedText
-        ? article.extractedText.substring(0, 200).replace(/\s+\S*$/, '') + '...'
+        ? article.extractedText.substring(0, 220).replace(/\s+\S*$/, '') + '...'
         : '',
       sourceName: article.originalSourceName || article.source.name,
       publishedAt: article.publishedAt?.toISOString() || null,
@@ -59,28 +73,24 @@ export default async function FeedPage() {
   return (
     <div className="min-h-screen">
       <FeedHeader />
-      <main className="mx-auto max-w-[1800px] px-4">
-        {/* 4-column layout (desktop): News | Summary | My Posts | Prices */}
-        <div className="grid h-[calc(100vh-60px)] min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_420px_340px_300px]">
-          {/* Left: News Feed */}
-          <div className="glass flex min-h-0 flex-col overflow-hidden rounded-lg max-h-[calc(100vh-76px)] lg:max-h-[calc(100vh-76px)]">
+      <main className="mx-auto max-w-[1620px] px-4 pb-4 pt-3 lg:px-5">
+        <div className="grid min-h-0 grid-cols-1 gap-3 lg:h-[calc(100vh-76px)] lg:grid-cols-[minmax(0,1.26fr)_minmax(0,0.76fr)] xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.8fr)_minmax(280px,0.42fr)] xl:gap-3.5">
+          <section className="glass panel-shell min-h-0 overflow-hidden rounded-2xl">
             <NewsFeed initialArticles={initialArticles} />
-          </div>
+          </section>
 
-          {/* Summary */}
-          <div className="min-h-0 overflow-y-auto custom-scrollbar max-h-[calc(100vh-76px)]">
-            <BiDailySummary />
-          </div>
+          <section className="grid min-h-0 grid-cols-1 gap-3 lg:grid-rows-[minmax(0,0.57fr)_minmax(0,0.43fr)]">
+            <div className="glass panel-shell min-h-0 overflow-y-auto rounded-2xl custom-scrollbar">
+              <BiDailySummary />
+            </div>
+            <div className="glass panel-shell min-h-0 overflow-hidden rounded-2xl">
+              <MyPostsWidget />
+            </div>
+          </section>
 
-          {/* My Posts */}
-          <div className="min-h-0 overflow-y-auto custom-scrollbar max-h-[calc(100vh-76px)]">
-            <MyPostsWidget />
-          </div>
-
-          {/* Right: Prices */}
-          <div className="glass min-h-0 overflow-y-auto rounded-lg p-4 custom-scrollbar max-h-[calc(100vh-76px)]">
+          <aside className="glass panel-shell min-h-0 overflow-y-auto rounded-2xl p-3.5 custom-scrollbar">
             <PricesColumn />
-          </div>
+          </aside>
         </div>
       </main>
     </div>

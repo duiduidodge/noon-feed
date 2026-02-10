@@ -354,6 +354,9 @@ const NOISE_TITLE_PATTERNS: RegExp[] = [
 
   // Thin price movement rehash (e.g. "Bitcoin Price Dips 1.2% Today")
   /\bprice (dips|drops|falls|rises|surges|jumps|pumps|dumps|slips|gains) [\d.]+%/i,
+
+  // Generic index/listing pages that repeatedly appear in some feeds
+  /\bcrypto news\s*&\s*price indexes\b/i,
 ];
 
 /**

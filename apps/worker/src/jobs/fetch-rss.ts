@@ -121,6 +121,13 @@ export async function processFetchRSSJob(
           },
         });
 
+        // Keep in-memory duplicate set in sync for this batch.
+        // Without this, two similar items in the same feed pull can both pass the similarity check.
+        existingArticles.push({
+          titleOriginal: item.title,
+          urlNormalized: normalizedUrl,
+        });
+
         newArticles++;
         logger.info({ title: item.title, url: item.link }, 'New article created');
       } catch (error) {
