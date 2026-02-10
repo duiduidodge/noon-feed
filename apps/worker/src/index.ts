@@ -96,6 +96,17 @@ const enrichQueue = new Queue('enrich', { connection: redisConnection });
 const discordQueue = new Queue('discord-post', { connection: redisConnection });
 const summaryQueue = new Queue('summary', { connection: redisConnection });
 
+function isQueueUnavailableError(error: unknown): boolean {
+  const message = (error as Error)?.message?.toLowerCase?.() || '';
+  return (
+    message.includes('econnrefused') ||
+    message.includes('connect') ||
+    message.includes('redis') ||
+    message.includes('closed') ||
+    message.includes('connection')
+  );
+}
+
 // Workers
 const rssWorker = new Worker<FetchRSSJobData>(
   'rss-fetch',
@@ -181,18 +192,28 @@ async function scheduleRSSFetches() {
   });
 
   for (const source of sources) {
-    await rssQueue.add(
-      `fetch-${source.id}`,
-      {
-        sourceId: source.id,
-        sourceName: source.name,
-        feedUrl: source.url,
-      },
-      {
-        removeOnComplete: 100,
-        removeOnFail: 50,
+    const payload = {
+      sourceId: source.id,
+      sourceName: source.name,
+      feedUrl: source.url,
+    };
+    try {
+      await rssQueue.add(
+        `fetch-${source.id}`,
+        payload,
+        {
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        }
+      );
+    } catch (error) {
+      if (isQueueUnavailableError(error)) {
+        logger.warn({ sourceId: source.id }, 'RSS queue unavailable; running fetch inline');
+        await processFetchRSSJob(payload, prisma, rssFetcher);
+      } else {
+        throw error;
       }
-    );
+    }
   }
 
   logger.info({ sourceCount: sources.length }, 'Scheduled RSS fetch jobs');
@@ -205,18 +226,28 @@ async function scheduleAPINewsFetches() {
   });
 
   for (const source of sources) {
-    await apiNewsQueue.add(
-      `fetch-api-${source.id}`,
-      {
-        sourceId: source.id,
-        sourceName: source.name,
-        apiBaseUrl: source.url,
-      },
-      {
-        removeOnComplete: 100,
-        removeOnFail: 50,
+    const payload = {
+      sourceId: source.id,
+      sourceName: source.name,
+      apiBaseUrl: source.url,
+    };
+    try {
+      await apiNewsQueue.add(
+        `fetch-api-${source.id}`,
+        payload,
+        {
+          removeOnComplete: 100,
+          removeOnFail: 50,
+        }
+      );
+    } catch (error) {
+      if (isQueueUnavailableError(error)) {
+        logger.warn({ sourceId: source.id }, 'API queue unavailable; running fetch inline');
+        await processFetchAPINewsJob(payload, prisma, apiNewsFetcher);
+      } else {
+        throw error;
       }
-    );
+    }
   }
 
   logger.info({ sourceCount: sources.length }, 'Scheduled API news fetch jobs');
@@ -231,11 +262,21 @@ async function processPendingArticles() {
   });
 
   for (const article of pendingArticles) {
-    await articleQueue.add(
-      `fetch-article-${article.id}`,
-      { articleId: article.id },
-      { jobId: `fetch-article-${article.id}`, removeOnComplete: 100, removeOnFail: 50 }
-    );
+    const payload = { articleId: article.id };
+    try {
+      await articleQueue.add(
+        `fetch-article-${article.id}`,
+        payload,
+        { jobId: `fetch-article-${article.id}`, removeOnComplete: 100, removeOnFail: 50 }
+      );
+    } catch (error) {
+      if (isQueueUnavailableError(error)) {
+        logger.warn({ articleId: article.id }, 'Article queue unavailable; running fetch inline');
+        await processFetchArticleJob(payload, prisma, articleFetcher);
+      } else {
+        throw error;
+      }
+    }
   }
 
   if (pendingArticles.length > 0) {
@@ -256,11 +297,21 @@ async function processFetchedArticles() {
   });
 
   for (const article of fetchedArticles) {
-    await enrichQueue.add(
-      `enrich-${article.id}`,
-      { articleId: article.id },
-      { jobId: `enrich-${article.id}`, removeOnComplete: 100, removeOnFail: 50 }
-    );
+    const payload = { articleId: article.id };
+    try {
+      await enrichQueue.add(
+        `enrich-${article.id}`,
+        payload,
+        { jobId: `enrich-${article.id}`, removeOnComplete: 100, removeOnFail: 50 }
+      );
+    } catch (error) {
+      if (isQueueUnavailableError(error)) {
+        logger.warn({ articleId: article.id }, 'Enrich queue unavailable; running enrich inline');
+        await processEnrichArticleJob(payload, prisma, llmProvider, config.llm.model);
+      } else {
+        throw error;
+      }
+    }
   }
 
   if (fetchedArticles.length > 0) {
@@ -317,11 +368,21 @@ async function processPendingPosts() {
   });
 
   for (const posting of pendingPostings) {
-    await discordQueue.add(
-      `post-${posting.id}`,
-      { postingId: posting.id, webhookUrl },
-      { jobId: `post-${posting.id}`, removeOnComplete: 100, removeOnFail: 50 }
-    );
+    const payload = { postingId: posting.id, webhookUrl };
+    try {
+      await discordQueue.add(
+        `post-${posting.id}`,
+        payload,
+        { jobId: `post-${posting.id}`, removeOnComplete: 100, removeOnFail: 50 }
+      );
+    } catch (error) {
+      if (isQueueUnavailableError(error)) {
+        logger.warn({ postingId: posting.id }, 'Discord queue unavailable; posting inline');
+        await processPostDiscordWebhookJob(payload, prisma);
+      } else {
+        throw error;
+      }
+    }
   }
 
   if (pendingPostings.length > 0) {
@@ -420,11 +481,21 @@ async function checkSummarySchedule() {
       'Scheduling bi-daily summary generation'
     );
 
-    await summaryQueue.add(
-      `summary-${summaryKey}`,
-      { scheduleType, webhookUrl },
-      { jobId: `summary-${summaryKey}`, removeOnComplete: 50, removeOnFail: 20 }
-    );
+    const payload = { scheduleType, webhookUrl };
+    try {
+      await summaryQueue.add(
+        `summary-${summaryKey}`,
+        payload,
+        { jobId: `summary-${summaryKey}`, removeOnComplete: 50, removeOnFail: 20 }
+      );
+    } catch (error) {
+      if (isQueueUnavailableError(error)) {
+        logger.warn({ summaryKey }, 'Summary queue unavailable; running summary inline');
+        await processGenerateSummaryJob(payload, prisma, llmProvider);
+      } else {
+        throw error;
+      }
+    }
   }
 }
 
@@ -442,16 +513,26 @@ async function main() {
   });
 
   for (const source of rssSources) {
-    await rssQueue.add(
-      `backfill-${source.id}`,
-      {
-        sourceId: source.id,
-        sourceName: source.name,
-        feedUrl: source.url,
-        backfillHours: 24, // Last 24 hours on startup
-      },
-      { removeOnComplete: 100, removeOnFail: 50 }
-    );
+    const payload = {
+      sourceId: source.id,
+      sourceName: source.name,
+      feedUrl: source.url,
+      backfillHours: 24, // Last 24 hours on startup
+    };
+    try {
+      await rssQueue.add(
+        `backfill-${source.id}`,
+        payload,
+        { removeOnComplete: 100, removeOnFail: 50 }
+      );
+    } catch (error) {
+      if (isQueueUnavailableError(error)) {
+        logger.warn({ sourceId: source.id }, 'RSS backfill queue unavailable; running inline');
+        await processFetchRSSJob(payload, prisma, rssFetcher);
+      } else {
+        throw error;
+      }
+    }
   }
 
   // Initial backfill - API sources
@@ -461,16 +542,26 @@ async function main() {
   });
 
   for (const source of apiSources) {
-    await apiNewsQueue.add(
-      `backfill-api-${source.id}`,
-      {
-        sourceId: source.id,
-        sourceName: source.name,
-        apiBaseUrl: source.url,
-        backfillHours: 24, // Last 24 hours on startup
-      },
-      { removeOnComplete: 100, removeOnFail: 50 }
-    );
+    const payload = {
+      sourceId: source.id,
+      sourceName: source.name,
+      apiBaseUrl: source.url,
+      backfillHours: 24, // Last 24 hours on startup
+    };
+    try {
+      await apiNewsQueue.add(
+        `backfill-api-${source.id}`,
+        payload,
+        { removeOnComplete: 100, removeOnFail: 50 }
+      );
+    } catch (error) {
+      if (isQueueUnavailableError(error)) {
+        logger.warn({ sourceId: source.id }, 'API backfill queue unavailable; running inline');
+        await processFetchAPINewsJob(payload, prisma, apiNewsFetcher);
+      } else {
+        throw error;
+      }
+    }
   }
 
   // Scheduler loop
