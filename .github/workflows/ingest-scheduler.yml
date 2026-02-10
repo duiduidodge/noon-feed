@@ -34,8 +34,6 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
           REDIS_URL: ${{ secrets.REDIS_URL }}
-          FETCH_USER_AGENT: ${{ secrets.FETCH_USER_AGENT }}
-          FETCH_TIMEOUT_MS: ${{ secrets.FETCH_TIMEOUT_MS }}
           INGEST_BACKFILL_HOURS: ${{ secrets.INGEST_BACKFILL_HOURS }}
           INGEST_PENDING_BATCH_SIZE: ${{ secrets.INGEST_PENDING_BATCH_SIZE }}
           INGEST_PENDING_MAX_BATCHES: ${{ secrets.INGEST_PENDING_MAX_BATCHES }}
