@@ -306,6 +306,28 @@ npm run test --workspace=@crypto-news/shared
 npm run build
 ```
 
+### Serverless Scheduler (No Local Docker)
+If you want feed ingestion + bi-daily summaries without running Redis/worker locally:
+
+1. Deploy your database and Redis as managed services.
+2. Add GitHub Actions secrets:
+   - `DATABASE_URL`
+   - `DIRECT_URL`
+   - `REDIS_URL`
+   - `DISCORD_WEBHOOK_URL`
+   - `LLM_PROVIDER`
+   - `LLM_MODEL`
+   - one key based on provider: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`
+3. Use included workflows:
+   - `.github/workflows/ingest-scheduler.yml` (every 5 minutes)
+   - `.github/workflows/summary-scheduler.yml` (00:00 and 12:00 UTC = 07:00 and 19:00 Bangkok)
+
+Worker one-shot commands used by workflows:
+```bash
+npm run ingest:once --workspace=@crypto-news/worker
+npm run summary:once --workspace=@crypto-news/worker
+```
+
 ### Run with PM2
 ```bash
 pm2 start apps/api/dist/index.js --name crypto-api

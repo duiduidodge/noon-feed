@@ -7,6 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsup",
     "start": "node dist/index.js",
+    "ingest:once": "tsx src/cli/run-ingest-once.ts",
+    "summary:once": "tsx src/cli/run-summary-once.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "clean": "rm -rf dist"
