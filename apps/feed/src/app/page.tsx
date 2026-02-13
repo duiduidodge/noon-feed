@@ -74,24 +74,24 @@ export default async function FeedPage() {
     <div className="min-h-screen">
       <FeedHeader />
       <main className="mx-auto max-w-[1920px] px-3 pb-3 pt-2 lg:px-4 xl:px-5">
-        <div className="grid min-h-0 grid-cols-1 gap-2.5 lg:h-[calc(100vh-94px)] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(280px,0.7fr)_minmax(240px,0.5fr)] xl:gap-3">
+        <div className="grid min-h-0 grid-cols-1 gap-2.5 md:grid-cols-2 lg:h-[calc(100vh-94px)] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(260px,0.65fr)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(260px,0.65fr)_minmax(220px,0.5fr)] xl:gap-3">
           {/* Col 1: Latest Intel — news feed */}
-          <section id="section-latest-intel" className="min-h-0 overflow-hidden rounded-2xl border border-border/50 bg-card/50">
+          <section id="section-latest-intel" className="min-h-0 overflow-hidden rounded-2xl border border-border/60 bg-card/50 shadow-sm column-panel">
             <NewsFeed initialArticles={initialArticles} />
           </section>
 
           {/* Col 2: Morning/Evening Briefing */}
-          <section id="section-briefing" className="min-h-0 overflow-y-auto rounded-2xl border border-border/50 bg-card/50 custom-scrollbar">
+          <section id="section-briefing" className="min-h-0 overflow-y-auto rounded-2xl border border-border/60 bg-card/50 custom-scrollbar shadow-sm column-panel">
             <BiDailySummary />
           </section>
 
           {/* Col 3: My Posts */}
-          <aside id="section-posts" className="min-h-0 overflow-hidden rounded-2xl border border-border/50 bg-card/50">
+          <aside id="section-posts" className="min-h-0 overflow-hidden rounded-2xl border border-border/60 bg-card/50 shadow-sm column-panel">
             <MyPostsWidget />
           </aside>
 
           {/* Col 4: Market Mood */}
-          <aside id="section-markets" className="min-h-0 overflow-y-auto rounded-2xl border border-border/50 bg-card/50 p-3 custom-scrollbar">
+          <aside id="section-markets" className="min-h-0 overflow-y-auto rounded-2xl border border-border/60 bg-card/50 p-3 custom-scrollbar shadow-sm column-panel">
             <PricesColumn />
           </aside>
         </div>

@@ -98,6 +98,77 @@ function PriceChip({ coin, price: _price, change }: { coin: string; price: numbe
   );
 }
 
+// Mini gauge for inline Fear & Greed display — matching Market Mood sidebar style
+function MiniMoodGauge({ value, label }: { value: number; label: string }) {
+  const radius = 28;
+  const cx = 34;
+  const cy = 32;
+
+  const needleAngle = (180 - (value / 100) * 180) * (Math.PI / 180);
+  const needleX = cx + (radius - 4) * Math.cos(needleAngle);
+  const needleY = cy - (radius - 4) * Math.sin(needleAngle);
+
+  const valueColor =
+    value <= 25 ? 'text-bearish' :
+      value <= 45 ? 'text-orange-500' :
+        value <= 55 ? 'text-yellow-600' : 'text-bullish';
+
+  return (
+    <div className="flex flex-col items-center gap-0">
+      <svg viewBox="0 0 68 36" className="w-[56px]">
+        <defs>
+          <linearGradient id="miniFgGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="hsl(0, 50%, 48%)" />
+            <stop offset="25%" stopColor="hsl(25, 70%, 50%)" />
+            <stop offset="50%" stopColor="hsl(45, 70%, 50%)" />
+            <stop offset="75%" stopColor="hsl(90, 40%, 45%)" />
+            <stop offset="100%" stopColor="hsl(145, 55%, 38%)" />
+          </linearGradient>
+        </defs>
+        <path
+          d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
+          fill="none"
+          stroke="url(#miniFgGradient)"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          opacity="0.2"
+        />
+        <path
+          d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
+          fill="none"
+          stroke="url(#miniFgGradient)"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeDasharray={`${(value / 100) * Math.PI * radius} ${Math.PI * radius}`}
+        />
+        <line
+          x1={cx} y1={cy}
+          x2={needleX} y2={needleY}
+          stroke="currentColor"
+          strokeWidth="1"
+          strokeLinecap="round"
+        />
+        <circle cx={cx} cy={cy} r="1.5" fill="currentColor" />
+        <text
+          x={cx}
+          y={cy - 7}
+          textAnchor="middle"
+          className={clsx('font-mono-data font-bold', valueColor)}
+          style={{ fontSize: '11px', fill: 'currentColor' }}
+        >
+          {value}
+        </text>
+      </svg>
+      <span className={clsx(
+        'font-mono-data text-[7px] font-semibold uppercase tracking-wider -mt-0.5',
+        valueColor
+      )}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function PriceIndicator({ coin, price, change }: { coin: string; price: number; change: number }) {
   const isPositive = change >= 0;
   const coinLogo = COIN_LOGOS[coin];
@@ -183,7 +254,7 @@ function FormattedSummary({ text }: { text: string }) {
   return (
     <div className="space-y-4">
       {paragraphs.map((para, idx) => (
-        <p key={idx} className="font-thai text-[15px] leading-[1.85] text-foreground/85">
+        <p key={idx} className="font-thai text-[15px] leading-[2] text-foreground/85">
           {highlightNumbers(para)}
         </p>
       ))}
@@ -237,10 +308,6 @@ function SummaryCard({ summary }: { summary: Summary }) {
   // Use live F&G (same as Market Mood), fallback to stored snapshot
   const liveFG = liveMarket?.fearGreedIndex ?? prices.fearGreedIndex;
   const liveFGLabel = liveMarket?.fearGreedLabel ?? prices.fearGreedLabel;
-  const fgEmoji =
-    liveFG <= 25 ? '🔴' :
-      liveFG <= 45 ? '🟠' :
-        liveFG <= 55 ? '🟡' : '🟢';
 
   return (
     <div className="summary-card group relative overflow-hidden transition-all duration-500">
@@ -269,14 +336,12 @@ function SummaryCard({ summary }: { summary: Summary }) {
         </div>
 
         {/* Price strip — quick glance at key prices */}
-        <div className="mb-5 flex flex-wrap gap-2">
+        <div className="mb-5 flex flex-wrap items-center gap-2">
           <PriceChip coin="BTC" price={prices.btc.price} change={prices.btc.change24h} />
           <PriceChip coin="ETH" price={prices.eth.price} change={prices.eth.change24h} />
           <PriceChip coin="SOL" price={prices.sol.price} change={prices.sol.change24h} />
-          <div className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-surface/40 px-2.5 py-1">
-            <span className="text-xs leading-none">{fgEmoji}</span>
-            <span className="font-mono-data text-[10px] text-muted-foreground">F&G</span>
-            <span className="font-mono-data text-[11px] font-bold text-foreground">{liveFG}</span>
+          <div className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface/40 px-2 py-0.5">
+            <MiniMoodGauge value={liveFG} label={liveFGLabel} />
           </div>
         </div>
 
@@ -321,25 +386,9 @@ function SummaryCard({ summary }: { summary: Summary }) {
             </div>
 
             {/* Fear & Greed — uses live data matching Market Mood */}
-            <div className="space-y-2 pt-2 border-t border-border/30">
-              <div className="flex items-baseline justify-between">
-                <span className="font-mono-data text-xs text-muted-foreground">Fear & Greed</span>
-                <span className="text-sm">{fgEmoji}</span>
-              </div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-mono-data text-2xl font-bold text-foreground">{liveFG}</span>
-                <span className="font-mono-data text-xs text-muted-foreground">{liveFGLabel}</span>
-              </div>
-              {/* Visual bar */}
-              <div className="h-1.5 rounded-full bg-surface overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-bearish via-yellow-500 to-bullish animate-[expand-width_1s_ease-out_both]"
-                  style={{
-                    width: `${liveFG}%`,
-                    animationDelay: '200ms'
-                  }}
-                />
-              </div>
+            <div className="pt-3 border-t border-border/30 flex flex-col items-center">
+              <span className="font-mono-data text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-1">Fear & Greed</span>
+              <MiniMoodGauge value={liveFG} label={liveFGLabel} />
             </div>
           </div>
         </div>

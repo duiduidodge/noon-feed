@@ -62,13 +62,13 @@ export function FeedHeader() {
                     ? 'bg-primary/12 text-primary border border-primary/25 shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-surface/60'
                   }
-                  ${!item.sectionId ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                  ${!item.sectionId ? 'opacity-50 cursor-not-allowed pr-5' : 'cursor-pointer'}
                 `}
                 title={!item.sectionId ? 'Coming soon' : undefined}
               >
                 {item.label}
                 {!item.sectionId && (
-                  <span className="absolute -top-1.5 -right-1 text-[7px] font-mono-data text-muted-foreground/50 uppercase">
+                  <span className="absolute -top-2 -right-2.5 text-[7px] font-mono-data bg-surface/80 border border-border/40 text-muted-foreground/70 uppercase px-1 py-px rounded-sm leading-none">
                     soon
                   </span>
                 )}
