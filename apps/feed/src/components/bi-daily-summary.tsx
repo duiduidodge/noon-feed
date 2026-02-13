@@ -99,25 +99,68 @@ function PriceChip({ coin, price: _price, change }: { coin: string; price: numbe
 }
 
 // Mini gauge for inline Fear & Greed display — matching Market Mood sidebar style
-function MiniMoodGauge({ value, label }: { value: number; label: string }) {
-  const radius = 28;
-  const cx = 34;
-  const cy = 32;
-
-  const needleAngle = (180 - (value / 100) * 180) * (Math.PI / 180);
-  const needleX = cx + (radius - 4) * Math.cos(needleAngle);
-  const needleY = cy - (radius - 4) * Math.sin(needleAngle);
-
+// compact: tiny inline version for the price strip (same height as PriceChip)
+// normal: larger version for the market data grid box
+function MiniMoodGauge({ value, label, compact }: { value: number; label: string; compact?: boolean }) {
   const valueColor =
     value <= 25 ? 'text-bearish' :
       value <= 45 ? 'text-orange-500' :
         value <= 55 ? 'text-yellow-600' : 'text-bullish';
 
+  if (compact) {
+    // ── Compact: inline pill matching PriceChip height (~28px) ──
+    const r = 16;
+    const cx = 20;
+    const cy = 18;
+    const needleAngle = (180 - (value / 100) * 180) * (Math.PI / 180);
+    const nx = cx + (r - 2) * Math.cos(needleAngle);
+    const ny = cy - (r - 2) * Math.sin(needleAngle);
+
+    return (
+      <div className="inline-flex items-center gap-1.5">
+        <svg viewBox="0 0 40 20" className="w-[28px] h-[14px] shrink-0">
+          <defs>
+            <linearGradient id="compactFgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="hsl(0, 50%, 48%)" />
+              <stop offset="25%" stopColor="hsl(25, 70%, 50%)" />
+              <stop offset="50%" stopColor="hsl(45, 70%, 50%)" />
+              <stop offset="75%" stopColor="hsl(90, 40%, 45%)" />
+              <stop offset="100%" stopColor="hsl(145, 55%, 38%)" />
+            </linearGradient>
+          </defs>
+          <path
+            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+            fill="none" stroke="url(#compactFgGrad)" strokeWidth="2.5" strokeLinecap="round" opacity="0.2"
+          />
+          <path
+            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+            fill="none" stroke="url(#compactFgGrad)" strokeWidth="2.5" strokeLinecap="round"
+            strokeDasharray={`${(value / 100) * Math.PI * r} ${Math.PI * r}`}
+          />
+          <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
+          <circle cx={cx} cy={cy} r="1" fill="currentColor" />
+        </svg>
+        <div className="flex flex-col leading-none">
+          <span className={clsx('font-mono-data text-[11px] font-bold', valueColor)}>{value}</span>
+          <span className={clsx('font-mono-data text-[7px] font-semibold uppercase tracking-wider', valueColor)}>{label}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal: centered gauge for market data box ──
+  const r = 36;
+  const cx = 44;
+  const cy = 40;
+  const needleAngle = (180 - (value / 100) * 180) * (Math.PI / 180);
+  const nx = cx + (r - 5) * Math.cos(needleAngle);
+  const ny = cy - (r - 5) * Math.sin(needleAngle);
+
   return (
-    <div className="flex flex-col items-center gap-0">
-      <svg viewBox="0 0 68 36" className="w-[56px]">
+    <div className="flex flex-col items-center gap-0.5">
+      <svg viewBox="0 0 88 46" className="w-[100px]">
         <defs>
-          <linearGradient id="miniFgGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <linearGradient id="normalFgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="hsl(0, 50%, 48%)" />
             <stop offset="25%" stopColor="hsl(25, 70%, 50%)" />
             <stop offset="50%" stopColor="hsl(45, 70%, 50%)" />
@@ -126,41 +169,27 @@ function MiniMoodGauge({ value, label }: { value: number; label: string }) {
           </linearGradient>
         </defs>
         <path
-          d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
-          fill="none"
-          stroke="url(#miniFgGradient)"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          opacity="0.2"
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none" stroke="url(#normalFgGrad)" strokeWidth="4.5" strokeLinecap="round" opacity="0.2"
         />
         <path
-          d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
-          fill="none"
-          stroke="url(#miniFgGradient)"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeDasharray={`${(value / 100) * Math.PI * radius} ${Math.PI * radius}`}
+          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
+          fill="none" stroke="url(#normalFgGrad)" strokeWidth="4.5" strokeLinecap="round"
+          strokeDasharray={`${(value / 100) * Math.PI * r} ${Math.PI * r}`}
         />
-        <line
-          x1={cx} y1={cy}
-          x2={needleX} y2={needleY}
-          stroke="currentColor"
-          strokeWidth="1"
-          strokeLinecap="round"
-        />
-        <circle cx={cx} cy={cy} r="1.5" fill="currentColor" />
+        <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r="2" fill="currentColor" />
         <text
-          x={cx}
-          y={cy - 7}
+          x={cx} y={cy - 10}
           textAnchor="middle"
           className={clsx('font-mono-data font-bold', valueColor)}
-          style={{ fontSize: '11px', fill: 'currentColor' }}
+          style={{ fontSize: '14px', fill: 'currentColor' }}
         >
           {value}
         </text>
       </svg>
       <span className={clsx(
-        'font-mono-data text-[7px] font-semibold uppercase tracking-wider -mt-0.5',
+        'font-mono-data text-[8px] font-semibold uppercase tracking-wider -mt-0.5',
         valueColor
       )}>
         {label}
@@ -340,8 +369,8 @@ function SummaryCard({ summary }: { summary: Summary }) {
           <PriceChip coin="BTC" price={prices.btc.price} change={prices.btc.change24h} />
           <PriceChip coin="ETH" price={prices.eth.price} change={prices.eth.change24h} />
           <PriceChip coin="SOL" price={prices.sol.price} change={prices.sol.change24h} />
-          <div className="inline-flex items-center gap-1.5 rounded-xl border border-border/40 bg-surface/40 px-2 py-0.5">
-            <MiniMoodGauge value={liveFG} label={liveFGLabel} />
+          <div className="inline-flex items-center rounded-full border border-border/40 bg-surface/40 px-2.5 py-1">
+            <MiniMoodGauge value={liveFG} label={liveFGLabel} compact />
           </div>
         </div>
 
