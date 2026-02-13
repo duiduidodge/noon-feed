@@ -198,7 +198,7 @@ async function postSummaryToDiscord(
   const timeEmoji = scheduleType === 'morning' ? '🌅' : '🌆';
 
   // Truncate summary if needed
-  const maxSummaryLen = 2000;
+  const maxSummaryLen = 1500;
   const description = summaryText.length > maxSummaryLen
     ? summaryText.substring(0, maxSummaryLen).replace(/\s+\S*$/, '') + '...'
     : summaryText;
@@ -230,7 +230,7 @@ async function postSummaryToDiscord(
   ].join('\n');
 
   // Headline chunks — keep under 1024 chars per field
-  const headlineItems = headlines.slice(0, 20);
+  const headlineItems = headlines.slice(0, 15);
   const headlineChunks: string[] = [];
   let currentChunk = '';
 
