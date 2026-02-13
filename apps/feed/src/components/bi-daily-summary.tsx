@@ -68,7 +68,7 @@ const COIN_LOGOS: Record<string, string> = {
   BTC: 'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png',
   ETH: 'https://coin-images.coingecko.com/coins/images/279/large/ethereum.png',
   SOL: 'https://coin-images.coingecko.com/coins/images/4128/large/solana.png',
-  HYPE: 'https://coin-images.coingecko.com/coins/images/40845/large/hyperliquid.jpeg',
+  HYPE: 'https://coin-images.coingecko.com/coins/images/50882/large/hyperliquid.jpg',
 };
 
 // Mini price chip for the top strip
@@ -132,7 +132,7 @@ function CoinPriceCard({ coin, price, change }: { coin: string; price: number; c
     BTC: 'https://coin-images.coingecko.com/coins/images/1/small/bitcoin.png',
     ETH: 'https://coin-images.coingecko.com/coins/images/279/small/ethereum.png',
     SOL: 'https://coin-images.coingecko.com/coins/images/4128/small/solana.png',
-    HYPE: 'https://coin-images.coingecko.com/coins/images/40845/small/hyperliquid.jpeg',
+    HYPE: 'https://coin-images.coingecko.com/coins/images/50882/small/hyperliquid.jpg',
   };
   const coinLogo = coinLogos[coin];
 

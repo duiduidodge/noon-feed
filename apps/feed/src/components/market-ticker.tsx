@@ -59,48 +59,46 @@ export function MarketTicker() {
   const isPositive = data.global.avgChange24h >= 0;
 
   const tickerContent = (
-    <div className="flex items-center gap-7 px-4 whitespace-nowrap">
-      {/* 24h change */}
-      <span
-        className={clsx(
-          'font-mono-data text-[12px] font-semibold',
-          isPositive ? 'text-bullish' : 'text-bearish'
-        )}
-      >
-        24h {formatPercent(data.global.avgChange24h)}
-      </span>
+    <div className="flex items-center gap-3 px-4 whitespace-nowrap">
+      {/* Global stats — grouped in a subtle card */}
+      <div className="inline-flex items-center gap-3 rounded-full bg-surface/40 border border-border/20 px-3 py-0.5">
+        <span
+          className={clsx(
+            'font-mono-data text-[11px] font-bold',
+            isPositive ? 'text-bullish' : 'text-bearish'
+          )}
+        >
+          24h {formatPercent(data.global.avgChange24h)}
+        </span>
+        <span className="h-3 w-px bg-border/30" />
+        <span className="inline-flex items-center gap-1 font-mono-data text-[11px]">
+          <Globe className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0" />
+          <span className="font-semibold text-foreground">{formatCompactNumber(data.global.totalMcap)}</span>
+        </span>
+        <span className="h-3 w-px bg-border/30" />
+        <span className="inline-flex items-center gap-1 font-mono-data text-[11px]">
+          <BarChart2 className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0" />
+          <span className="font-semibold text-foreground">{formatCompactNumber(data.global.totalVolume)}</span>
+        </span>
+        <span className="h-3 w-px bg-border/30" />
+        <span className="inline-flex items-center gap-1 font-mono-data text-[11px]">
+          <PieChart className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0" />
+          <span className="text-muted-foreground/60">Dom</span>
+          <span className="font-semibold text-foreground">{data.global.btcDominance.toFixed(1)}%</span>
+        </span>
+      </div>
 
-      {/* Total Market Cap with icon */}
-      <span className="flex items-center gap-1.5 font-mono-data text-[12px]">
-        <Globe className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-        <span className="text-muted-foreground/70">Mcap</span>
-        <span className="font-semibold text-foreground">{formatCompactNumber(data.global.totalMcap)}</span>
-      </span>
-
-      {/* Total Volume with icon */}
-      <span className="flex items-center gap-1.5 font-mono-data text-[12px]">
-        <BarChart2 className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-        <span className="text-muted-foreground/70">Vol</span>
-        <span className="font-semibold text-foreground">{formatCompactNumber(data.global.totalVolume)}</span>
-      </span>
-
-      {/* BTC Dominance with PieChart icon — "Dom" label to avoid confusion with BTC price */}
-      <span className="flex items-center gap-1.5 font-mono-data text-[12px]">
-        <PieChart className="h-3 w-3 text-muted-foreground/60 shrink-0" />
-        <span className="text-muted-foreground/70">Dom</span>
-        <span className="font-semibold text-foreground">{data.global.btcDominance.toFixed(1)}%</span>
-      </span>
-
-      {/* Separator */}
-      <span className="h-3.5 w-px bg-border/50" />
-
-      {/* Top 10 token prices with logos */}
-      {top10.map((coin, idx) => {
+      {/* Individual token cards */}
+      {top10.map((coin) => {
         const coinPositive = coin.changePercent24Hr >= 0;
         return (
-          <span key={coin.id} className="inline-flex items-center gap-2 font-mono-data text-[12px]">
-            {/* Dot separator between coins */}
-            {idx > 0 && <span className="text-muted-foreground/25 -ml-4 mr--1">·</span>}
+          <div
+            key={coin.id}
+            className={clsx(
+              'inline-flex items-center gap-2 rounded-full border px-3 py-0.5 font-mono-data text-[11px] transition-colors',
+              'bg-surface/30 border-border/20'
+            )}
+          >
             {coin.image ? (
               <Image
                 src={coin.image}
@@ -110,26 +108,26 @@ export function MarketTicker() {
                 className="h-4 w-4 rounded-full shrink-0"
               />
             ) : (
-              <span className="h-4 w-4 rounded-full bg-surface shrink-0 flex items-center justify-center text-[8px] text-muted-foreground">
+              <span className="h-4 w-4 rounded-full bg-muted/30 shrink-0 flex items-center justify-center text-[8px] font-bold text-muted-foreground">
                 {coin.symbol[0]}
               </span>
             )}
-            <span className="font-semibold text-foreground">{coin.symbol}</span>
-            <span className="text-muted-foreground/70">{formatPrice(coin.priceUsd)}</span>
+            <span className="font-bold text-foreground">{coin.symbol}</span>
+            <span className="text-muted-foreground/80">{formatPrice(coin.priceUsd)}</span>
             <span className={clsx(
-              'font-semibold min-w-[56px] text-right',
+              'font-bold',
               coinPositive ? 'text-bullish' : 'text-bearish'
             )}>
               {formatPercent(coin.changePercent24Hr)}
             </span>
-          </span>
+          </div>
         );
       })}
     </div>
   );
 
   return (
-    <div className="relative flex overflow-hidden py-1.5">
+    <div className="relative flex overflow-hidden py-1">
       <div className="animate-scroll-ticker flex shrink-0">
         {tickerContent}
         {tickerContent}
