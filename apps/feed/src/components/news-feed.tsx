@@ -93,8 +93,8 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
   return (
     <div className="flex h-full min-h-0 flex-col space-y-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30">
-        <h2 className="font-display text-sm font-semibold tracking-wide text-foreground">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+        <h2 className="font-display text-lg font-bold tracking-tight text-foreground uppercase">
           Latest Intel
         </h2>
         <div className="text-right">
@@ -102,7 +102,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
             {allArticles.length} articles
           </div>
           {dataUpdatedAt > 0 && (
-            <div className="font-mono-data text-[10px] text-muted-foreground/45">
+            <div className="font-mono-data text-[10px] text-muted-foreground/50">
               Updated {new Date(dataUpdatedAt).toLocaleTimeString()}
             </div>
           )}
@@ -114,7 +114,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
         <div className="border-b border-border/30 px-4 py-2">
           <button
             onClick={() => handleTagSelect(null)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-3 py-1 font-mono-data text-[11px] font-medium uppercase tracking-wide text-accent"
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/8 px-3 py-1 font-mono-data text-[11px] font-medium uppercase tracking-wide text-primary"
           >
             <X className="h-3 w-3" />
             {selectedTag}
@@ -125,7 +125,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
         {isLoading && selectedTag ? (
           <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-5 w-5 animate-spin text-accent/50" />
+            <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
           </div>
         ) : error ? (
           <div className="px-4 py-10 text-center">
@@ -150,7 +150,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
                 <button
                   onClick={handleLoadMore}
                   disabled={isLoadingMore}
-                  className="w-full rounded-md border border-accent/20 bg-transparent py-2.5 font-mono-data text-[11px] font-medium uppercase tracking-wider text-accent/70 transition-all duration-200 hover:border-accent/40 hover:text-accent hover:shadow-[0_0_12px_hsl(var(--accent)/0.1)] disabled:opacity-50"
+                  className="w-full rounded-lg border border-primary/20 bg-transparent py-2.5 font-mono-data text-[11px] font-medium uppercase tracking-wider text-primary/70 transition-all duration-200 hover:border-primary/40 hover:text-primary hover:bg-primary/5 disabled:opacity-50"
                 >
                   {isLoadingMore ? (
                     <span className="inline-flex items-center gap-2">

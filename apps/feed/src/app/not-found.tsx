@@ -9,7 +9,7 @@ export default function NotFound() {
       </p>
       <Link
         href="/"
-        className="mt-4 inline-flex rounded-md border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-accent"
+        className="mt-4 inline-flex rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary"
       >
         Back to feed
       </Link>

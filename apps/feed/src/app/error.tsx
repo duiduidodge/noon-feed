@@ -13,7 +13,7 @@ export default function Error({
       <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
       <button
         onClick={reset}
-        className="mt-4 rounded-md border border-accent/30 bg-accent/10 px-4 py-2 text-sm font-medium text-accent"
+        className="mt-4 rounded-md border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary"
       >
         Retry
       </button>

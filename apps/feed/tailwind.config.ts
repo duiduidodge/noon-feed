@@ -1,17 +1,17 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
-  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {
-        display: ['Outfit', 'sans-serif'],
-        body: ['Plus Jakarta Sans', 'sans-serif'],
+        display: ['Sora', 'sans-serif'],
+        body: ['DM Sans', 'sans-serif'],
         thai: ['Anuphan', 'sans-serif'],
         'mono-data': ['JetBrains Mono', 'monospace'],
       },
@@ -57,13 +57,18 @@ const config: Config = {
           to: { opacity: '1', transform: 'translateY(0)' },
         },
         'glow-pulse': {
-          '0%, 100%': { boxShadow: '0 0 4px hsl(var(--accent) / 0.3)' },
-          '50%': { boxShadow: '0 0 12px hsl(var(--accent) / 0.6)' },
+          '0%, 100%': { boxShadow: '0 0 4px hsl(var(--accent) / 0.15)' },
+          '50%': { boxShadow: '0 0 12px hsl(var(--accent) / 0.3)' },
+        },
+        'scroll-ticker': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
         },
       },
       animation: {
         'fade-up': 'fade-up 0.5s ease-out both',
         'glow-pulse': 'glow-pulse 2s ease-in-out infinite',
+        'scroll-ticker': 'scroll-ticker 30s linear infinite',
       },
     },
   },

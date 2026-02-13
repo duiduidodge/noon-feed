@@ -2,21 +2,21 @@ import { clsx } from 'clsx';
 
 const sentimentConfig: Record<string, { dot: string; text: string; bg: string; label: string }> = {
   BULLISH: {
-    dot: 'bg-bullish shadow-[0_0_6px_hsl(var(--bullish)/0.6)]',
+    dot: 'bg-bullish',
     text: 'text-bullish',
-    bg: 'bg-bullish/10 border-bullish/20',
+    bg: 'bg-bullish/8 border-bullish/20',
     label: 'Bullish',
   },
   BEARISH: {
-    dot: 'bg-bearish shadow-[0_0_6px_hsl(var(--bearish)/0.6)]',
+    dot: 'bg-bearish',
     text: 'text-bearish',
-    bg: 'bg-bearish/10 border-bearish/20',
+    bg: 'bg-bearish/8 border-bearish/20',
     label: 'Bearish',
   },
   NEUTRAL: {
-    dot: 'bg-muted-foreground/60',
+    dot: 'bg-muted-foreground/50',
     text: 'text-muted-foreground',
-    bg: 'bg-muted/50 border-border/50',
+    bg: 'bg-surface/60 border-border/50',
     label: 'Neutral',
   },
 };
@@ -43,9 +43,9 @@ export function SentimentBadge({ sentiment }: SentimentBadgeProps) {
 }
 
 const impactConfig: Record<string, { color: string; bg: string }> = {
-  HIGH: { color: 'text-orange-400', bg: 'bg-orange-500/10 border-orange-500/20' },
-  MEDIUM: { color: 'text-yellow-400', bg: 'bg-yellow-500/10 border-yellow-500/20' },
-  LOW: { color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
+  HIGH: { color: 'text-orange-600', bg: 'bg-orange-500/8 border-orange-500/20' },
+  MEDIUM: { color: 'text-yellow-600', bg: 'bg-yellow-500/8 border-yellow-500/20' },
+  LOW: { color: 'text-blue-500', bg: 'bg-blue-500/8 border-blue-500/20' },
 };
 
 interface ImpactBadgeProps {

@@ -10,6 +10,7 @@ interface CoinPrice {
   changePercent24Hr: number;
   marketCapUsd: number;
   volumeUsd24Hr: number;
+  sparkline?: number[];
 }
 
 interface PricesResponseData {
@@ -35,6 +36,7 @@ interface CoinGeckoMarketCoin {
   price_change_percentage_24h?: number | string;
   market_cap?: number | string;
   total_volume?: number | string;
+  sparkline_in_7d?: { price?: number[] };
 }
 
 interface TrendingCoinItem {
@@ -97,7 +99,7 @@ function toNumber(value: unknown, fallback = 0): number {
 async function fetchFromCoinGecko() {
   const response = await fetch(
     // Use top 100 to keep majors present even during volatile rank moves.
-    'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false',
+    'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=true',
     { headers: { Accept: 'application/json' }, cache: 'no-store' }
   );
 
@@ -107,17 +109,33 @@ async function fetchFromCoinGecko() {
 
   const coins = (await response.json()) as CoinGeckoMarketCoin[];
 
-  const allPrices: CoinPrice[] = coins.map((coin, index) => ({
-    id: coin.id || '',
-    rank: coin.market_cap_rank || index + 1,
-    name: coin.name || '',
-    symbol: coin.symbol?.toUpperCase() || '',
-    image: coin.image || null,
-    priceUsd: toNumber(coin.current_price),
-    changePercent24Hr: toNumber(coin.price_change_percentage_24h),
-    marketCapUsd: toNumber(coin.market_cap),
-    volumeUsd24Hr: toNumber(coin.total_volume),
-  }));
+  const allPrices: CoinPrice[] = coins.map((coin, index) => {
+    // Downsample sparkline from ~168 points to 24 points for compact rendering
+    const rawSparkline = coin.sparkline_in_7d?.price || [];
+    const sparkline: number[] = [];
+    if (rawSparkline.length > 0) {
+      const step = Math.max(1, Math.floor(rawSparkline.length / 24));
+      for (let i = 0; i < rawSparkline.length; i += step) {
+        sparkline.push(rawSparkline[i]);
+      }
+      // Always include the last point
+      if (sparkline[sparkline.length - 1] !== rawSparkline[rawSparkline.length - 1]) {
+        sparkline.push(rawSparkline[rawSparkline.length - 1]);
+      }
+    }
+    return {
+      id: coin.id || '',
+      rank: coin.market_cap_rank || index + 1,
+      name: coin.name || '',
+      symbol: coin.symbol?.toUpperCase() || '',
+      image: coin.image || null,
+      priceUsd: toNumber(coin.current_price),
+      changePercent24Hr: toNumber(coin.price_change_percentage_24h),
+      marketCapUsd: toNumber(coin.market_cap),
+      volumeUsd24Hr: toNumber(coin.total_volume),
+      sparkline: sparkline.length > 2 ? sparkline : undefined,
+    };
+  });
 
   // Split into majors and others
   const majors = allPrices.filter((p) => MAJOR_IDS.includes(p.id));

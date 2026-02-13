@@ -1,8 +1,8 @@
 import { FeedHeader } from '@/components/feed-header';
 import { NewsFeed } from '@/components/news-feed';
 import { PricesColumn } from '@/components/prices-column';
-import { MyPostsWidget } from '@/components/my-posts-widget';
 import { BiDailySummary } from '@/components/bi-daily-summary';
+import { MyPostsWidget } from '@/components/my-posts-widget';
 import type { FeedArticle } from '@/components/news-card';
 
 export const dynamic = 'force-dynamic';
@@ -73,21 +73,25 @@ export default async function FeedPage() {
   return (
     <div className="min-h-screen">
       <FeedHeader />
-      <main className="mx-auto max-w-[1780px] px-4 pb-4 pt-3 lg:px-5">
-        <div className="grid min-h-0 grid-cols-1 gap-3 lg:h-[calc(100vh-76px)] lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.8fr)_minmax(280px,0.46fr)] xl:grid-cols-[minmax(0,0.96fr)_minmax(0,0.76fr)_minmax(0,0.62fr)_minmax(280px,0.44fr)] xl:gap-3.5">
-          <section className="glass panel-shell min-h-0 overflow-hidden rounded-2xl">
+      <main className="mx-auto max-w-[1920px] px-3 pb-3 pt-2 lg:px-4 xl:px-5">
+        <div className="grid min-h-0 grid-cols-1 gap-2.5 lg:h-[calc(100vh-94px)] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(280px,0.7fr)_minmax(240px,0.5fr)] xl:gap-3">
+          {/* Col 1: Latest Intel — news feed */}
+          <section id="section-latest-intel" className="min-h-0 overflow-hidden rounded-2xl border border-border/50 bg-card/50">
             <NewsFeed initialArticles={initialArticles} />
           </section>
 
-          <section className="glass panel-shell min-h-0 overflow-y-auto rounded-2xl custom-scrollbar">
+          {/* Col 2: Morning/Evening Briefing */}
+          <section id="section-briefing" className="min-h-0 overflow-y-auto rounded-2xl border border-border/50 bg-card/50 custom-scrollbar">
             <BiDailySummary />
           </section>
 
-          <section className="glass panel-shell min-h-0 overflow-hidden rounded-2xl">
+          {/* Col 3: My Posts */}
+          <aside id="section-posts" className="min-h-0 overflow-hidden rounded-2xl border border-border/50 bg-card/50">
             <MyPostsWidget />
-          </section>
+          </aside>
 
-          <aside className="glass panel-shell min-h-0 overflow-y-auto rounded-2xl p-3.5 custom-scrollbar">
+          {/* Col 4: Market Mood */}
+          <aside id="section-markets" className="min-h-0 overflow-y-auto rounded-2xl border border-border/50 bg-card/50 p-3 custom-scrollbar">
             <PricesColumn />
           </aside>
         </div>
