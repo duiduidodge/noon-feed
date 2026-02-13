@@ -72,8 +72,7 @@ export default async function FeedPage() {
 
   return (
     <div className="min-h-screen">
-      <FeedHeader />
-      <main className="mx-auto max-w-[1920px] px-3 pb-3 pt-2 lg:px-4 xl:px-5">
+      <main className="mx-auto flex w-full max-w-[1780px] flex-1 flex-col px-4 pb-4 lg:px-5">
         <div className="grid min-h-0 grid-cols-1 gap-2.5 md:grid-cols-2 lg:h-[calc(100vh-94px)] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(260px,0.65fr)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(260px,0.65fr)_minmax(220px,0.5fr)] xl:gap-3">
           {/* Col 1: Latest Intel — news feed */}
           <section id="section-latest-intel" className="min-h-0 overflow-hidden rounded-2xl border border-border/60 bg-card/50 shadow-sm column-panel">

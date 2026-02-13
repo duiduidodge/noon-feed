@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: 'Premium cryptocurrency news feed with market insights and real-time analysis',
 };
 
+import { FeedHeader } from '@/components/feed-header';
+
 export default function RootLayout({
   children,
 }: {
@@ -32,7 +34,10 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-background font-body antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          <FeedHeader />
+          {children}
+        </Providers>
       </body>
     </html>
   );

@@ -1,37 +1,61 @@
 'use client';
 
 import Image from 'next/image';
+import { usePathname, useRouter } from 'next/navigation';
 import { MarketTicker } from './market-ticker';
 import { ThemeToggle } from './theme-toggle';
 import { Menu } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import Link from 'next/link';
 
 const NAV_ITEMS = [
-  { label: 'Latest Intel', sectionId: 'section-latest-intel' },
-  { label: 'Briefing', sectionId: 'section-briefing' },
-  { label: 'Posts', sectionId: 'section-posts' },
-  { label: 'Markets', sectionId: 'section-markets' },
-  { label: 'Data', sectionId: null }, // Future feature
+  { label: 'Latest Intel', sectionId: 'section-latest-intel', path: '/' },
+  { label: 'Briefing', sectionId: 'section-briefing', path: '/briefing' },
+  { label: 'Posts', sectionId: 'section-posts', path: '/posts' },
+  { label: 'Markets', sectionId: 'section-markets', path: '/markets' },
+  { label: 'Data', sectionId: null, path: null }, // Future feature
 ];
 
 export function FeedHeader() {
+  const pathname = usePathname();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('Latest Intel');
 
-  const handleNavClick = useCallback((label: string, sectionId: string | null) => {
-    setActiveTab(label);
-    if (!sectionId) return;
-
-    const el = document.getElementById(sectionId);
-    if (el) {
-      // On mobile (single column), scroll to the section
-      // On desktop (grid), add a brief highlight
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-
-      // Flash highlight effect
-      el.classList.add('section-highlight');
-      setTimeout(() => el.classList.remove('section-highlight'), 1200);
+  // Sync active tab with pathname on mount/change
+  useEffect(() => {
+    if (pathname === '/') {
+      setActiveTab('Latest Intel');
+    } else if (pathname.includes('/briefing')) {
+      setActiveTab('Briefing');
+    } else if (pathname.includes('/posts')) {
+      setActiveTab('Posts');
+    } else if (pathname.includes('/markets')) {
+      setActiveTab('Markets');
     }
-  }, []);
+  }, [pathname]);
+
+  const handleNavClick = useCallback((item: typeof NAV_ITEMS[0]) => {
+    if (!item.sectionId && !item.path) return;
+
+    // Optimistic UI update
+    setActiveTab(item.label);
+
+    // If we are on the homepage, scrolling is preferred for sections that exist there
+    if (pathname === '/') {
+      const el = document.getElementById(item.sectionId || '');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        el.classList.add('section-highlight');
+        setTimeout(() => el.classList.remove('section-highlight'), 1200);
+        return;
+      }
+    }
+
+    // If we are navigating to a dedicated page (or from a dedicated page back to home)
+    if (item.path) {
+      router.push(item.path);
+    }
+  }, [pathname, router]);
 
   return (
     <header className="sticky top-0 z-50">
@@ -39,7 +63,7 @@ export function FeedHeader() {
       <div className="bg-background/90 backdrop-blur-md border-b border-border/40">
         <div className="mx-auto flex h-16 max-w-[1780px] items-center justify-between px-4 lg:px-5">
           {/* Logo — noon PNG, significantly bigger */}
-          <div className="flex items-center">
+          <div className="flex items-center cursor-pointer" onClick={() => router.push('/')}>
             <Image
               src="/noon-logo.png"
               alt="noon"
@@ -55,7 +79,7 @@ export function FeedHeader() {
             {NAV_ITEMS.map((item) => (
               <button
                 key={item.label}
-                onClick={() => handleNavClick(item.label, item.sectionId)}
+                onClick={() => handleNavClick(item)}
                 className={`
                   px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200 relative
                   ${activeTab === item.label
