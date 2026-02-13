@@ -59,11 +59,11 @@ export function MarketTicker() {
   const isPositive = data.global.avgChange24h >= 0;
 
   const tickerContent = (
-    <div className="flex items-center gap-5 px-4 whitespace-nowrap">
+    <div className="flex items-center gap-7 px-4 whitespace-nowrap">
       {/* 24h change */}
       <span
         className={clsx(
-          'font-mono-data text-[11px] font-medium',
+          'font-mono-data text-[12px] font-semibold',
           isPositive ? 'text-bullish' : 'text-bearish'
         )}
       >
@@ -71,51 +71,53 @@ export function MarketTicker() {
       </span>
 
       {/* Total Market Cap with icon */}
-      <span className="flex items-center gap-1.5 font-mono-data text-[11px]">
+      <span className="flex items-center gap-1.5 font-mono-data text-[12px]">
         <Globe className="h-3 w-3 text-muted-foreground/60 shrink-0" />
         <span className="text-muted-foreground/70">Mcap</span>
-        <span className="font-medium text-foreground">{formatCompactNumber(data.global.totalMcap)}</span>
+        <span className="font-semibold text-foreground">{formatCompactNumber(data.global.totalMcap)}</span>
       </span>
 
       {/* Total Volume with icon */}
-      <span className="flex items-center gap-1.5 font-mono-data text-[11px]">
+      <span className="flex items-center gap-1.5 font-mono-data text-[12px]">
         <BarChart2 className="h-3 w-3 text-muted-foreground/60 shrink-0" />
         <span className="text-muted-foreground/70">Vol</span>
-        <span className="font-medium text-foreground">{formatCompactNumber(data.global.totalVolume)}</span>
+        <span className="font-semibold text-foreground">{formatCompactNumber(data.global.totalVolume)}</span>
       </span>
 
       {/* BTC Dominance with PieChart icon — "Dom" label to avoid confusion with BTC price */}
-      <span className="flex items-center gap-1.5 font-mono-data text-[11px]">
+      <span className="flex items-center gap-1.5 font-mono-data text-[12px]">
         <PieChart className="h-3 w-3 text-muted-foreground/60 shrink-0" />
         <span className="text-muted-foreground/70">Dom</span>
-        <span className="font-medium text-foreground">{data.global.btcDominance.toFixed(1)}%</span>
+        <span className="font-semibold text-foreground">{data.global.btcDominance.toFixed(1)}%</span>
       </span>
 
       {/* Separator */}
-      <span className="h-3 w-px bg-border/40" />
+      <span className="h-3.5 w-px bg-border/50" />
 
       {/* Top 10 token prices with logos */}
-      {top10.map((coin) => {
+      {top10.map((coin, idx) => {
         const coinPositive = coin.changePercent24Hr >= 0;
         return (
-          <span key={coin.id} className="inline-flex items-center gap-1.5 font-mono-data text-[11px]">
+          <span key={coin.id} className="inline-flex items-center gap-2 font-mono-data text-[12px]">
+            {/* Dot separator between coins */}
+            {idx > 0 && <span className="text-muted-foreground/25 -ml-4 mr--1">·</span>}
             {coin.image ? (
               <Image
                 src={coin.image}
                 alt={coin.symbol}
-                width={14}
-                height={14}
-                className="h-3.5 w-3.5 rounded-full shrink-0"
+                width={16}
+                height={16}
+                className="h-4 w-4 rounded-full shrink-0"
               />
             ) : (
-              <span className="h-3.5 w-3.5 rounded-full bg-surface shrink-0 flex items-center justify-center text-[7px] text-muted-foreground">
+              <span className="h-4 w-4 rounded-full bg-surface shrink-0 flex items-center justify-center text-[8px] text-muted-foreground">
                 {coin.symbol[0]}
               </span>
             )}
-            <span className="font-medium text-foreground">{coin.symbol}</span>
+            <span className="font-semibold text-foreground">{coin.symbol}</span>
             <span className="text-muted-foreground/70">{formatPrice(coin.priceUsd)}</span>
             <span className={clsx(
-              'font-medium min-w-[52px] text-right',
+              'font-semibold min-w-[56px] text-right',
               coinPositive ? 'text-bullish' : 'text-bearish'
             )}>
               {formatPercent(coin.changePercent24Hr)}
