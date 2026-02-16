@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { createLogger, createArticleHash } from '@crypto-news/shared';
 import { ArticleFetcher } from '../services/article-fetcher.js';
+import type { ImpactFilter } from '../services/impact-filter.js';
 
 const logger = createLogger('worker:job:fetch-article');
 
@@ -11,7 +12,8 @@ export interface FetchArticleJobData {
 export async function processFetchArticleJob(
   data: FetchArticleJobData,
   prisma: PrismaClient,
-  articleFetcher: ArticleFetcher
+  articleFetcher: ArticleFetcher,
+  impactFilter?: ImpactFilter
 ): Promise<{ success: boolean; extractedLength: number }> {
   const { articleId } = data;
 
@@ -46,7 +48,41 @@ export async function processFetchArticleJob(
     // Recreate hash if title changed
     const hash = createArticleHash(titleOriginal, article.url, article.publishedAt || undefined);
 
-    // Update article
+    // Run impact pre-filter if enabled
+    let impactScore: number | null = null;
+    let preFilterPassed = false;
+
+    if (impactFilter && fetched.extractedText.length >= 200) {
+      try {
+        const evaluation = await impactFilter.evaluateImpact({
+          titleOriginal,
+          extractedText: fetched.extractedText,
+          sourceName: article.source.name,
+        });
+
+        impactScore = evaluation.score;
+        preFilterPassed = evaluation.shouldEnrich;
+
+        logger.info({
+          articleId,
+          impactScore,
+          preFilterPassed,
+          title: titleOriginal.substring(0, 50),
+        }, 'Impact pre-filter evaluated');
+      } catch (error) {
+        logger.warn({
+          error: (error as Error).message,
+          articleId,
+        }, 'Impact pre-filter failed, defaulting to pass');
+        // On error, default to pass (enrich anyway)
+        preFilterPassed = true;
+      }
+    } else if (!impactFilter) {
+      // If no impact filter provided, pass all articles
+      preFilterPassed = true;
+    }
+
+    // Update article with fetch results and impact score
     await prisma.article.update({
       where: { id: articleId },
       data: {
@@ -54,6 +90,8 @@ export async function processFetchArticleJob(
         extractedText: fetched.extractedText,
         titleOriginal,
         hash,
+        impactScore,
+        preFilterPassed,
         status: 'FETCHED',
       },
     });

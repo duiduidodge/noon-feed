@@ -6,6 +6,7 @@ import { ArticleFetcher } from '../services/article-fetcher.js';
 import { processFetchRSSJob } from '../jobs/fetch-rss.js';
 import { processFetchAPINewsJob } from '../jobs/fetch-api-news.js';
 import { processFetchArticleJob } from '../jobs/fetch-article.js';
+import { EnrichmentMapper } from '../services/enrichment-mapper.js';
 
 const logger = createLogger('worker:cli:ingest-once');
 const prisma = new PrismaClient();
@@ -96,6 +97,81 @@ async function processPendingArticles(config: ReturnType<typeof buildConfig>) {
   logger.info({ totalProcessed }, 'Finished one-shot pending article processing');
 }
 
+async function enrichAPIArticles() {
+  // Apply free enrichment mapping to all fetched articles (RSS + API)
+  const articles = await prisma.article.findMany({
+    where: {
+      status: 'FETCHED',
+      enrichment: null,
+    },
+    take: 50,
+    orderBy: { publishedAt: 'desc' },
+  });
+
+  logger.info({ count: articles.length }, 'Applying free enrichment to API articles');
+
+  let enriched = 0;
+  for (const article of articles) {
+    try {
+      // Basic heuristic enrichment from title
+      const title = article.titleOriginal.toLowerCase();
+      let category = 'general';
+      let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
+
+      if (title.includes('etf') || title.includes('sec')) category = 'etf';
+      else if (title.includes('institution') || title.includes('bank')) category = 'institutional';
+      else if (title.includes('bitcoin') || title.includes('btc')) category = 'bitcoin';
+      else if (title.includes('defi')) category = 'defi';
+      else if (title.includes('nft')) category = 'nft';
+
+      if (title.includes('bull') || title.includes('surge') || title.includes('rally')) sentiment = 'positive';
+      else if (title.includes('bear') || title.includes('crash') || title.includes('dump')) sentiment = 'negative';
+
+      const mapped = EnrichmentMapper.mapEnrichment({
+        externalCategory: category,
+        externalSentiment: sentiment,
+      });
+
+      await prisma.enrichment.create({
+        data: {
+          article: {
+            connect: { id: article.id },
+          },
+          sentiment: mapped.sentiment,
+          marketImpact: mapped.marketImpact,
+          tags: mapped.tags,
+          titleTh: null,
+          summaryTh: null,
+          takeawaysTh: [],
+          hooksTh: [],
+          threadTh: [],
+          contentDraftTh: null,
+          cautions: [],
+          mustQuote: [],
+          llmProvider: 'external',
+          llmModel: 'cryptocurrency.cv',
+          finnhubSentiment: null,
+          fmpSentiment: null,
+          sentimentConfidence: null,
+          santimentMetrics: null,
+          metricsFetchedAt: null,
+        },
+      });
+
+      await prisma.article.update({
+        where: { id: article.id },
+        data: { status: 'ENRICHED' },
+      });
+
+      enriched++;
+    } catch (error) {
+      logger.error({ error: (error as Error).message, articleId: article.id }, 'Failed to enrich');
+    }
+  }
+
+  logger.info({ enriched }, 'Finished enriching API articles');
+}
+
 async function printStatus() {
   const counts = {
     pending: await prisma.article.count({ where: { status: 'PENDING' } }),
@@ -129,6 +205,7 @@ async function main() {
 
   await runSourceFetches(config);
   await processPendingArticles(config);
+  await enrichAPIArticles(); // Apply free enrichment to API articles
   await printStatus();
 
   logger.info('One-shot ingest run complete');

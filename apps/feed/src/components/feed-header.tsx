@@ -4,9 +4,10 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { MarketTicker } from './market-ticker';
 import { ThemeToggle } from './theme-toggle';
-import { Menu } from 'lucide-react';
+import { Menu, Search } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
+import SearchModal from './SearchModal';
 
 const NAV_ITEMS = [
   { label: 'Latest Intel', sectionId: 'section-latest-intel', path: '/' },
@@ -20,6 +21,7 @@ export function FeedHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('Latest Intel');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   // Sync active tab with pathname on mount/change
   useEffect(() => {
@@ -100,8 +102,15 @@ export function FeedHeader() {
             ))}
           </nav>
 
-          {/* Right controls: theme toggle + menu */}
+          {/* Right controls: search + theme toggle + menu */}
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsSearchOpen(true)}
+              className="flex items-center justify-center h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface/50 transition-colors"
+              aria-label="Search articles"
+            >
+              <Search className="h-5 w-5" />
+            </button>
             <ThemeToggle />
             <button
               className="flex items-center justify-center h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface/50 transition-colors"
@@ -117,6 +126,9 @@ export function FeedHeader() {
       <div className="border-b border-border/30 bg-surface/40 overflow-hidden">
         <MarketTicker />
       </div>
+
+      {/* Search Modal */}
+      <SearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </header>
   );
 }

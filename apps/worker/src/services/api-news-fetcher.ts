@@ -2,12 +2,14 @@ import { createLogger, retryWithBackoff } from '@crypto-news/shared';
 
 const logger = createLogger('worker:api-news-fetcher');
 
-// GitHub API types
+// cryptocurrency.cv API types
 interface APINewsItem {
   title: string;
   link: string;
+  url?: string; // cryptocurrency.cv uses 'url' instead of 'link'
   description?: string;
   pubDate: string;
+  publishedAt?: string; // cryptocurrency.cv uses 'publishedAt'
   source: string;
   sourceKey?: string;
   category?: string;
@@ -31,6 +33,10 @@ export interface FetchedAPINews {
   sentiment?: string;
   summary?: string;
   tickers?: string[];
+  enrichmentData?: {
+    externalSentiment?: string;
+    externalCategory?: string;
+  };
 }
 
 export class APINewsFetcher {
@@ -43,7 +49,7 @@ export class APINewsFetcher {
     userAgent: string;
     timeoutMs: number;
   }) {
-    this.baseUrl = options.baseUrl || 'https://news-crypto.vercel.app';
+    this.baseUrl = options.baseUrl || 'https://cryptocurrency.cv';
     this.userAgent = options.userAgent;
     this.timeoutMs = options.timeoutMs;
   }
@@ -55,9 +61,16 @@ export class APINewsFetcher {
     limit?: number;
     since?: Date;
     tickers?: string[];
+    categories?: string[];
     language?: string;
   } = {}): Promise<FetchedAPINews[]> {
-    const { limit = 50, since, tickers, language } = options;
+    const {
+      limit = 50, // Reasonable default for quality over quantity
+      since,
+      tickers = ['BTC', 'ETH', 'SOL', 'XRP'], // Focus on major cryptocurrencies
+      categories = ['bitcoin', 'defi', 'institutional', 'etf'], // High-value categories only
+      language
+    } = options;
 
     return retryWithBackoff(
       async () => {
@@ -72,7 +85,11 @@ export class APINewsFetcher {
         }
 
         if (tickers && tickers.length > 0) {
-          params.set('tickers', tickers.join(','));
+          params.set('ticker', tickers.join(',')); // cryptocurrency.cv uses 'ticker'
+        }
+
+        if (categories && categories.length > 0) {
+          params.set('category', categories.join(','));
         }
 
         if (language) {
@@ -109,12 +126,17 @@ export class APINewsFetcher {
           // Transform API response to our format
           return data.articles.map((item) => ({
             title: item.title,
-            url: item.link,
-            publishedAt: new Date(item.pubDate),
+            url: item.url || item.link, // cryptocurrency.cv uses 'url', fallback to 'link'
+            publishedAt: new Date(item.publishedAt || item.pubDate),
             source: item.source,
-            sentiment: item.sentiment,
+            sentiment: item.sentiment, // preserve for enrichment mapping
             summary: item.description,
             tickers: item.tickers,
+            // Store enrichment metadata for later use
+            enrichmentData: {
+              externalSentiment: item.sentiment,
+              externalCategory: item.category,
+            },
           }));
         } catch (error: any) {
           clearTimeout(timeout);

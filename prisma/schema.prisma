@@ -45,6 +45,9 @@ model Article {
   hash               String       @unique
   language           String?      @default("en")
   status             ArticleStatus @default(PENDING)
+  impactScore        Decimal?     @db.Decimal(3,2)  // Pre-filter impact score 0.00-1.00
+  preFilterPassed    Boolean      @default(false)   // Whether article passed impact filter
+  searchVectorEn     Unsupported("tsvector")?  @map("search_vector_en")  // Full-text search vector
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
   enrichment         Enrichment?
@@ -55,6 +58,9 @@ model Article {
   @@index([status])
   @@index([urlNormalized])
   @@index([hash])
+  @@index([impactScore])
+  @@index([preFilterPassed])
+  @@index([searchVectorEn], type: Gin)
 }
 
 enum ArticleStatus {
@@ -66,27 +72,36 @@ enum ArticleStatus {
 }
 
 model Enrichment {
-  id           String   @id @default(cuid())
-  articleId    String   @unique
-  article      Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  titleTh      String
-  summaryTh    String
-  takeawaysTh  Json     // string[]
-  tags         Json     // string[]
-  sentiment    Sentiment
-  marketImpact MarketImpact
-  hooksTh      Json     // string[]
-  threadTh     Json     // string[]
-  contentDraftTh String? // manual social post draft (article-style)
-  cautions     Json?    // string[] optional
-  mustQuote    Json?    // string[] optional
-  llmModel     String
-  llmProvider  String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  articleId           String   @unique
+  article             Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  titleTh             String?  // Optional - only for HIGH impact articles with Thai translation
+  summaryTh           String?  // Optional - only for HIGH impact articles with Thai translation
+  takeawaysTh         Json     // string[]
+  tags                Json     // string[]
+  sentiment           Sentiment
+  marketImpact        MarketImpact
+  hooksTh             Json     // string[]
+  threadTh            Json     // string[]
+  contentDraftTh      String?  // manual social post draft (article-style)
+  cautions            Json?    // string[] optional
+  mustQuote           Json?    // string[] optional
+  finnhubSentiment    Json?    @map("finnhub_sentiment")  // Finnhub sentiment data
+  fmpSentiment        Json?    @map("fmp_sentiment")      // FMP sentiment data
+  sentimentConfidence Decimal? @db.Decimal(3,2) @map("sentiment_confidence")  // Aggregated confidence 0.00-1.00
+  santimentMetrics    Json?    @map("santiment_metrics")  // On-chain metrics from Santiment
+  metricsFetchedAt    DateTime? @map("metrics_fetched_at")  // When metrics were last fetched
+  searchVectorTh      Unsupported("tsvector")? @map("search_vector_th")  // Full-text search vector for Thai
+  llmModel            String
+  llmProvider         String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([sentiment])
   @@index([marketImpact])
+  @@index([sentimentConfidence])
+  @@index([metricsFetchedAt])
+  @@index([searchVectorTh], type: Gin)
 }
 
 enum Sentiment {
@@ -109,6 +124,7 @@ model Posting {
   discordMessageId String?
   postedAt         DateTime?
   status           PostingStatus @default(PENDING)
+  postingType      String        @default("SUMMARY") @map("posting_type")  // SUMMARY or HIGH_IMPACT
   error            String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
@@ -117,6 +133,7 @@ model Posting {
   @@index([discordChannelId])
   @@index([status])
   @@index([postedAt])
+  @@index([postingType])
 }
 
 enum PostingStatus {
@@ -173,4 +190,14 @@ model MarketSummary {
 
   @@index([scheduleType])
   @@index([createdAt])
+}
+
+model HighImpactQuota {
+  id          String   @id @default(cuid())
+  date        DateTime @unique @db.Date
+  postedCount Int      @default(0) @map("posted_count")  // Number of high-impact posts today
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("HighImpactQuota")
 }

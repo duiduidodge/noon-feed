@@ -5,6 +5,8 @@ import { createLLMProvider } from './services/llm-provider.js';
 import { ArticleFetcher } from './services/article-fetcher.js';
 import { RSSFetcher } from './services/rss-fetcher.js';
 import { APINewsFetcher } from './services/api-news-fetcher.js';
+import { ImpactFilter } from './services/impact-filter.js';
+import { DiscordWebhookService } from './services/discord-webhook.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
 import { processFetchAPINewsJob, type FetchAPINewsJobData } from './jobs/fetch-api-news.js';
 import { processFetchArticleJob, type FetchArticleJobData } from './jobs/fetch-article.js';
@@ -82,6 +84,22 @@ try {
   llmProvider = createFallbackLlmProvider(reason);
 }
 
+// Initialize pre-filter LLM provider (use cheap model for cost savings)
+let impactFilter: ImpactFilter | undefined;
+if (process.env.ENABLE_HIGH_IMPACT_POSTING === 'true' && process.env.OPENAI_API_KEY) {
+  try {
+    const preFilterLlmProvider = createLLMProvider(
+      'openai',
+      process.env.OPENAI_API_KEY,
+      process.env.PRE_FILTER_LLM_MODEL || 'gpt-4o-mini'
+    );
+    impactFilter = new ImpactFilter(preFilterLlmProvider, 0.7);
+    logger.info('Impact filter initialized with gpt-4o-mini');
+  } catch (error) {
+    logger.warn({ error: (error as Error).message }, 'Failed to initialize impact filter');
+  }
+}
+
 // Redis connection options (supports local redis:// and managed rediss:// URLs)
 function buildRedisConnection(url: string) {
   const parsed = new URL(url);
@@ -145,7 +163,7 @@ const apiNewsWorker = new Worker<FetchAPINewsJobData>(
 const articleWorker = new Worker<FetchArticleJobData>(
   'article-fetch',
   async (job: Job<FetchArticleJobData>) => {
-    return processFetchArticleJob(job.data, prisma, articleFetcher);
+    return processFetchArticleJob(job.data, prisma, articleFetcher, impactFilter);
   },
   {
     connection: redisConnection,
@@ -284,7 +302,7 @@ async function processPendingArticles() {
     } catch (error) {
       if (isQueueUnavailableError(error)) {
         logger.warn({ articleId: article.id }, 'Article queue unavailable; running fetch inline');
-        await processFetchArticleJob(payload, prisma, articleFetcher);
+        await processFetchArticleJob(payload, prisma, articleFetcher, impactFilter);
       } else {
         throw error;
       }
@@ -296,16 +314,19 @@ async function processPendingArticles() {
   }
 }
 
-// Process fetched articles for enrichment (only if enrichment is enabled)
+// Process fetched articles for enrichment (selective enrichment based on pre-filter)
 async function processFetchedArticles() {
-  if (config.worker.skipEnrichment) {
-    return; // Skip enrichment — we use bi-daily summaries instead
-  }
-
+  // With selective enrichment, only enrich articles that passed pre-filter
   const fetchedArticles = await prisma.article.findMany({
-    where: { status: 'FETCHED' },
+    where: {
+      status: 'FETCHED',
+      preFilterPassed: true, // Only enrich high-potential articles
+    },
     take: 5,
-    orderBy: { createdAt: 'asc' },
+    orderBy: [
+      { impactScore: 'desc' }, // Prioritize by impact score
+      { createdAt: 'asc' },
+    ],
   });
 
   for (const article of fetchedArticles) {
@@ -327,7 +348,7 @@ async function processFetchedArticles() {
   }
 
   if (fetchedArticles.length > 0) {
-    logger.info({ count: fetchedArticles.length }, 'Queued fetched articles for enrichment');
+    logger.info({ count: fetchedArticles.length }, 'Queued high-potential articles for enrichment');
   }
 }
 
@@ -399,6 +420,115 @@ async function processPendingPosts() {
 
   if (pendingPostings.length > 0) {
     logger.info({ count: pendingPostings.length }, 'Queued pending Discord posts');
+  }
+}
+
+// ============================================================
+// High-impact article posting
+// Posts enriched articles with HIGH market impact to Discord
+// Limited to MAX_HIGH_IMPACT_POSTS_PER_DAY per day
+// ============================================================
+async function processHighImpactArticles() {
+  if (!config.worker.enableHighImpactPosting) {
+    return; // Feature disabled
+  }
+
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) {
+    return; // No webhook configured
+  }
+
+  // Check daily quota
+  const today = new Date().toISOString().split('T')[0];
+  const quota = await prisma.highImpactQuota.findUnique({
+    where: { date: new Date(today) },
+  });
+
+  const maxPerDay = parseInt(process.env.MAX_HIGH_IMPACT_POSTS_PER_DAY || '10', 10);
+  if (quota && quota.postedCount >= maxPerDay) {
+    return; // Quota exceeded for today
+  }
+
+  // Find enriched HIGH-impact articles not yet posted
+  const candidates = await prisma.article.findMany({
+    where: {
+      status: 'ENRICHED',
+      enrichment: { marketImpact: 'HIGH' },
+      postings: { none: { postingType: 'HIGH_IMPACT' } },
+    },
+    include: {
+      enrichment: true,
+      source: true,
+    },
+    take: 3,
+    orderBy: { publishedAt: 'desc' },
+  });
+
+  if (candidates.length === 0) {
+    return;
+  }
+
+  const discordService = new DiscordWebhookService(webhookUrl);
+
+  for (const article of candidates) {
+    // Check quota again (might have changed in loop)
+    const currentQuota = await prisma.highImpactQuota.upsert({
+      where: { date: new Date(today) },
+      create: { date: new Date(today), postedCount: 0 },
+      update: {},
+    });
+
+    if (currentQuota.postedCount >= maxPerDay) {
+      logger.info('High-impact quota reached for today');
+      break;
+    }
+
+    try {
+      // Post to Discord
+      await discordService.postArticle(article);
+
+      // Increment quota
+      await prisma.highImpactQuota.update({
+        where: { date: new Date(today) },
+        data: { postedCount: { increment: 1 } },
+      });
+
+      // Mark as posted
+      await prisma.posting.create({
+        data: {
+          articleId: article.id,
+          discordChannelId: 'high-impact-webhook',
+          status: 'POSTED',
+          postingType: 'HIGH_IMPACT',
+          postedAt: new Date(),
+        },
+      });
+
+      logger.info({
+        articleId: article.id,
+        title: article.titleOriginal.substring(0, 50),
+        marketImpact: article.enrichment?.marketImpact,
+      }, 'Posted high-impact article to Discord');
+
+      // Rate limit: 30s between posts to avoid spam
+      await sleep(30000);
+    } catch (error) {
+      logger.error({
+        error: (error as Error).message,
+        articleId: article.id,
+      }, 'Failed to post high-impact article');
+
+      // Create failed posting record
+      await prisma.posting.create({
+        data: {
+          articleId: article.id,
+          discordChannelId: 'high-impact-webhook',
+          status: 'FAILED',
+          postingType: 'HIGH_IMPACT',
+          error: (error as Error).message,
+        },
+      });
+    }
   }
 }
 
@@ -625,6 +755,12 @@ async function main() {
       await processPendingPosts();
     } catch (error) {
       logger.error({ error: (error as Error).message }, 'Failed to process pending posts');
+    }
+
+    try {
+      await processHighImpactArticles();
+    } catch (error) {
+      logger.error({ error: (error as Error).message }, 'Failed to process high-impact articles');
     }
 
     try {

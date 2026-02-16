@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { NewsCard, type FeedArticle } from './news-card';
-import { TagFilter } from './tag-filter';
 
 interface NewsFeedProps {
   initialArticles: FeedArticle[];
@@ -26,7 +25,6 @@ async function fetchArticles(tag: string | null, cursor: string | null) {
 }
 
 export function NewsFeed({ initialArticles }: NewsFeedProps) {
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [loadedPages, setLoadedPages] = useState<FeedArticle[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -35,17 +33,10 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const { data, isLoading, error, dataUpdatedAt } = useQuery({
-    queryKey: ['feed-articles', selectedTag],
-    queryFn: () => fetchArticles(selectedTag, null),
+    queryKey: ['feed-articles'],
+    queryFn: () => fetchArticles(null, null),
     refetchInterval: 2 * 60 * 1000,
   });
-
-  const handleTagSelect = (tag: string | null) => {
-    setSelectedTag(tag);
-    setLoadedPages([]);
-    setHasMore(true);
-    setLoadMoreError(null);
-  };
 
   const handleLoadMore = async () => {
     const lastArticle = allArticles[allArticles.length - 1];
@@ -54,7 +45,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
     setIsLoadingMore(true);
     setLoadMoreError(null);
     try {
-      const result = await fetchArticles(selectedTag, lastArticle.id);
+      const result = await fetchArticles(null, lastArticle.id);
       setLoadedPages((prev) => [...prev, ...result.articles]);
       setHasMore(result.hasMore);
     } catch (error) {
@@ -64,8 +55,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
     }
   };
 
-  const baseArticles =
-    !selectedTag && !data ? initialArticles : data?.articles || [];
+  const baseArticles = !data ? initialArticles : data?.articles || [];
   const allArticles = [...baseArticles, ...loadedPages];
 
   useEffect(() => {
@@ -88,7 +78,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, isLoadingMore, allArticles.length, selectedTag]);
+  }, [hasMore, isLoadingMore, allArticles.length]);
 
   return (
     <div className="flex h-full min-h-0 flex-col space-y-0">
@@ -109,21 +99,8 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
         </div>
       </div>
 
-      <TagFilter selectedTag={selectedTag} onTagSelect={handleTagSelect} />
-      {selectedTag && (
-        <div className="border-b border-border/30 px-4 py-2">
-          <button
-            onClick={() => handleTagSelect(null)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/8 px-3 py-1 font-mono-data text-[11px] font-medium uppercase tracking-wide text-primary"
-          >
-            <X className="h-3 w-3" />
-            {selectedTag}
-          </button>
-        </div>
-      )}
-
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-        {isLoading && selectedTag ? (
+        {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
           </div>

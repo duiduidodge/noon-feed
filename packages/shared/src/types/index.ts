@@ -187,6 +187,21 @@ export interface AppConfig {
     fetchIntervalMinutes: number;
     autoPostToDiscord: boolean;
     skipEnrichment: boolean;
+    enableHighImpactPosting: boolean;
+  };
+  externalApis: {
+    finnhub: {
+      apiKey?: string;
+      enabled: boolean;
+    };
+    fmp: {
+      apiKey?: string;
+      enabled: boolean;
+    };
+    santiment: {
+      apiKey?: string;
+      enabled: boolean;
+    };
   };
   api: {
     port: number;

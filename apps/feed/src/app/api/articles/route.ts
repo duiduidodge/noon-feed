@@ -31,7 +31,9 @@ export async function GET(request: NextRequest) {
       status: { in: ['FETCHED', 'ENRICHED'] },
     };
 
-    const enrichmentWhere: Prisma.EnrichmentWhereInput = {};
+    const enrichmentWhere: Prisma.EnrichmentWhereInput = {
+      marketImpact: { in: ['MEDIUM', 'HIGH'] },
+    };
     if (tag) enrichmentWhere.tags = { array_contains: [tag] };
 
     const sentimentFilter = sentiment?.toUpperCase();

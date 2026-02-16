@@ -164,6 +164,21 @@ export function buildConfig(): AppConfig {
       fetchIntervalMinutes: getEnvNumber('FETCH_INTERVAL_MINUTES', 15),
       autoPostToDiscord: getEnvOptional('AUTO_POST_TO_DISCORD', 'false') === 'true',
       skipEnrichment: getEnvOptional('SKIP_ENRICHMENT', 'true') === 'true',
+      enableHighImpactPosting: getEnvOptional('ENABLE_HIGH_IMPACT_POSTING', 'false') === 'true',
+    },
+    externalApis: {
+      finnhub: {
+        apiKey: getEnvOptional('FINNHUB_API_KEY'),
+        enabled: getEnvOptional('ENABLE_EXTERNAL_SENTIMENT', 'false') === 'true',
+      },
+      fmp: {
+        apiKey: getEnvOptional('FMP_API_KEY'),
+        enabled: getEnvOptional('ENABLE_EXTERNAL_SENTIMENT', 'false') === 'true',
+      },
+      santiment: {
+        apiKey: getEnvOptional('SANTIMENT_API_KEY'),
+        enabled: getEnvOptional('ENABLE_ONCHAIN_METRICS', 'false') === 'true',
+      },
     },
     api: {
       port: getEnvNumber('API_PORT', 3001),

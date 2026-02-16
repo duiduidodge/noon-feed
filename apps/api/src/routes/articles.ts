@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { ArticleFilterSchema, PostToDiscordRequestSchema, getChannelForTags } from '@crypto-news/shared';
+import { ArticleFilterSchema, PostToDiscordRequestSchema, getChannelForTags, sanitizeSearchQuery, detectLanguage } from '@crypto-news/shared';
 import { Prisma } from '@prisma/client';
 
 export async function articlesRoutes(fastify: FastifyInstance) {
@@ -38,12 +38,54 @@ export async function articlesRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Full-text search using PostgreSQL FTS
     if (search) {
-      where.OR = [
-        { titleOriginal: { contains: search, mode: 'insensitive' } },
-        { enrichment: { titleTh: { contains: search, mode: 'insensitive' } } },
-        { enrichment: { summaryTh: { contains: search, mode: 'insensitive' } } },
-      ];
+      const sanitizedQuery = sanitizeSearchQuery(search);
+      const lang = detectLanguage(search);
+
+      if (sanitizedQuery) {
+        // Use FTS for better search performance
+        let searchResults: { id: string }[] = [];
+
+        if (lang === 'en' || lang === 'auto') {
+          // Search English content (titleOriginal, extractedText)
+          const enResults = await fastify.prisma.$queryRaw<{ id: string }[]>`
+            SELECT DISTINCT a.id
+            FROM "Article" a
+            WHERE a.search_vector_en @@ plainto_tsquery('english', ${sanitizedQuery})
+            LIMIT 100
+          `;
+          searchResults = [...searchResults, ...enResults];
+        }
+
+        if (lang === 'th' || lang === 'auto') {
+          // Search Thai content (titleTh, summaryTh in Enrichment)
+          const thResults = await fastify.prisma.$queryRaw<{ id: string }[]>`
+            SELECT DISTINCT a.id
+            FROM "Article" a
+            INNER JOIN "Enrichment" e ON e."articleId" = a.id
+            WHERE e.search_vector_th @@ plainto_tsquery('simple', ${sanitizedQuery})
+            LIMIT 100
+          `;
+          searchResults = [...searchResults, ...thResults];
+        }
+
+        // Deduplicate article IDs
+        const articleIds = [...new Set(searchResults.map(r => r.id))];
+
+        if (articleIds.length === 0) {
+          // No results found, return empty
+          return {
+            items: [],
+            total: 0,
+            page,
+            pageSize,
+            totalPages: 0,
+          };
+        }
+
+        where.id = { in: articleIds };
+      }
     }
 
     if (tags && tags.length > 0) {

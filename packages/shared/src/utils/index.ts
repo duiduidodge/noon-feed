@@ -411,3 +411,9 @@ export function isBlockedSource(source: string | null | undefined, url: string):
 
 /** Minimum extracted text length to justify spending LLM tokens on enrichment */
 export const MIN_TEXT_FOR_ENRICHMENT = 200;
+
+// ── Full-Text Search Utilities ────────────────────────────────────
+export { sanitizeSearchQuery, detectLanguage, buildFTSQuery } from './search.js';
+
+// ── Token Mapping Utilities ───────────────────────────────────────
+export { TOKEN_TO_SANTIMENT_SLUG, getSantimentSlug, getSupportedTokenTags } from './token-mapping.js';

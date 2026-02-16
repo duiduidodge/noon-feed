@@ -1,4 +1,3 @@
-import { SentimentBadge } from './sentiment-badge';
 import { formatTimeAgo } from '@/lib/utils';
 import { clsx } from 'clsx';
 
@@ -49,7 +48,7 @@ export function NewsCard({ article, index = 0 }: NewsCardProps) {
       )}
       style={{ '--stagger': index } as React.CSSProperties}
     >
-      {/* Source + time + sentiment */}
+      {/* Source + time */}
       <div className="mb-1.5 flex items-center gap-2">
         {/* Source color dot */}
         <span className={clsx('h-1.5 w-1.5 rounded-full shrink-0', getSourceColor(article.sourceName))} />
@@ -57,12 +56,9 @@ export function NewsCard({ article, index = 0 }: NewsCardProps) {
           {article.sourceName}
         </span>
         {article.publishedAt && (
-          <>
-            <span className="text-border">&middot;</span>
-            <span className="font-mono-data text-[10px] text-muted-foreground/70">
-              {formatTimeAgo(article.publishedAt)}
-            </span>
-          </>
+          <span className="font-mono-data text-[10px] text-muted-foreground/70">
+            {formatTimeAgo(article.publishedAt)}
+          </span>
         )}
         {isHighImpact && (
           <span className="relative flex h-2 w-2">
@@ -70,9 +66,6 @@ export function NewsCard({ article, index = 0 }: NewsCardProps) {
             <span className="relative h-2 w-2 rounded-full bg-orange-500/80" />
           </span>
         )}
-        <div className="ml-auto">
-          <SentimentBadge sentiment={article.sentiment} />
-        </div>
       </div>
 
       {/* Title */}
@@ -85,20 +78,6 @@ export function NewsCard({ article, index = 0 }: NewsCardProps) {
         <p className="mb-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
           {article.snippet}
         </p>
-      )}
-
-      {/* Tags */}
-      {article.tags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {article.tags.slice(0, 4).map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center rounded-md bg-surface/70 border border-border/50 px-1.5 py-0.5 font-mono-data text-[9px] font-medium uppercase tracking-wide text-muted-foreground"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
       )}
     </a>
   );
