@@ -83,81 +83,85 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
   return (
     <div className="flex h-full min-h-0 flex-col space-y-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
-        <h2 className="font-display text-lg font-bold tracking-tight text-foreground uppercase">
+      <div className="flex items-center justify-between px-6 py-5 border-b border-border/40 bg-surface/20 backdrop-blur-sm sticky top-0 z-10 transition-all duration-300">
+        <h2 className="font-display text-lg font-extrabold tracking-tight text-foreground uppercase flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           Latest Intel
         </h2>
         <div className="text-right">
-          <div className="font-mono-data text-[11px] text-muted-foreground/70">
-            {allArticles.length} articles
+          <div className="font-mono-data text-[11px] font-bold text-muted-foreground/80">
+            {allArticles.length} <span className="text-[10px] font-normal opacity-70">ARTICLES</span>
           </div>
           {dataUpdatedAt > 0 && (
             <div className="font-mono-data text-[10px] text-muted-foreground/50">
-              Updated {new Date(dataUpdatedAt).toLocaleTimeString()}
+              Updated {new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           )}
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar scroll-smooth">
         {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="h-6 w-6 animate-spin text-primary/60" />
           </div>
         ) : error ? (
-          <div className="px-4 py-10 text-center">
-            <p className="font-mono-data text-xs uppercase tracking-wider text-bearish">
+          <div className="px-4 py-12 text-center">
+            <p className="font-mono-data text-xs uppercase tracking-wider text-bearish/80">
               Feed unavailable
             </p>
           </div>
         ) : allArticles.length === 0 ? (
-          <div className="px-4 py-16 text-center">
+          <div className="px-4 py-20 text-center">
             <p className="font-mono-data text-xs text-muted-foreground/50 uppercase tracking-wider">
               No intel found
             </p>
           </div>
         ) : (
           <>
-            {allArticles.map((article, i) => (
-              <NewsCard key={article.id} article={article} index={i} />
-            ))}
+            <div className="divide-y divide-border/20">
+              {allArticles.map((article, i) => (
+                <NewsCard key={article.id} article={article} index={i} />
+              ))}
+            </div>
 
             {hasMore && allArticles.length > 0 && (
-              <div className="p-4">
+              <div className="p-6">
                 <button
                   onClick={handleLoadMore}
                   disabled={isLoadingMore}
-                  className="w-full rounded-lg border border-primary/20 bg-transparent py-2.5 font-mono-data text-[11px] font-medium uppercase tracking-wider text-primary/70 transition-all duration-200 hover:border-primary/40 hover:text-primary hover:bg-primary/5 disabled:opacity-50"
+                  className="w-full relative overflow-hidden rounded-xl border border-primary/20 bg-primary/5 py-3 font-mono-data text-[11px] font-bold uppercase tracking-widest text-primary/80 transition-all duration-300 hover:border-primary/50 hover:text-primary hover:bg-primary/10 hover:shadow-[0_0_15px_-3px_hsl(var(--primary)/0.2)] disabled:opacity-50 group"
                 >
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                   {isLoadingMore ? (
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                    <span className="inline-flex items-center gap-2 relative z-10">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Loading...
                     </span>
                   ) : (
-                    'Load More'
+                    <span className="relative z-10">Load More Intel</span>
                   )}
                 </button>
                 {isLoadingMore && (
-                  <div className="mt-2 grid grid-cols-1 gap-2">
+                  <div className="mt-3 grid grid-cols-1 gap-3">
                     {Array.from({ length: 2 }).map((_, i) => (
                       <div
                         key={i}
-                        className="h-16 animate-shimmer rounded-md border border-border/30"
+                        className="h-20 animate-pulse rounded-lg bg-surface/30 border border-border/20"
                       />
                     ))}
                   </div>
                 )}
                 {loadMoreError && (
-                  <p className="mt-2 text-center text-xs text-bearish">{loadMoreError}</p>
+                  <p className="mt-3 text-center font-mono-data text-[10px] text-bearish">{loadMoreError}</p>
                 )}
               </div>
             )}
-            <div ref={sentinelRef} className="h-1 w-full" aria-hidden="true" />
+            <div ref={sentinelRef} className="h-4 w-full" aria-hidden="true" />
             {!hasMore && allArticles.length > 0 && (
-              <div className="p-4 text-center">
-                <p className="font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/55">
-                  You are caught up
+              <div className="p-8 text-center border-t border-border/20">
+                <p className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50">
+                  End of Stream
                 </p>
               </div>
             )}

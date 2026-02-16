@@ -31,81 +31,76 @@ export function MyPostsWidget() {
 
   return (
     <WidgetCard
-      title="My Posts"
+      title="My Feed"
       headerRight={
         <div className="flex items-center gap-2">
-          <div className="text-right">
-            <span className="font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground/60">
-              Feed
-            </span>
-            {dataUpdatedAt > 0 && (
-              <div className="font-mono-data text-[10px] text-muted-foreground/45">
-                {new Date(dataUpdatedAt).toLocaleTimeString()}
-              </div>
-            )}
-          </div>
+          {dataUpdatedAt > 0 && (
+            <div className="font-mono-data text-[9px] text-muted-foreground/40 hidden sm:block">
+              UPDATED {new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
+          )}
           <button
             onClick={toggleCollapse}
-            className="flex items-center justify-center h-6 w-6 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-surface/60 transition-all duration-200"
+            className="flex items-center justify-center h-6 w-6 rounded-full text-muted-foreground/60 hover:text-primary hover:bg-primary/10 transition-all duration-200"
             aria-label={collapsed ? 'Expand posts' : 'Collapse posts'}
           >
             {collapsed ? (
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="h-4 w-4" />
             ) : (
-              <ChevronUp className="h-3.5 w-3.5" />
+              <ChevronUp className="h-4 w-4" />
             )}
           </button>
         </div>
       }
     >
       <div
-        className="transition-all duration-300 ease-in-out overflow-hidden"
+        className="transition-all duration-500 ease-in-out overflow-hidden"
         style={{
-          maxHeight: collapsed ? '0px' : '560px',
+          maxHeight: collapsed ? '0px' : '600px',
           opacity: collapsed ? 0 : 1,
         }}
       >
-        <div className="max-h-[min(60vh,560px)] overflow-y-auto custom-scrollbar">
+        <div className="max-h-[60vh] overflow-y-auto custom-scrollbar">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-16">
               <Loader2 className="h-5 w-5 animate-spin text-primary/50" />
             </div>
           ) : error ? (
-            <div className="px-4 py-8 text-center font-mono-data text-xs text-muted-foreground/50">
-              Posts unavailable
+            <div className="px-5 py-10 text-center font-mono-data text-xs text-bearish/70 tracking-wider uppercase">
+              Connection lost
             </div>
           ) : data?.posts.length === 0 ? (
-            /* Enhanced empty state */
-            <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-              {/* Icon cluster */}
-              <div className="relative mb-5">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/15 shadow-sm">
-                  <PenLine className="h-6 w-6 text-primary/60" />
+            /* Enhanced Empty State */
+            <div className="flex flex-col items-center justify-center px-6 py-14 text-center">
+              <div className="relative mb-5 group">
+                <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/15 shadow-inner backdrop-blur-sm">
+                  <PenLine className="h-7 w-7 text-primary/70" />
                 </div>
-                <Sparkles className="absolute -right-2 -top-2 h-4 w-4 text-primary/40 animate-pulse" />
+                <Sparkles className="absolute -right-1 -top-1 h-5 w-5 text-primary/60 animate-pulse" />
               </div>
-              <p className="font-display text-sm font-bold text-foreground/80 mb-1.5">
-                No posts yet
+
+              <h3 className="font-display text-base font-bold text-foreground/90 mb-2">
+                Start Your Coverage
+              </h3>
+              <p className="text-xs text-muted-foreground/70 mb-6 max-w-[220px] leading-relaxed">
+                Transform market insights into engaging content. Your audience is waiting.
               </p>
-              <p className="text-xs text-muted-foreground/60 mb-5 max-w-[200px] leading-relaxed">
-                Transform crypto news into engaging content for your audience
-              </p>
-              {/* CTA Button */}
-              <button className="inline-flex items-center gap-1.5 rounded-full bg-primary/12 border border-primary/25 px-4 py-2 text-xs font-semibold text-primary hover:bg-primary/20 hover:border-primary/40 transition-all duration-200 group">
-                <PenLine className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
-                Create First Post
+
+              <button className="relative inline-flex items-center gap-2 rounded-full bg-primary/10 border border-primary/20 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary/20 hover:border-primary/40 transition-all duration-300 group overflow-hidden">
+                <span className="relative z-10 flex items-center gap-2">
+                  <PenLine className="h-3.5 w-3.5" />
+                  Create First Post
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
               </button>
-              {/* Ghost skeleton preview */}
-              <div className="w-full space-y-2.5 opacity-20 mt-6">
-                <div className="h-3 w-4/5 rounded-full bg-surface" />
-                <div className="h-2.5 w-full rounded-full bg-surface" />
-                <div className="h-2.5 w-2/3 rounded-full bg-surface" />
-              </div>
             </div>
           ) : (
-            data?.posts.map((post) => (
-              <PostCard key={post.id} post={post} />
-            ))
+            <div className="divide-y divide-border/10">
+              {data?.posts.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
           )}
         </div>
       </div>

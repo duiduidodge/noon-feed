@@ -183,7 +183,7 @@ export function PricesColumn() {
 
   if (error || !data) {
     return (
-      <div className="rounded-lg border border-bearish/20 bg-bearish/5 px-3 py-2 text-xs text-bearish">
+      <div className="rounded-lg border border-bearish/20 bg-bearish/5 px-3 py-2 text-xs text-bearish backdrop-blur-sm">
         Prices unavailable
       </div>
     );
@@ -193,68 +193,72 @@ export function PricesColumn() {
   const fgLabel = marketOverview?.fearGreedLabel ?? 'Neutral';
 
   return (
-    <div className="flex flex-col gap-2.5 h-full">
+    <div className="flex flex-col gap-4 h-full">
       {/* ── Section Header — Market Mood ── */}
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-base font-extrabold uppercase tracking-tight text-foreground">
+      <div className="flex items-center justify-between px-1">
+        <h2 className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary/60" />
           Market Mood
         </h2>
         {data.asOf && (
-          <span className="font-mono-data text-[9px] text-muted-foreground/50">
-            {new Date(data.asOf).toLocaleTimeString()}
-          </span>
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-surface/50 border border-border/30">
+            <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+            <span className="font-mono-data text-[9px] text-muted-foreground/70">
+              {new Date(data.asOf).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
         )}
       </div>
 
-      {/* ── Row 1: Gauge centered ── */}
-      <div className="flex justify-center">
+      {/* ── Mood Gauge Container ── */}
+      <div className="relative flex justify-center py-4 rounded-xl border border-border/40 bg-surface/30 backdrop-blur-md shadow-inner group transition-all duration-300 hover:bg-surface/40 hover:border-primary/20">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/20 pointer-events-none rounded-xl" />
         <MoodGauge value={fgValue} label={fgLabel} />
       </div>
 
-      {/* ── Row 2: Global metrics — full-width grid ── */}
-      <div className="grid grid-cols-3 gap-1 rounded-lg bg-surface/30 p-2">
-        <MetricRow
+      {/* ── Global Metrics Grid ── */}
+      <div className="grid grid-cols-3 gap-2">
+        <MetricCard
           label="Mcap"
           value={formatCompactNumber(data.global.totalMcap)}
           change={data.global.avgChange24h}
         />
-        <MetricRow
+        <MetricCard
           label="Volume"
           value={formatCompactNumber(data.global.totalVolume)}
         />
-        <MetricRow
+        <MetricCard
           label="BTC Dom"
           value={`${data.global.btcDominance.toFixed(1)}%`}
         />
       </div>
 
-      {/* Gradient divider */}
-      <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent shrink-0" />
+      <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent shrink-0 my-1" />
 
-      {/* ── Row 2: Majors — full width with sparklines ── */}
-      <div>
-        <div className="flex items-baseline justify-between px-1 mb-1">
-          <h3 className="font-display text-[10px] font-bold uppercase tracking-wider text-foreground">
+      {/* ── Majors List ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="font-display text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Majors
           </h3>
         </div>
-        <div className="space-y-0">
+        <div className="space-y-1">
           {data.majors.map((coin) => (
             <CoinRow key={coin.id} coin={coin} showSparkline />
           ))}
         </div>
       </div>
 
-      {/* Gradient divider */}
-      <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent shrink-0" />
+      <div className="h-px bg-gradient-to-r from-transparent via-border/40 to-transparent shrink-0 my-1" />
 
-      {/* ── Row 3: Trending — full width ── */}
-      <div>
-        <h3 className="flex items-center gap-1 font-display text-[10px] font-bold uppercase tracking-wider text-foreground px-1 mb-1">
+      {/* ── Trending List ── */}
+      <div className="space-y-2">
+        <h3 className="flex items-center gap-1.5 font-display text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">
           <Flame className="h-3 w-3 text-orange-500" />
           Trending
         </h3>
-        <div className="space-y-0">
+        <div className="space-y-1">
           {data.trending.map((coin) => (
             <CoinRow key={coin.id} coin={coin} compact />
           ))}
@@ -269,7 +273,7 @@ function CoinRow({ coin, showSparkline, compact }: { coin: CoinPrice; showSparkl
   const isPositive = coin.changePercent24Hr >= 0;
 
   return (
-    <div className="flex items-center gap-1.5 px-1 py-1.5 rounded-md coin-row-hover cursor-default overflow-hidden">
+    <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-transparent hover:border-border/40 hover:bg-surface/50 transition-all duration-200 cursor-default group">
       {/* Logo */}
       {coin.image && (
         <Image
@@ -278,7 +282,7 @@ function CoinRow({ coin, showSparkline, compact }: { coin: CoinPrice; showSparkl
           width={compact ? 14 : 18}
           height={compact ? 14 : 18}
           className={clsx(
-            'shrink-0 rounded-full',
+            'shrink-0 rounded-full grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all',
             compact ? 'h-3.5 w-3.5' : 'h-[18px] w-[18px]'
           )}
         />
@@ -286,7 +290,7 @@ function CoinRow({ coin, showSparkline, compact }: { coin: CoinPrice; showSparkl
 
       {/* Symbol */}
       <span className={clsx(
-        'font-medium text-foreground shrink-0',
+        'font-medium text-foreground shrink-0 transition-colors group-hover:text-primary',
         compact ? 'text-[10px] w-9' : 'text-[11px] w-10'
       )}>
         {coin.symbol}
@@ -294,7 +298,9 @@ function CoinRow({ coin, showSparkline, compact }: { coin: CoinPrice; showSparkl
 
       {/* Sparkline (majors only) */}
       {showSparkline && coin.sparkline && (
-        <Sparkline data={coin.sparkline} positive={isPositive} />
+        <div className="w-[40px] h-[14px] shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
+          <Sparkline data={coin.sparkline} positive={isPositive} />
+        </div>
       )}
 
       {/* Spacer */}
@@ -302,7 +308,7 @@ function CoinRow({ coin, showSparkline, compact }: { coin: CoinPrice; showSparkl
 
       {/* Price */}
       <span className={clsx(
-        'font-mono-data font-medium text-foreground whitespace-nowrap price-hover-scale',
+        'font-mono-data font-medium text-foreground whitespace-nowrap tabular-nums tracking-tight',
         compact ? 'text-[10px]' : 'text-[11px]'
       )}>
         {formatPrice(coin.priceUsd)}
@@ -311,16 +317,15 @@ function CoinRow({ coin, showSparkline, compact }: { coin: CoinPrice; showSparkl
       {/* Change */}
       <span
         className={clsx(
-          'flex items-center gap-0.5 font-mono-data font-medium whitespace-nowrap shrink-0',
-          compact ? 'text-[8px] w-[46px]' : 'text-[9px] w-[52px]',
-          'text-right justify-end',
+          'flex items-center justify-end gap-0.5 font-mono-data font-medium whitespace-nowrap shrink-0 tabular-nums',
+          compact ? 'text-[9px] w-[46px]' : 'text-[10px] w-[54px]',
           isPositive ? 'text-bullish' : 'text-bearish'
         )}
       >
         {isPositive ? (
-          <TrendingUp className="h-2 w-2 shrink-0" />
+          <TrendingUp className="h-2.5 w-2.5 shrink-0 stroke-[2.5px]" />
         ) : (
-          <TrendingDown className="h-2 w-2 shrink-0" />
+          <TrendingDown className="h-2.5 w-2.5 shrink-0 stroke-[2.5px]" />
         )}
         {formatPercent(coin.changePercent24Hr)}
       </span>
@@ -328,7 +333,8 @@ function CoinRow({ coin, showSparkline, compact }: { coin: CoinPrice; showSparkl
   );
 }
 
-function MetricRow({
+// Replaces broken MetricRow with a styled card
+function MetricCard({
   label,
   value,
   change,
@@ -338,17 +344,19 @@ function MetricRow({
   change?: number;
 }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 text-center">
-      <span className="font-mono-data text-[8px] text-muted-foreground uppercase tracking-wider">
+    <div className="relative flex flex-col items-center justify-center p-2 rounded-lg border border-border/30 bg-surface/20 backdrop-blur-md overflow-hidden group hover:border-primary/30 transition-all duration-300">
+      <div className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+
+      <span className="font-mono-data text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">
         {label}
       </span>
-      <span className="font-mono-data text-[11px] font-bold text-foreground leading-none">
+      <span className="font-mono-data text-xs font-bold text-foreground tracking-tight group-hover:text-primary transition-colors">
         {value}
       </span>
       {change !== undefined && (
         <span
           className={clsx(
-            'font-mono-data text-[8px] font-medium',
+            'font-mono-data text-[9px] font-medium mt-0.5',
             change >= 0 ? 'text-bullish' : 'text-bearish'
           )}
         >

@@ -27,13 +27,19 @@ export async function GET(request: NextRequest) {
     const cursor = searchParams.get('cursor');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50);
 
+    const impactFilter = searchParams.get('impact')?.toUpperCase();
+
     const where: Prisma.ArticleWhereInput = {
       status: { in: ['FETCHED', 'ENRICHED'] },
     };
 
-    const enrichmentWhere: Prisma.EnrichmentWhereInput = {
-      marketImpact: { in: ['MEDIUM', 'HIGH'] },
-    };
+    const enrichmentWhere: Prisma.EnrichmentWhereInput = {};
+
+    if (impactFilter && ['LOW', 'MEDIUM', 'HIGH'].includes(impactFilter)) {
+      enrichmentWhere.marketImpact = impactFilter as 'LOW' | 'MEDIUM' | 'HIGH';
+    } else {
+      enrichmentWhere.marketImpact = { in: ['MEDIUM', 'HIGH'] };
+    }
     if (tag) enrichmentWhere.tags = { array_contains: [tag] };
 
     const sentimentFilter = sentiment?.toUpperCase();

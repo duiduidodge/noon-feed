@@ -11,20 +11,21 @@ export function WidgetCard({ title, headerRight, children, className }: WidgetCa
   return (
     <div
       className={clsx(
-        'rounded-xl overflow-hidden border border-border/50 bg-card/50',
+        'rounded-2xl overflow-hidden border border-border/40 bg-surface/20 backdrop-blur-md shadow-sm',
         className
       )}
     >
-      {/* Accent top line */}
-      <div className="h-px bg-gradient-to-r from-transparent via-primary/25 to-transparent" />
+      {/* Accent Top Gradient */}
+      <div className="h-0.5 bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-60" />
 
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/40">
-        <h2 className="font-display text-sm font-semibold tracking-wide text-foreground uppercase">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border/30 bg-surface/10">
+        <h2 className="font-display text-sm font-bold tracking-widest text-foreground uppercase flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary/60" />
           {title}
         </h2>
         {headerRight}
       </div>
-      <div>{children}</div>
+      <div className="bg-surface/5">{children}</div>
     </div>
   );
 }

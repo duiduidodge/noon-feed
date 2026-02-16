@@ -4,6 +4,7 @@ import { PricesColumn } from '@/components/prices-column';
 import { BiDailySummary } from '@/components/bi-daily-summary';
 import { MyPostsWidget } from '@/components/my-posts-widget';
 import type { FeedArticle } from '@/components/news-card';
+import { LowImpactFeed } from '@/components/low-impact-feed';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +96,9 @@ export default async function FeedPage() {
           {/* Col 4: Market Mood */}
           <aside id="section-markets" className="min-h-0 overflow-y-auto rounded-2xl border border-border/60 bg-card/50 p-3 custom-scrollbar shadow-sm column-panel">
             <PricesColumn />
+            <div className="mt-6 border-t border-border/20 pt-6">
+              <LowImpactFeed />
+            </div>
           </aside>
         </div>
       </main>

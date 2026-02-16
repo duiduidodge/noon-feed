@@ -72,24 +72,24 @@ const COIN_LOGOS: Record<string, string> = {
 };
 
 // Mini price chip for the top strip
-function PriceChip({ coin, price: _price, change }: { coin: string; price: number; change: number }) {
+function PriceChip({ coin, price, change }: { coin: string; price: number; change: number }) {
   const isPositive = change >= 0;
   const coinLogo = COIN_LOGOS[coin];
 
   return (
-    <div className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-surface/40 px-2.5 py-1 transition-colors hover:bg-surface/70">
+    <div className="inline-flex items-center gap-1.5 rounded-lg border border-border/40 bg-surface/40 px-2 py-1 transition-all hover:bg-surface/60 hover:border-border/60 group cursor-default">
       {coinLogo ? (
-        <Image src={coinLogo} alt={coin} width={14} height={14} className="h-3.5 w-3.5 rounded-full" />
+        <Image src={coinLogo} alt={coin} width={14} height={14} className="h-3.5 w-3.5 rounded-full grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
       ) : (
-        <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface font-mono-data text-[7px] text-muted-foreground">
+        <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface font-mono-data text-[7px] text-muted-foreground border border-border/50">
           {coin[0]}
         </span>
       )}
-      <span className="font-mono-data text-[11px] font-semibold text-foreground">
+      <span className="font-mono-data text-[10px] font-semibold text-foreground">
         {coin}
       </span>
       <span className={clsx(
-        'font-mono-data text-[10px] font-semibold',
+        'font-mono-data text-[9px] font-semibold tabular-nums',
         isPositive ? 'text-bullish' : 'text-bearish'
       )}>
         {formatChange(change)}
@@ -98,9 +98,7 @@ function PriceChip({ coin, price: _price, change }: { coin: string; price: numbe
   );
 }
 
-// Mini gauge for inline Fear & Greed display — matching Market Mood sidebar style
-// compact: tiny inline version for the price strip (same height as PriceChip)
-// normal: larger version for the market data grid box
+// Mini gauge for inline Fear & Greed display
 function MiniMoodGauge({ value, label, compact }: { value: number; label: string; compact?: boolean }) {
   const valueColor =
     value <= 25 ? 'text-bearish' :
@@ -108,17 +106,16 @@ function MiniMoodGauge({ value, label, compact }: { value: number; label: string
         value <= 55 ? 'text-yellow-600' : 'text-bullish';
 
   if (compact) {
-    // ── Compact: inline pill matching PriceChip height (~28px) ──
+    // ── Compact: inline pill ──
     const r = 16;
     const cx = 20;
     const cy = 18;
-    const needleAngle = (180 - (value / 100) * 180) * (Math.PI / 180);
-    const nx = cx + (r - 2) * Math.cos(needleAngle);
-    const ny = cy - (r - 2) * Math.sin(needleAngle);
+    const nx = cx + (r - 2) * Math.cos((180 - (value / 100) * 180) * (Math.PI / 180));
+    const ny = cy - (r - 2) * Math.sin((180 - (value / 100) * 180) * (Math.PI / 180));
 
     return (
       <div className="inline-flex items-center gap-1.5">
-        <svg viewBox="0 0 40 20" className="w-[28px] h-[14px] shrink-0">
+        <svg viewBox="0 0 40 20" className="w-[24px] h-[12px] shrink-0">
           <defs>
             <linearGradient id="compactFgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="hsl(0, 50%, 48%)" />
@@ -128,37 +125,28 @@ function MiniMoodGauge({ value, label, compact }: { value: number; label: string
               <stop offset="100%" stopColor="hsl(145, 55%, 38%)" />
             </linearGradient>
           </defs>
-          <path
-            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-            fill="none" stroke="url(#compactFgGrad)" strokeWidth="2.5" strokeLinecap="round" opacity="0.2"
-          />
-          <path
-            d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-            fill="none" stroke="url(#compactFgGrad)" strokeWidth="2.5" strokeLinecap="round"
-            strokeDasharray={`${(value / 100) * Math.PI * r} ${Math.PI * r}`}
-          />
-          <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
-          <circle cx={cx} cy={cy} r="1" fill="currentColor" />
+          <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} fill="none" stroke="url(#compactFgGrad)" strokeWidth="3" strokeLinecap="round" opacity="0.2" />
+          <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} fill="none" stroke="url(#compactFgGrad)" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${(value / 100) * Math.PI * r} ${Math.PI * r}`} />
+          <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+          <circle cx={cx} cy={cy} r="1.5" fill="currentColor" />
         </svg>
         <div className="flex flex-col leading-none">
-          <span className={clsx('font-mono-data text-[11px] font-bold', valueColor)}>{value}</span>
-          <span className={clsx('font-mono-data text-[7px] font-semibold uppercase tracking-wider', valueColor)}>{label}</span>
+          <span className={clsx('font-mono-data text-[10px] font-bold', valueColor)}>{value}</span>
         </div>
       </div>
     );
   }
 
-  // ── Normal: centered gauge for market data box ──
+  // ── Normal: centered gauge ──
   const r = 36;
   const cx = 44;
   const cy = 40;
-  const needleAngle = (180 - (value / 100) * 180) * (Math.PI / 180);
-  const nx = cx + (r - 5) * Math.cos(needleAngle);
-  const ny = cy - (r - 5) * Math.sin(needleAngle);
+  const nx = cx + (r - 5) * Math.cos((180 - (value / 100) * 180) * (Math.PI / 180));
+  const ny = cy - (r - 5) * Math.sin((180 - (value / 100) * 180) * (Math.PI / 180));
 
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <svg viewBox="0 0 88 46" className="w-[100px]">
+    <div className="flex flex-col items-center gap-1">
+      <svg viewBox="0 0 88 46" className="w-[80px]">
         <defs>
           <linearGradient id="normalFgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="hsl(0, 50%, 48%)" />
@@ -168,65 +156,19 @@ function MiniMoodGauge({ value, label, compact }: { value: number; label: string
             <stop offset="100%" stopColor="hsl(145, 55%, 38%)" />
           </linearGradient>
         </defs>
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none" stroke="url(#normalFgGrad)" strokeWidth="4.5" strokeLinecap="round" opacity="0.2"
-        />
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none" stroke="url(#normalFgGrad)" strokeWidth="4.5" strokeLinecap="round"
-          strokeDasharray={`${(value / 100) * Math.PI * r} ${Math.PI * r}`}
-        />
-        <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        <circle cx={cx} cy={cy} r="2" fill="currentColor" />
-        <text
-          x={cx} y={cy - 10}
-          textAnchor="middle"
-          className={clsx('font-mono-data font-bold', valueColor)}
-          style={{ fontSize: '14px', fill: 'currentColor' }}
-        >
-          {value}
-        </text>
+        <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} fill="none" stroke="url(#normalFgGrad)" strokeWidth="5" strokeLinecap="round" opacity="0.15" />
+        <path d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`} fill="none" stroke="url(#normalFgGrad)" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(value / 100) * Math.PI * r} ${Math.PI * r}`} />
+        <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r="2.5" fill="currentColor" />
+        <text x={cx} y={cy - 12} textAnchor="middle" className={clsx('font-mono-data font-bold', valueColor)} style={{ fontSize: '18px', fill: 'currentColor' }}>{value}</text>
       </svg>
-      <span className={clsx(
-        'font-mono-data text-[8px] font-semibold uppercase tracking-wider -mt-0.5',
-        valueColor
-      )}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function PriceIndicator({ coin, price, change }: { coin: string; price: number; change: number }) {
-  const isPositive = change >= 0;
-  const coinLogo = COIN_LOGOS[coin];
-
-  return (
-    <div className="group relative">
-      <div className="flex items-baseline gap-2">
-        {coinLogo ? (
-          <span className="inline-flex h-4 w-4 items-center justify-center overflow-hidden rounded-full border border-border/40 bg-surface/50">
-            <Image src={coinLogo} alt={coin} width={16} height={16} className="h-4 w-4" />
-          </span>
-        ) : (
-          <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border/40 bg-surface/50 font-mono-data text-[9px] text-muted-foreground">
-            H
-          </span>
-        )}
-        <span className="font-mono-data text-sm font-medium text-foreground">{formatPrice(price)}</span>
-        <span className={`font-mono-data text-xs font-semibold ${isPositive ? 'text-bullish' : 'text-bearish'}`}>
-          {formatChange(change)}
-        </span>
-      </div>
-      <div className={`absolute -left-1 top-0 bottom-0 w-0.5 rounded-full transition-all duration-300 ${isPositive ? 'bg-bullish/25 group-hover:bg-bullish/50' : 'bg-bearish/25 group-hover:bg-bearish/50'
-        }`} />
+      <span className={clsx('font-mono-data text-[9px] font-bold uppercase tracking-widest', valueColor)}>{label}</span>
     </div>
   );
 }
 
 // Redesigned coin card for 2x2 grid in summary section
-function CoinPriceCard({ coin, price, change }: { coin: string; price: number; change: number }) {
+function CoinGridCard({ coin, price, change }: { coin: string; price: number; change: number }) {
   const isPositive = change >= 0;
   const coinLogos: Record<string, string> = {
     BTC: 'https://coin-images.coingecko.com/coins/images/1/small/bitcoin.png',
@@ -237,53 +179,46 @@ function CoinPriceCard({ coin, price, change }: { coin: string; price: number; c
   const coinLogo = coinLogos[coin];
 
   return (
-    <div className={clsx(
-      'relative rounded-lg border border-border/30 bg-card/40 p-3 flex flex-col items-center gap-1.5 transition-all duration-200 hover:bg-card/70 hover:border-border/60',
-      'overflow-hidden'
-    )}>
+    <div className="group relative overflow-hidden rounded-lg border border-border/30 bg-surface/40 p-2.5 flex flex-col items-center gap-1 transition-all duration-200 hover:bg-surface/60 hover:border-border/50">
       {/* Top accent gradient */}
       <div className={clsx(
-        'absolute inset-x-0 top-0 h-0.5',
-        isPositive ? 'bg-gradient-to-r from-transparent via-bullish/60 to-transparent' : 'bg-gradient-to-r from-transparent via-bearish/60 to-transparent'
+        'absolute inset-x-0 top-0 h-[2px] opacity-60 transition-opacity group-hover:opacity-100',
+        isPositive ? 'bg-bullish' : 'bg-bearish'
       )} />
 
-      {/* Logo + Symbol */}
-      <div className="flex items-center gap-1.5">
-        {coinLogo ? (
-          <Image src={coinLogo} alt={coin} width={20} height={20} className="h-5 w-5 rounded-full" />
-        ) : (
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-surface/50 font-mono-data text-[9px] text-muted-foreground border border-border/40">
-            {coin[0]}
-          </span>
-        )}
-        <span className="font-mono-data text-[10px] font-bold uppercase text-muted-foreground tracking-wider">{coin}</span>
+      {/* Header */}
+      <div className="flex items-center gap-1.5 w-full justify-between">
+        <div className="flex items-center gap-1.5">
+          {coinLogo ? (
+            <Image src={coinLogo} alt={coin} width={16} height={16} className="h-4 w-4 rounded-full grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
+          ) : (
+            <div className="h-4 w-4 rounded-full bg-muted" />
+          )}
+          <span className="font-mono-data text-[10px] font-bold text-muted-foreground">{coin}</span>
+        </div>
+        <span className={clsx('font-mono-data text-[9px] font-semibold', isPositive ? 'text-bullish' : 'text-bearish')}>
+          {formatChange(change)}
+        </span>
       </div>
 
       {/* Price */}
-      <span className="font-mono-data text-sm font-bold text-foreground leading-none">
-        {formatPrice(price)}
-      </span>
-
-      {/* Change */}
-      <span className={clsx(
-        'font-mono-data text-[11px] font-semibold leading-none',
-        isPositive ? 'text-bullish' : 'text-bearish'
-      )}>
-        {formatChange(change)}
-      </span>
+      <div className="flex-1 flex items-end">
+        <span className="font-mono-data text-xs font-bold text-foreground">
+          {formatPrice(price)}
+        </span>
+      </div>
     </div>
   );
 }
 
 // Split summary text into paragraphs and highlight inline numbers
 function FormattedSummary({ text }: { text: string }) {
-  // Split on double newlines or single newlines with enough length
   const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
 
   return (
     <div className="space-y-4">
       {paragraphs.map((para, idx) => (
-        <p key={idx} className="font-thai text-[15px] leading-[2] text-foreground/85">
+        <p key={idx} className="font-thai text-[15px] leading-relaxed text-foreground/90 tracking-wide">
           {highlightNumbers(para)}
         </p>
       ))}
@@ -299,8 +234,8 @@ function highlightNumbers(text: string) {
       const isPositive = !part.startsWith('-');
       return (
         <span key={i} className={clsx(
-          'font-mono-data text-[13px] font-semibold px-0.5 rounded',
-          isPositive ? 'text-bullish' : 'text-bearish'
+          'font-mono-data text-[13px] font-semibold px-0.5 rounded transition-colors',
+          isPositive ? 'text-bullish bg-bullish/5' : 'text-bearish bg-bearish/5'
         )}>
           {part}
         </span>
@@ -308,7 +243,7 @@ function highlightNumbers(text: string) {
     }
     if (/^\$[\d,.]+[TBMK]?$/.test(part)) {
       return (
-        <span key={i} className="font-mono-data text-[13px] font-semibold text-foreground px-0.5">
+        <span key={i} className="font-mono-data text-[13px] font-medium text-foreground px-0.5">
           {part}
         </span>
       );
@@ -321,8 +256,10 @@ function SummaryCard({ summary }: { summary: Summary }) {
   const isMorning = summary.scheduleType === 'morning';
   const timeEmoji = isMorning ? '🌅' : '🌆';
   const briefingLabel = isMorning ? 'MORNING\nBRIEFING' : 'EVENING\nBRIEFING';
+  const accentGradient = isMorning
+    ? 'from-orange-500/10 via-amber-500/5 to-transparent'
+    : 'from-blue-500/10 via-indigo-500/5 to-transparent';
 
-  // Fetch LIVE Fear & Greed from the same source as Market Mood sidebar
   const { data: liveMarket } = useQuery({
     queryKey: ['market-overview'],
     queryFn: async () => {
@@ -334,132 +271,137 @@ function SummaryCard({ summary }: { summary: Summary }) {
   });
 
   const { prices } = summary;
-  // Use live F&G (same as Market Mood), fallback to stored snapshot
   const liveFG = liveMarket?.fearGreedIndex ?? prices.fearGreedIndex;
   const liveFGLabel = liveMarket?.fearGreedLabel ?? prices.fearGreedLabel;
 
   return (
-    <div className="summary-card group relative overflow-hidden transition-all duration-500">
-      <div className="relative p-5">
-        {/* Large editorial header */}
-        <div className="mb-4">
-          <div className="flex items-start justify-between gap-4">
-            <h3 className="font-display text-3xl font-extrabold leading-none tracking-tight text-foreground whitespace-pre-line uppercase">
-              {briefingLabel}
-            </h3>
-            <div className="shrink-0 text-right space-y-0.5">
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-surface/50 px-2.5 py-1">
-                <span className="text-sm leading-none">{timeEmoji}</span>
-                <span className="font-mono-data text-[11px] text-muted-foreground tracking-wide">
+    <div className="group relative overflow-hidden transition-all duration-500 hover:bg-surface/20">
+      {/* Editorial Accent Background */}
+      <div className={`absolute top-0 right-0 w-[60%] h-[300px] bg-gradient-to-bl ${accentGradient} opacity-50 blur-3xl pointer-events-none`} />
+
+      <div className="relative p-6 px-7">
+        {/* Editorial Header */}
+        <div className="mb-6 flex flex-col gap-4">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-border/40 bg-background/50 backdrop-blur-md px-2.5 py-0.5 mb-2 shadow-sm">
+                <span className="text-xs">{timeEmoji}</span>
+                <span className="font-mono-data text-[10px] font-bold tracking-wider text-foreground/80 uppercase">
+                  {isMorning ? 'Daily Intel' : 'Market Wrap'}
+                </span>
+                <div className="h-2.5 w-px bg-border/50 mx-0.5" />
+                <span className="font-mono-data text-[10px] text-muted-foreground mr-1">
                   {formatTime(summary.createdAt)}
                 </span>
               </div>
-              <div className="font-mono-data text-[10px] text-muted-foreground/60 pr-1">
-                {summary.articleCount} ข่าว
+              <h3 className="font-display text-4xl font-extrabold leading-[0.9] tracking-tight text-foreground uppercase drop-shadow-sm">
+                {briefingLabel}
+              </h3>
+              <p className="font-display text-sm font-medium text-muted-foreground/80 tracking-wide mt-1">
+                {formatDateRich(summary.createdAt)}
+              </p>
+            </div>
+
+            {/* Quick Stats Grid - Compact */}
+            <div className="hidden sm:grid grid-cols-2 gap-2 bg-surface/30 p-2 rounded-xl backdrop-blur-sm border border-border/30">
+              <div className="flex flex-col items-center justify-center px-3 py-1 bg-background/40 rounded-lg">
+                <span className="font-mono-data text-[9px] text-muted-foreground uppercase">Articles</span>
+                <span className="font-mono-data text-xs font-bold">{summary.articleCount}</span>
+              </div>
+              <div className="flex flex-col items-center justify-center px-3 py-1 bg-background/40 rounded-lg">
+                <span className="font-mono-data text-[9px] text-muted-foreground uppercase">Sent</span>
+                <span className="font-mono-data text-xs font-bold text-bullish">Bullish</span>
               </div>
             </div>
           </div>
-          <div className="mt-1.5 font-display text-sm text-muted-foreground tracking-tight">
-            {formatDateRich(summary.createdAt)}
-          </div>
         </div>
 
-        {/* Price strip — quick glance at key prices */}
-        <div className="mb-5 flex flex-wrap items-center gap-2">
+        {/* Action Strip */}
+        <div className="mb-8 flex flex-wrap items-center gap-2">
           <PriceChip coin="BTC" price={prices.btc.price} change={prices.btc.change24h} />
           <PriceChip coin="ETH" price={prices.eth.price} change={prices.eth.change24h} />
           <PriceChip coin="SOL" price={prices.sol.price} change={prices.sol.change24h} />
-          <div className="inline-flex items-center rounded-full border border-border/40 bg-surface/40 px-2.5 py-1">
-            <MiniMoodGauge value={liveFG} label={liveFGLabel} compact />
-          </div>
         </div>
 
-        {/* Summary text — improved typography with paragraph breaks and inline highlights */}
-        <div className="mb-8">
+        {/* Content Body */}
+        <div className="mb-10 relative">
+          <div className="absolute -left-4 top-1 bottom-1 w-0.5 bg-gradient-to-b from-primary/40 via-primary/10 to-transparent" />
           <FormattedSummary text={summary.summaryText} />
         </div>
 
-        {/* Market data grid */}
-        <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Left: Coin prices — redesigned as a 2x2 grid */}
-          <div className="p-4 rounded-xl bg-surface/50 border border-border/40">
-            <h4 className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-3">
-              ราคาเหรียญ
+        {/* Market Data Dashboard */}
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] gap-4">
+          {/* Dashboard Left: Coins */}
+          <div className="p-4 rounded-xl bg-surface/30 border border-border/30 backdrop-blur-sm">
+            <h4 className="font-mono-data text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary/70" />
+              Key Movers
             </h4>
             <div className="grid grid-cols-2 gap-2">
-              <CoinPriceCard coin="BTC" price={prices.btc.price} change={prices.btc.change24h} />
-              <CoinPriceCard coin="ETH" price={prices.eth.price} change={prices.eth.change24h} />
-              <CoinPriceCard coin="SOL" price={prices.sol.price} change={prices.sol.change24h} />
-              <CoinPriceCard coin="HYPE" price={prices.hype.price} change={prices.hype.change24h} />
+              <CoinGridCard coin="BTC" price={prices.btc.price} change={prices.btc.change24h} />
+              <CoinGridCard coin="ETH" price={prices.eth.price} change={prices.eth.change24h} />
+              <CoinGridCard coin="SOL" price={prices.sol.price} change={prices.sol.change24h} />
+              <CoinGridCard coin="HYPE" price={prices.hype.price} change={prices.hype.change24h} />
             </div>
           </div>
 
-          {/* Right: Market metrics */}
-          <div className="space-y-4 p-4 rounded-xl bg-surface/50 border border-border/40">
-            <h4 className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-4">
-              ตลาดโดยรวม
-            </h4>
-
-            {/* Market cap */}
-            <div className="space-y-1">
-              <div className="flex items-baseline justify-between">
-                <span className="font-mono-data text-xs text-muted-foreground">Market Cap</span>
-                <span className={`font-mono-data text-xs font-semibold ${prices.marketCapChange24h >= 0 ? 'text-bullish' : 'text-bearish'
-                  }`}>
-                  {formatChange(prices.marketCapChange24h)}
-                </span>
-              </div>
-              <div className="font-mono-data text-lg font-bold text-foreground">
+          {/* Dashboard Right: Metrics */}
+          <div className="p-4 rounded-xl bg-surface/30 border border-border/30 backdrop-blur-sm flex flex-col gap-4">
+            {/* Total Market Cap */}
+            <div className="flex-1 flex flex-col justify-center items-center text-center p-3 rounded-lg bg-background/40 border border-border/20">
+              <span className="font-mono-data text-[9px] text-muted-foreground uppercase tracking-wider mb-1">Global Market Cap</span>
+              <span className="font-mono-data text-lg font-bold text-foreground tracking-tight">
                 {formatMarketCap(prices.totalMarketCap)}
-              </div>
+              </span>
+              <span className={clsx('font-mono-data text-[10px] font-medium mt-1', prices.marketCapChange24h >= 0 ? 'text-bullish' : 'text-bearish')}>
+                {formatChange(prices.marketCapChange24h)}
+              </span>
             </div>
 
-            {/* Fear & Greed — uses live data matching Market Mood */}
-            <div className="pt-3 border-t border-border/30 flex flex-col items-center">
-              <span className="font-mono-data text-[10px] uppercase tracking-[0.15em] text-muted-foreground mb-1">Fear & Greed</span>
+            {/* Fear & Greed */}
+            <div className="flex-1 flex flex-col justify-center items-center pt-2 border-t border-border/20">
               <MiniMoodGauge value={liveFG} label={liveFGLabel} />
             </div>
           </div>
         </div>
 
-        {/* Headlines */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="h-px flex-1 bg-gradient-to-r from-border/50 to-transparent" />
-            <h4 className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              ข่าวเด่น
+        {/* Top Stories List */}
+        <div className="rounded-xl border border-border/30 bg-card/20 p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <h4 className="font-display text-sm font-bold uppercase tracking-widest text-foreground">
+              Essential Reads
             </h4>
-            <div className="h-px flex-1 bg-gradient-to-l from-border/50 to-transparent" />
+            <div className="h-px flex-1 bg-border/40" />
           </div>
 
-          <div className="space-y-1">
-            {summary.headlines.slice(0, 6).map((headline, idx) => (
+          <div className="space-y-px">
+            {summary.headlines.slice(0, 5).map((headline, idx) => (
               <a
                 key={idx}
                 href={headline.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group/link flex items-start gap-2 py-2 px-3 rounded-lg hover:bg-surface/50 transition-all duration-200"
+                className="group flex items-start gap-3 py-2.5 px-2 -mx-2 rounded-lg hover:bg-surface/60 transition-all duration-200"
               >
-                <span className="font-mono-data text-[10px] text-primary/40 mt-1 flex-shrink-0 group-hover/link:text-primary transition-colors">
+                <div className="font-mono-data text-[10px] text-foreground/30 mt-1.5 w-4 flex-shrink-0 group-hover:text-primary transition-colors">
                   {(idx + 1).toString().padStart(2, '0')}
-                </span>
-                <div className="flex-1 min-w-0 space-y-0.5">
-                  <p className="font-thai text-sm text-foreground/90 group-hover/link:text-primary transition-colors line-clamp-2">
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h5 className="font-thai text-[13px] font-medium leading-normal text-foreground/90 group-hover:text-primary transition-colors line-clamp-2">
                     {headline.title}
-                  </p>
-                  <span className="font-mono-data text-[10px] text-muted-foreground/60">
-                    {headline.source}
-                  </span>
+                  </h5>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="w-1 h-1 rounded-full bg-border" />
+                    <span className="font-mono-data text-[9px] text-muted-foreground uppercase tracking-wider">
+                      {headline.source}
+                    </span>
+                  </div>
                 </div>
               </a>
             ))}
           </div>
         </div>
       </div>
-
-      {/* Bottom accent line */}
-      <div className="h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent group-hover:via-primary/40 transition-all duration-700" />
     </div>
   );
 }
@@ -488,9 +430,9 @@ export function BiDailySummary() {
 
   if (loading) {
     return (
-      <div className="space-y-4 p-5">
+      <div className="space-y-6 p-6">
         {[1].map((i) => (
-          <div key={i} className="h-[400px] rounded-xl bg-surface/40 animate-shimmer border border-border/30" />
+          <div key={i} className="h-[500px] rounded-2xl bg-surface/40 animate-pulse border border-border/30" />
         ))}
       </div>
     );
@@ -498,9 +440,9 @@ export function BiDailySummary() {
 
   if (summaries.length === 0) {
     return (
-      <div className="p-8 text-center rounded-xl border border-dashed border-border/50 bg-surface/20 m-5">
+      <div className="p-12 text-center rounded-xl border border-dashed border-border/50 bg-surface/20 m-6">
         <p className="font-thai text-sm text-muted-foreground">
-          ยังไม่มีสรุปตลาด
+          Waiting for market summary generation...
         </p>
       </div>
     );
