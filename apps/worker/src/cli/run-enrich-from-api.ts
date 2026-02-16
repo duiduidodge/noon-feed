@@ -42,7 +42,7 @@ async function enrichFromAPIData() {
       const mapped = EnrichmentMapper.mapEnrichment({
         externalCategory: category,
         externalSentiment: sentiment,
-      });
+      }, article.titleOriginal);
 
       // Create enrichment with article connection
       await prisma.enrichment.create({

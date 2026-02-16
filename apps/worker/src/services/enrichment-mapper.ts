@@ -206,14 +206,32 @@ export class EnrichmentMapper {
    * Map external enrichment to our schema
    * This is the main function to use!
    */
-  static mapEnrichment(data: ExternalEnrichmentData): MappedEnrichment {
-    const sentiment = this.mapSentiment(data.externalSentiment);
-    const marketImpact = this.deriveMarketImpact(data.externalCategory, data.externalSentiment);
-    const tags = this.createTags(data.externalCategory, data.tickers);
+  static mapEnrichment(data: ExternalEnrichmentData, title?: string): MappedEnrichment {
+    let sentiment = this.mapSentiment(data.externalSentiment);
+    let category = data.externalCategory;
+
+    // Enhance with title heuristics if data is weak
+    if (title && (!category || category === 'general' || sentiment === 'NEUTRAL')) {
+      const derived = this.detectFromTitle(title);
+
+      // Override category if external is generic/missing but we found something specific
+      if ((!category || category === 'general') && derived.category !== 'general') {
+        category = derived.category;
+      }
+
+      // Override sentiment if external is neutral/missing but we found something specific
+      if (sentiment === 'NEUTRAL' && derived.sentiment !== 'neutral') {
+        sentiment = this.mapSentiment(derived.sentiment);
+      }
+    }
+
+    const marketImpact = this.deriveMarketImpact(category, sentiment === 'BULLISH' ? 'positive' : sentiment === 'BEARISH' ? 'negative' : 'neutral');
+    const tags = this.createTags(category, data.tickers);
 
     logger.debug(
       {
         input: data,
+        title: title ? title.substring(0, 30) : undefined,
         output: { sentiment, marketImpact, tags },
       },
       'Mapped external enrichment'

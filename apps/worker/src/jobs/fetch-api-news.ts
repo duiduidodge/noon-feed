@@ -141,14 +141,14 @@ export async function processFetchAPINewsJob(
             status: 'ENRICHED', // Mark as enriched since we have API data
             language: 'en', // API auto-translates to English
             // Map impact score for compatibility
-            impactScore: EnrichmentMapper.mapEnrichment(item.enrichmentData || {}).marketImpact === 'HIGH' ? 0.9 :
-              EnrichmentMapper.mapEnrichment(item.enrichmentData || {}).marketImpact === 'MEDIUM' ? 0.5 : 0.1,
+            impactScore: EnrichmentMapper.mapEnrichment(item.enrichmentData || {}, item.title).marketImpact === 'HIGH' ? 0.9 :
+              EnrichmentMapper.mapEnrichment(item.enrichmentData || {}, item.title).marketImpact === 'MEDIUM' ? 0.5 : 0.1,
             preFilterPassed: true,
 
             // Create enrichment record immediately
             enrichment: {
               create: {
-                ...EnrichmentMapper.mapEnrichment(item.enrichmentData || {}),
+                ...EnrichmentMapper.mapEnrichment(item.enrichmentData || {}, item.title),
                 titleTh: null,
                 summaryTh: null,
                 takeawaysTh: [],
