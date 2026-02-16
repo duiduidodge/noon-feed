@@ -1,3 +1,11 @@
+
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 import { formatDistanceToNowStrict } from 'date-fns';
 
 export function formatTimeAgo(date: Date | string): string {
