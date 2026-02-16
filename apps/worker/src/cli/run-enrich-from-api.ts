@@ -35,34 +35,8 @@ async function enrichFromAPIData() {
       // In the future, we could store external enrichment data in a JSON field
       // For this first pass, let's use basic heuristics
 
-      // Extract category from title/URL
-      const title = article.titleOriginal.toLowerCase();
-      const url = article.url.toLowerCase();
-
-      let category = 'general';
-      let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
-
-      // Detect category from content
-      if (title.includes('etf') || title.includes('sec') || url.includes('etf')) {
-        category = 'etf';
-      } else if (title.includes('institution') || title.includes('bank') || title.includes('wall street')) {
-        category = 'institutional';
-      } else if (title.includes('bitcoin') || title.includes('btc')) {
-        category = 'bitcoin';
-      } else if (title.includes('defi') || title.includes('decentralized')) {
-        category = 'defi';
-      } else if (title.includes('nft')) {
-        category = 'nft';
-      } else if (title.includes('research') || title.includes('analysis')) {
-        category = 'research';
-      }
-
-      // Detect sentiment from title
-      if (title.includes('bull') || title.includes('surge') || title.includes('rally') || title.includes('gain')) {
-        sentiment = 'positive';
-      } else if (title.includes('bear') || title.includes('crash') || title.includes('dump') || title.includes('lose')) {
-        sentiment = 'negative';
-      }
+      // Detect category and sentiment from title using shared heuristics
+      const { category, sentiment } = EnrichmentMapper.detectFromTitle(article.titleOriginal);
 
       // Map using our enrichment mapper
       const mapped = EnrichmentMapper.mapEnrichment({

@@ -120,6 +120,89 @@ export class EnrichmentMapper {
   }
 
   /**
+   * Detect category and sentiment from article title using expanded keyword matching
+   */
+  static detectFromTitle(title: string): { category: string; sentiment: 'positive' | 'negative' | 'neutral' } {
+    const t = title.toLowerCase();
+    let category = 'general';
+    let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
+
+    // Category detection — ordered by specificity
+    if (t.includes('etf') || t.includes('sec ') || t.includes('s.e.c')) {
+      category = 'etf';
+    } else if (
+      t.includes('institution') || t.includes('bank') || t.includes('wall street') ||
+      t.includes('blackrock') || t.includes('fidelity') || t.includes('vanguard') ||
+      t.includes('jpmorgan') || t.includes('goldman') || t.includes('morgan stanley') ||
+      t.includes('grayscale') || t.includes('apollo') || t.includes('citadel') ||
+      t.includes('saylor') || t.includes('strategy') || t.includes('microstrategy') ||
+      t.includes('coinbase') || t.includes('binance') || t.includes('kraken') ||
+      t.includes('cz') || t.includes('changpeng') || t.includes('regulation') ||
+      t.includes('treasury') || t.includes('federal reserve') || t.includes('fed ')
+    ) {
+      category = 'institutional';
+    } else if (
+      t.includes('bitcoin') || t.includes('btc') ||
+      t.includes('halving') || t.includes('mining') || t.includes('miner') ||
+      t.includes('satoshi') || t.includes('ordinals') || t.includes('bip-') ||
+      t.includes('lightning network')
+    ) {
+      category = 'bitcoin';
+    } else if (
+      t.includes('ethereum') || t.includes('eth ') || t.includes('solana') ||
+      t.includes('sol ') || t.includes('xrp') || t.includes('ripple') ||
+      t.includes('cardano') || t.includes('polkadot') || t.includes('avalanche') ||
+      t.includes('chainlink') || t.includes('polygon')
+    ) {
+      category = 'research'; // Major alts → MEDIUM
+    } else if (
+      t.includes('defi') || t.includes('decentralized') ||
+      t.includes('lending') || t.includes('staking') || t.includes('yield') ||
+      t.includes('swap') || t.includes('liquidity') || t.includes('amm') ||
+      t.includes('aave') || t.includes('uniswap') || t.includes('morpho') ||
+      t.includes('lido') || t.includes('maker')
+    ) {
+      category = 'defi';
+    } else if (t.includes('nft') || t.includes('metaverse') || t.includes('gaming')) {
+      category = 'nft';
+    } else if (
+      t.includes('research') || t.includes('analysis') || t.includes('report') ||
+      t.includes('forecast') || t.includes('prediction') || t.includes('outlook')
+    ) {
+      category = 'research';
+    } else if (
+      t.includes('crypto') || t.includes('blockchain') || t.includes('token') ||
+      t.includes('web3') || t.includes('dao') || t.includes('stablecoin') ||
+      t.includes('usdt') || t.includes('usdc') || t.includes('cbdc') ||
+      t.includes('payment') || t.includes('adoption') || t.includes('privacy') ||
+      t.includes('hack') || t.includes('exploit') || t.includes('security') ||
+      t.includes('whale') || t.includes('airdrop') || t.includes('layer 2') ||
+      t.includes('l2') || t.includes('rollup') || t.includes('zk')
+    ) {
+      category = 'research'; // Crypto-related → MEDIUM
+    }
+
+    // Sentiment detection — expanded
+    if (
+      t.includes('bull') || t.includes('surge') || t.includes('rally') ||
+      t.includes('gain') || t.includes('soar') || t.includes('jump') ||
+      t.includes('record') || t.includes('all-time') ||
+      t.includes('breakout') || t.includes('pump')
+    ) {
+      sentiment = 'positive';
+    } else if (
+      t.includes('bear') || t.includes('crash') || t.includes('dump') ||
+      t.includes('lose') || t.includes('plunge') || t.includes('drop') ||
+      t.includes('fall') || t.includes('fear') || t.includes('risk') ||
+      t.includes('warn') || t.includes('threat') || t.includes('ban')
+    ) {
+      sentiment = 'negative';
+    }
+
+    return { category, sentiment };
+  }
+
+  /**
    * Map external enrichment to our schema
    * This is the main function to use!
    */

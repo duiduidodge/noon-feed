@@ -113,19 +113,8 @@ async function enrichAPIArticles() {
   let enriched = 0;
   for (const article of articles) {
     try {
-      // Basic heuristic enrichment from title
-      const title = article.titleOriginal.toLowerCase();
-      let category = 'general';
-      let sentiment: 'positive' | 'negative' | 'neutral' = 'neutral';
-
-      if (title.includes('etf') || title.includes('sec')) category = 'etf';
-      else if (title.includes('institution') || title.includes('bank')) category = 'institutional';
-      else if (title.includes('bitcoin') || title.includes('btc')) category = 'bitcoin';
-      else if (title.includes('defi')) category = 'defi';
-      else if (title.includes('nft')) category = 'nft';
-
-      if (title.includes('bull') || title.includes('surge') || title.includes('rally')) sentiment = 'positive';
-      else if (title.includes('bear') || title.includes('crash') || title.includes('dump')) sentiment = 'negative';
+      // Detect category and sentiment from title using shared heuristics
+      const { category, sentiment } = EnrichmentMapper.detectFromTitle(article.titleOriginal);
 
       const mapped = EnrichmentMapper.mapEnrichment({
         externalCategory: category,
