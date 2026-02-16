@@ -145,7 +145,7 @@ function buildSummaryPrompt(
 This is the ${period} summary for ${dateStr}.
 Your analysis will be displayed ABOVE a price table and a headline list — so do NOT repeat price numbers or list news headlines. They are already shown separately.
 
-**IMPORTANT**: The headlines below are PRE-FILTERED to show only HIGH-IMPACT news (institutional moves, major regulatory developments, significant market events). These are the most important stories that moved the market. You are NOT seeing every minor article — only the major ones.
+**IMPORTANT**: The headlines below are PRE-FILTERED to show only HIGH and MEDIUM impact news. These include major market movers (HIGH) and significant updates (MEDIUM). Use HIGH impact stories as the core of your narrative, and use MEDIUM impact stories to support your analysis of broader trends.
 
 ## Market Data (reference only — do NOT quote these numbers)
 - BTC: ${formatPrice(prices.btc.price)} (${formatChange(prices.btc.change24h)})
@@ -155,7 +155,7 @@ Your analysis will be displayed ABOVE a price table and a headline list — so d
 - Total Market Cap: ${formatMarketCap(prices.totalMarketCap)} (${formatChange(prices.marketCapChange24h)})
 - Fear & Greed Index: ${prices.fearGreedIndex} (${prices.fearGreedLabel})
 
-## HIGH-IMPACT News Headlines (${headlines.length} major stories since last summary):
+## HIGH & MEDIUM IMPACT News Headlines (${headlines.length} major stories since last summary):
 ${headlinesList || '(No major headlines in this period)'}
 
 ## Writing Rules
@@ -164,13 +164,17 @@ Write a JSON response with:
 1. "market_context": A 2-3 paragraph analysis in Thai.
    DO:
    - Analyze the overall market sentiment, structure, and macro narrative
-   - ALL headlines shown are already pre-filtered as HIGH-IMPACT (institutional, regulatory, major events). Weave these major stories into your analysis naturally as context — but do not recap them individually
+   - ALL headlines shown are already pre-filtered as HIGH/MEDIUM impact. Weave these major stories into your analysis naturally as context — but do not recap them individually
    - Be opinionated about what the market signals mean
    - Each paragraph should make a distinct point — no repetition
 
    LANGUAGE:
    - Write predominantly in Thai. The base language is Thai.
-   - Use English ONLY for crypto/finance jargon that Thai traders commonly use in English (e.g. sentiment, rally, sideway, flash crash, liquidity, institutional flow, ETF, short squeeze, support, resistance, dominance, altcoin, DeFi, whale)
+   - Use English ONLY for crypto/finance jargon AND specific names (e.g. sentiment, rally, sideway, flash crash, liquidity, institutional flow, ETF, short squeeze, support, resistance, dominance, altcoin, DeFi, whale)
+   - KEEP all specific names (people, projects, companies, tokens) in ENGLISH. Do NOT transliterate them.
+     - Example: "Binance" -> "Binance" (NOT "ไบแนนซ์")
+     - Example: "Vitalik Buterin" -> "Vitalik Buterin"
+     - Example: "Bitcoin" -> "Bitcoin" (NOT "บิทคอยน์")
    - Normal vocabulary MUST be in Thai, not English. For example: write "สะท้อน" not "reflect", "ครอง" not "dominate", "สังเกต" not "observe", "อ่อนไหว" not "sensitive", "ส่งสัญญาณ" not "signal", "ปัจจัย" not "factor", "แนวโน้ม" not "trend" (unless used as a technical term)
    - Aim for roughly 80% Thai, 20% English crypto terms
 
@@ -315,9 +319,9 @@ export async function processGenerateSummaryJob(
     where: {
       status: { in: ['FETCHED', 'ENRICHED'] },
       publishedAt: { gte: cutoff },
-      // Only include HIGH impact articles for bi-daily summary
+      // Include HIGH and MEDIUM impact articles for bi-daily summary
       enrichment: {
-        marketImpact: 'HIGH',
+        marketImpact: { in: ['HIGH', 'MEDIUM'] },
       },
     },
     select: {

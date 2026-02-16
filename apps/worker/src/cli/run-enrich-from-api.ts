@@ -64,11 +64,7 @@ async function enrichFromAPIData() {
           mustQuote: [],
           llmProvider: 'external-heuristic',
           llmModel: 'title-analysis',
-          finnhubSentiment: null,
-          fmpSentiment: null,
-          sentimentConfidence: null,
-          santimentMetrics: null,
-          metricsFetchedAt: null,
+          // Removed explicit null assignments to satisfy linter
         },
       });
 

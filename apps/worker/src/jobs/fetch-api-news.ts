@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { createLogger, normalizeUrl, createArticleHash, isDuplicateArticle, isNoiseTitle, isBlockedSource } from '@crypto-news/shared';
+import { EnrichmentMapper } from '../services/enrichment-mapper.js';
 import type { APINewsFetcher } from '../services/api-news-fetcher.js';
 
 const logger = createLogger('worker:job:fetch-api-news');
@@ -16,7 +17,8 @@ export async function processFetchAPINewsJob(
   prisma: PrismaClient,
   apiFetcher: APINewsFetcher
 ): Promise<{ newArticles: number; duplicates: number; skipped: number; errors: number }> {
-  const { sourceId, sourceName, backfillHours } = data;
+  const { sourceId, sourceName, apiBaseUrl, backfillHours } = data;
+  const sourceApiFetcher = apiBaseUrl ? apiFetcher.withBaseUrl(apiBaseUrl) : apiFetcher;
 
   logger.info({ sourceId, sourceName, backfillHours }, 'Processing API news fetch job');
 
@@ -41,7 +43,7 @@ export async function processFetchAPINewsJob(
       : new Date(Date.now() - 24 * 60 * 60 * 1000); // Default 24 hours
 
     // Fetch latest news from API
-    const newsItems = await apiFetcher.fetchLatestNews({
+    const newsItems = await sourceApiFetcher.fetchLatestNews({
       limit: 100, // Fetch more since we have 200+ sources
       since,
     });
@@ -134,8 +136,29 @@ export async function processFetchAPINewsJob(
             titleOriginal: item.title,
             publishedAt: item.publishedAt,
             hash,
-            status: 'PENDING',
+            // Use API provided summary as extracted text
+            extractedText: item.summary || '',
+            status: 'ENRICHED', // Mark as enriched since we have API data
             language: 'en', // API auto-translates to English
+            // Map impact score for compatibility
+            impactScore: EnrichmentMapper.mapEnrichment(item.enrichmentData || {}).marketImpact === 'HIGH' ? 0.9 :
+              EnrichmentMapper.mapEnrichment(item.enrichmentData || {}).marketImpact === 'MEDIUM' ? 0.5 : 0.1,
+            preFilterPassed: true,
+
+            // Create enrichment record immediately
+            enrichment: {
+              create: {
+                ...EnrichmentMapper.mapEnrichment(item.enrichmentData || {}),
+                titleTh: null,
+                summaryTh: null,
+                takeawaysTh: [],
+                hooksTh: [],
+                threadTh: [],
+                contentDraftTh: null,
+                llmModel: 'API_SOURCE',
+                llmProvider: 'API_SOURCE',
+              }
+            }
           },
         });
 

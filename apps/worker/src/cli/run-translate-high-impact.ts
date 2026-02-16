@@ -45,8 +45,17 @@ async function translateHighImpact() {
       logger.info({ articleId: article.id, title: article.titleOriginal }, 'Translating article');
 
       const snippet = article.extractedText?.substring(0, 500) || '';
-      
-      const prompt = `Translate the following crypto news to Thai. Provide ONLY the translation, no explanations.
+
+      const prompt = `Translate the following crypto news to Thai. 
+RULES for Translation:
+1. Provide ONLY the translation, no explanations.
+2. KEEP all specific names (people, projects, companies, tokens) in ENGLISH. Do NOT transliterate them.
+   - Example: "Binance" -> "Binance" (NOT "ไบแนนซ์")
+   - Example: "Vitalik Buterin" -> "Vitalik Buterin"
+   - Example: "Bitcoin" -> "Bitcoin" (NOT "บิทคอยน์")
+3. KEEP technical crypto jargon/terms in ENGLISH.
+   - Example: "Smart Contract", "DeFi", "Staking", "Blockchain", "Wallet", "Exchange", "SEC", "ETF".
+4. Translate normal verbs, adjectives, and connecting words to natural Thai.
 
 Title: ${article.titleOriginal}
 Preview: ${snippet}
@@ -63,7 +72,7 @@ SUMMARY: [Thai summary here]`;
         temperature: 0.3,
         maxTokens: 500,
       });
-      
+
       // Parse response
       const titleMatch = content.match(/TITLE:\s*(.+?)(?:\n|$)/);
       const summaryMatch = content.match(/SUMMARY:\s*(.+?)(?:\n\n|$)/s);
@@ -87,9 +96,9 @@ SUMMARY: [Thai summary here]`;
       await new Promise(resolve => setTimeout(resolve, 2000));
 
     } catch (error) {
-      logger.error({ 
-        articleId: article.id, 
-        error: (error as Error).message 
+      logger.error({
+        articleId: article.id,
+        error: (error as Error).message
       }, 'Failed to translate article');
     }
   }

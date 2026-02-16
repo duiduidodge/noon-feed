@@ -34,11 +34,12 @@ const MARKET_IMPACT_EMOJI: Record<MarketImpact, string> = {
 export interface DiscordArticle {
   url: string;
   titleOriginal: string;
+  extractedText?: string | null;
   publishedAt: Date | null;
   source: { name: string };
   enrichment: {
-    titleTh: string;
-    summaryTh: string;
+    titleTh: string | null;
+    summaryTh: string | null;
     tags: unknown;
     sentiment: string;
     marketImpact: string;
@@ -58,9 +59,12 @@ export class DiscordWebhookService {
     const marketImpact = enrichment.marketImpact.toLowerCase() as MarketImpact;
     const tags = enrichment.tags as string[];
 
+    const title = enrichment.titleTh || article.titleOriginal;
+    const summary = enrichment.summaryTh || article.extractedText || 'No summary available';
+
     const embed: WebhookEmbed = {
-      title: `${MARKET_IMPACT_EMOJI[marketImpact]} ${enrichment.titleTh}`,
-      description: `**📝 สรุป:**\n${escapeMarkdown(enrichment.summaryTh)}`,
+      title: `${MARKET_IMPACT_EMOJI[marketImpact]} ${title}`,
+      description: `**📝 สรุป:**\n${escapeMarkdown(summary)}`,
       url: article.url,
       color: SENTIMENT_COLORS[sentiment],
       fields: [

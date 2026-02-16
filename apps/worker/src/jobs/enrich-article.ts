@@ -153,7 +153,7 @@ export async function processEnrichArticleJob(
 
         const metricsResults = await Promise.all(metricsPromises);
         const metricsMap = metricsResults
-          .filter((m): m is Record<string, unknown> => m !== null)
+          .filter((m): m is Record<string, any> => m !== null)
           .reduce((acc, m) => ({ ...acc, ...m }), {});
 
         if (Object.keys(metricsMap).length > 0) {

@@ -54,6 +54,14 @@ export class APINewsFetcher {
     this.timeoutMs = options.timeoutMs;
   }
 
+  withBaseUrl(baseUrl: string): APINewsFetcher {
+    return new APINewsFetcher({
+      baseUrl,
+      userAgent: this.userAgent,
+      timeoutMs: this.timeoutMs,
+    });
+  }
+
   /**
    * Fetch latest news from the API
    */
@@ -67,8 +75,8 @@ export class APINewsFetcher {
     const {
       limit = 50, // Reasonable default for quality over quantity
       since,
-      tickers = ['BTC', 'ETH', 'SOL', 'XRP'], // Focus on major cryptocurrencies
-      categories = ['bitcoin', 'defi', 'institutional', 'etf'], // High-value categories only
+      tickers,
+      categories,
       language
     } = options;
 
@@ -85,11 +93,15 @@ export class APINewsFetcher {
         }
 
         if (tickers && tickers.length > 0) {
-          params.set('ticker', tickers.join(',')); // cryptocurrency.cv uses 'ticker'
+          for (const ticker of tickers) {
+            params.append('ticker', ticker);
+          }
         }
 
         if (categories && categories.length > 0) {
-          params.set('category', categories.join(','));
+          for (const category of categories) {
+            params.append('category', category);
+          }
         }
 
         if (language) {

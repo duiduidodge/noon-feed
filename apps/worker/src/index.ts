@@ -7,6 +7,7 @@ import { RSSFetcher } from './services/rss-fetcher.js';
 import { APINewsFetcher } from './services/api-news-fetcher.js';
 import { ImpactFilter } from './services/impact-filter.js';
 import { DiscordWebhookService } from './services/discord-webhook.js';
+import { EnrichmentMapper } from './services/enrichment-mapper.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
 import { processFetchAPINewsJob, type FetchAPINewsJobData } from './jobs/fetch-api-news.js';
 import { processFetchArticleJob, type FetchArticleJobData } from './jobs/fetch-article.js';
@@ -316,6 +317,72 @@ async function processPendingArticles() {
 
 // Process fetched articles for enrichment (selective enrichment based on pre-filter)
 async function processFetchedArticles() {
+  if (config.worker.skipEnrichment) {
+    const fetchedArticles = await prisma.article.findMany({
+      where: {
+        status: 'FETCHED',
+        preFilterPassed: true,
+        enrichment: null,
+      },
+      take: 10,
+      orderBy: [
+        { impactScore: 'desc' },
+        { createdAt: 'asc' },
+      ],
+    });
+
+    for (const article of fetchedArticles) {
+      try {
+        const { category, sentiment } = EnrichmentMapper.detectFromTitle(article.titleOriginal);
+        const mapped = EnrichmentMapper.mapEnrichment({
+          externalCategory: category,
+          externalSentiment: sentiment,
+        });
+
+        await prisma.enrichment.upsert({
+          where: { articleId: article.id },
+          create: {
+            articleId: article.id,
+            titleTh: null,
+            summaryTh: null,
+            takeawaysTh: [],
+            tags: mapped.tags,
+            sentiment: mapped.sentiment,
+            marketImpact: mapped.marketImpact,
+            hooksTh: [],
+            threadTh: [],
+            contentDraftTh: null,
+            llmProvider: 'external-heuristic',
+            llmModel: 'title-analysis',
+          },
+          update: {
+            tags: mapped.tags,
+            sentiment: mapped.sentiment,
+            marketImpact: mapped.marketImpact,
+            llmProvider: 'external-heuristic',
+            llmModel: 'title-analysis',
+          },
+        });
+
+        await prisma.article.update({
+          where: { id: article.id },
+          data: { status: 'ENRICHED' },
+        });
+      } catch (error) {
+        logger.error(
+          { articleId: article.id, error: (error as Error).message },
+          'Heuristic enrichment failed'
+        );
+      }
+    }
+
+    if (fetchedArticles.length > 0) {
+      logger.info({ count: fetchedArticles.length }, 'Heuristically enriched fetched articles');
+    }
+
+    return;
+  }
+
   // With selective enrichment, only enrich articles that passed pre-filter
   const fetchedArticles = await prisma.article.findMany({
     where: {
@@ -484,8 +551,15 @@ async function processHighImpactArticles() {
     }
 
     try {
+      if (!article.enrichment) {
+        logger.warn({ articleId: article.id }, 'Skipping Discord post for article without enrichment');
+        continue;
+      }
       // Post to Discord
-      await discordService.postArticle(article);
+      await discordService.postArticle({
+        ...article,
+        enrichment: article.enrichment
+      });
 
       // Increment quota
       await prisma.highImpactQuota.update({
@@ -648,6 +722,7 @@ async function main() {
     autoPostToDiscord: config.worker.autoPostToDiscord,
   }, 'Worker starting...');
 
+  /*
   // Initial backfill - RSS sources
   logger.info('Running initial RSS backfill...');
   const rssSources = await prisma.source.findMany({
@@ -676,6 +751,7 @@ async function main() {
       }
     }
   }
+  */
 
   // Initial backfill - API sources
   logger.info('Running initial API backfill...');
@@ -716,12 +792,14 @@ async function main() {
   while (true) {
     // Keep each step isolated so one failure doesn't block summary checks.
     if (Date.now() - lastRSSFetch >= intervalMs) {
+      /*
       try {
         await scheduleRSSFetches();
         lastRSSFetch = Date.now();
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to schedule RSS fetches');
       }
+      */
     }
 
     if (Date.now() - lastAPIFetch >= intervalMs) {

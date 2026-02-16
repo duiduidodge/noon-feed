@@ -108,10 +108,12 @@ async function main() {
     select: { id: true, createdAt: true },
   });
 
-  if (existing) {
+  const force = process.argv.includes('--force');
+
+  if (existing && !force) {
     logger.info(
       { summaryId: existing.id, createdAt: existing.createdAt.toISOString(), scheduleType },
-      'Summary already exists for this slot; skipping'
+      'Summary already exists for this slot; skipping. Use --force to override.'
     );
     return;
   }

@@ -91,9 +91,12 @@ export async function processPostDiscordJob(
     // Build Discord embed
     const sentiment = enrichment.sentiment.toLowerCase() as Sentiment;
     const marketImpact = enrichment.marketImpact.toLowerCase() as MarketImpact;
+    const titleTh = enrichment.titleTh || article.titleOriginal;
+    const summaryTh = enrichment.summaryTh || article.extractedText || 'No summary available';
+
     const embed: DiscordEmbed = {
-      title: `${MARKET_IMPACT_EMOJI[marketImpact]} ${enrichment.titleTh}`,
-      description: `**📝 สรุป:**\n${escapeMarkdown(enrichment.summaryTh)}`,
+      title: `${MARKET_IMPACT_EMOJI[marketImpact]} ${titleTh}`,
+      description: `**📝 สรุป:**\n${escapeMarkdown(summaryTh)}`,
       url: article.url,
       color: SENTIMENT_COLORS[sentiment],
       fields: [
