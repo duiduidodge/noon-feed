@@ -1,11 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { sanitizeSearchQuery, detectLanguage } from '@crypto-news/shared';
 
 const prisma = new PrismaClient();
 
 // Cache for 30 seconds
 const CACHE_DURATION = 30;
+
+// Inline utility functions to avoid dependency issues in Vercel
+function sanitizeSearchQuery(query: string): string {
+  // Remove potential SQL injection characters and dangerous patterns
+  return query
+    .replace(/[';-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 100);
+}
+
+function detectLanguage(query: string): 'en' | 'th' | 'auto' {
+  // Simple Thai character detection
+  const thaiChars = /[\u0E00-\u0E7F]/;
+  const hasThai = thaiChars.test(query);
+  const hasEnglish = /[a-zA-Z]/.test(query);
+
+  if (hasThai && !hasEnglish) return 'th';
+  if (hasEnglish && !hasThai) return 'en';
+  return 'auto';
+}
 
 export async function GET(request: NextRequest) {
   try {
