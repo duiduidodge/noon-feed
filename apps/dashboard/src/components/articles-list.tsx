@@ -14,7 +14,7 @@ interface Article {
   originalSourceName: string | null;
   source: { id: string; name: string };
   enrichment: {
-    titleTh: string;
+    titleTh: string | null;
     tags: unknown;
     sentiment: string;
     marketImpact: string;
