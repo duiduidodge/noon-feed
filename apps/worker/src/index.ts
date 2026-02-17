@@ -722,7 +722,6 @@ async function main() {
     autoPostToDiscord: config.worker.autoPostToDiscord,
   }, 'Worker starting...');
 
-  /*
   // Initial backfill - RSS sources
   logger.info('Running initial RSS backfill...');
   const rssSources = await prisma.source.findMany({
@@ -751,7 +750,6 @@ async function main() {
       }
     }
   }
-  */
 
   // Initial backfill - API sources
   logger.info('Running initial API backfill...');
@@ -792,14 +790,12 @@ async function main() {
   while (true) {
     // Keep each step isolated so one failure doesn't block summary checks.
     if (Date.now() - lastRSSFetch >= intervalMs) {
-      /*
       try {
         await scheduleRSSFetches();
         lastRSSFetch = Date.now();
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to schedule RSS fetches');
       }
-      */
     }
 
     if (Date.now() - lastAPIFetch >= intervalMs) {

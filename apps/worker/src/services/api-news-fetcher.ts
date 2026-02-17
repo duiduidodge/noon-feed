@@ -2,6 +2,20 @@ import { createLogger, retryWithBackoff } from '@crypto-news/shared';
 
 const logger = createLogger('worker:api-news-fetcher');
 
+/** Strip CDATA wrappers and tracking query params from URLs */
+function cleanUrl(raw: string): string {
+  let url = raw.replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim();
+  try {
+    const parsed = new URL(url);
+    // Remove common tracking params
+    for (const key of [...parsed.searchParams.keys()]) {
+      if (/^utm_/i.test(key)) parsed.searchParams.delete(key);
+    }
+    url = parsed.toString();
+  } catch { /* keep as-is if URL parsing fails */ }
+  return url;
+}
+
 // cryptocurrency.cv API types
 interface APINewsItem {
   title: string;
@@ -137,8 +151,8 @@ export class APINewsFetcher {
 
           // Transform API response to our format
           return data.articles.map((item) => ({
-            title: item.title,
-            url: item.url || item.link, // cryptocurrency.cv uses 'url', fallback to 'link'
+            title: item.title.replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim(),
+            url: cleanUrl(item.url || item.link),
             publishedAt: new Date(item.publishedAt || item.pubDate),
             source: item.source,
             sentiment: item.sentiment, // preserve for enrichment mapping

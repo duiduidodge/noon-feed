@@ -235,25 +235,24 @@ async function postSummaryToDiscord(
     `${fgEmoji} Fear & Greed: **${prices.fearGreedIndex}** — ${prices.fearGreedLabel}`,
   ].join('\n');
 
-  // Headline chunks — keep under 1024 chars per field
+  // Headlines — use description space (4096 char limit) instead of fields (1024)
   const headlineItems = headlines.slice(0, 15);
-  const headlineChunks: string[] = [];
-  let currentChunk = '';
+  const headlineLines: string[] = [];
 
   for (const h of headlineItems) {
-    const line = `• [${h.title.substring(0, 80)}](${h.url}) — *${h.source}*\n`;
-    if (currentChunk.length + line.length > 1000) {
-      headlineChunks.push(currentChunk.trim());
-      currentChunk = line;
-    } else {
-      currentChunk += line;
-    }
-  }
-  if (currentChunk.trim()) {
-    headlineChunks.push(currentChunk.trim());
+    const line = `• [${h.title.substring(0, 70)}](${h.url}) — *${h.source}*`;
+    headlineLines.push(line);
   }
 
-  // Build fields
+  const headlinesBlock = `**📰 ข่าวเด่น ${headlineLines.length} ข่าว**\n${headlineLines.join('\n')}`;
+
+  // Combine summary + headlines in description (4096 char limit)
+  const fullDescription = `${description}\n\n${headlinesBlock}`;
+  const safeDescription = fullDescription.length > 4090
+    ? fullDescription.substring(0, 4090) + '...'
+    : fullDescription;
+
+  // Build fields — prices only
   const fields: Array<{ name: string; value: string; inline: boolean }> = [
     {
       name: '💰 ราคาตลาด',
@@ -262,18 +261,10 @@ async function postSummaryToDiscord(
     },
   ];
 
-  headlineChunks.forEach((chunk, i) => {
-    fields.push({
-      name: i === 0 ? `📰 ข่าวเด่น ${headlines.length} ข่าว` : '\u200b',
-      value: chunk,
-      inline: false,
-    });
-  });
-
   // Build the embed
   const embed = {
     title: `${timeEmoji} ${sectionTitle}`,
-    description,
+    description: safeDescription,
     color: 0x00e5cc,
     fields,
     footer: {
@@ -305,13 +296,19 @@ export async function processGenerateSummaryJob(
   logger.info({ scheduleType }, 'Generating bi-daily market summary');
 
   // 1. Get articles since the last summary (fallback: 14 hours if no previous summary)
-  const lastSummary = await prisma.marketSummary.findFirst({
-    orderBy: { createdAt: 'desc' },
-    select: { createdAt: true },
-  });
-  const cutoff = lastSummary
-    ? lastSummary.createdAt
-    : new Date(Date.now() - 14 * 60 * 60 * 1000);
+  const overrideHours = Number(process.env.SUMMARY_LOOKBACK_HOURS) || 0;
+  let cutoff: Date;
+  if (overrideHours > 0) {
+    cutoff = new Date(Date.now() - overrideHours * 60 * 60 * 1000);
+  } else {
+    const lastSummary = await prisma.marketSummary.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    cutoff = lastSummary
+      ? lastSummary.createdAt
+      : new Date(Date.now() - 14 * 60 * 60 * 1000);
+  }
 
   logger.info({ cutoff: cutoff.toISOString() }, 'Article lookback cutoff');
 

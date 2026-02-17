@@ -383,17 +383,18 @@ export function isNoiseTitle(title: string): string | null {
 // Everything else is skipped.
 
 const ALLOWED_API_SOURCES: string[] = [
-  'yahoo finance',
-  'cnbc',
+  'cointelegraph',
+  'coindesk',
+  'decrypt',
   'beincrypto',
+  'the block',
+  'theblock',
+  'unchained crypto',
+  'unchained',
   'the defiant',
   'thedefiant',
-  'seekingalpha',
-  'seeking alpha',
   'wu blockchain',
   'wublockchain',
-  'x.com',
-  'twitter',
 ];
 
 /**
