@@ -8,6 +8,10 @@ A production-ready system that fetches, processes, and distributes crypto news w
 - **AI-Powered Processing**: Translates and summarizes articles to Thai using OpenAI or Anthropic
 - **Smart Deduplication**: URL normalization + title similarity detection
 - **Discord Integration**: Posts formatted news to channels with automatic routing by topic
+- **Telegram Integration**: Optional alert hub for high-impact news and bi-daily summaries
+- **Breaking News Mode**: Rule-based urgent alerts using keywords + impact thresholds (no extra LLM calls)
+- **Duplicate Story Clustering**: URL/title similarity clustering for cross-source duplicate detection
+- **Reliability Console**: Operational health view for stale sources, failed jobs, and delivery success
 - **Web Dashboard**: Browse, search, filter, and export articles
 - **Social Content Generation**: Creates Thai social hooks and thread drafts
 - **Export Capabilities**: CSV and JSON export for repurposing content
@@ -121,12 +125,17 @@ REDIS_URL="redis://localhost:6379"
 DISCORD_BOT_TOKEN="your-discord-bot-token"
 DISCORD_GUILD_ID="your-guild-id"
 DISCORD_DEFAULT_CHANNEL_ID="your-default-channel-id"
+DISCORD_WEBHOOK_URL="your-discord-webhook-url"
 
 # Optional: Channel routing by topic
 DISCORD_CHANNEL_MARKET="channel-id-for-market-news"
 DISCORD_CHANNEL_MACRO="channel-id-for-macro-news"
 DISCORD_CHANNEL_DEFI="channel-id-for-defi-news"
 DISCORD_CHANNEL_POLICY="channel-id-for-regulation-news"
+
+# Telegram (optional additional notification hub)
+TELEGRAM_BOT_TOKEN="your-telegram-bot-token"
+TELEGRAM_CHAT_ID="your-telegram-chat-id"
 
 # LLM Provider (openai or anthropic)
 LLM_PROVIDER="openai"
@@ -145,6 +154,11 @@ DASHBOARD_AUTH_SECRET="your-secret-key"
 # Worker
 WORKER_CONCURRENCY="3"
 FETCH_INTERVAL_MINUTES="5"
+ENABLE_BREAKING_NEWS_MODE="false"
+BREAKING_NEWS_ALLOW_MEDIUM_IMPACT="true"
+BREAKING_NEWS_MIN_IMPACT_SCORE="0.75"
+BREAKING_NEWS_MIN_KEYWORD_MATCHES="1"
+RELIABILITY_STALE_SOURCE_HOURS="12"
 
 # Logging
 LOG_LEVEL="info"
@@ -194,6 +208,10 @@ crypto-news-bot/
 ### Export
 - `GET /export.csv` - Export articles as CSV
 - `GET /export.json` - Export articles as JSON
+
+### Reliability
+- `GET /reliability/health` - Pipeline and delivery health metrics
+- `GET /reliability/duplicate-clusters` - Duplicate story clusters by URL/title similarity
 
 ## Discord Commands
 

@@ -413,6 +413,184 @@ export function isBlockedSource(source: string | null | undefined, url: string):
 /** Minimum extracted text length to justify spending LLM tokens on enrichment */
 export const MIN_TEXT_FOR_ENRICHMENT = 200;
 
+export interface DuplicateClusterArticle {
+  id: string;
+  titleOriginal: string;
+  url: string;
+  urlNormalized?: string;
+  publishedAt?: Date | string | null;
+  sourceName?: string | null;
+}
+
+export interface DuplicateCluster {
+  clusterId: string;
+  size: number;
+  representativeTitle: string;
+  representativeUrl: string;
+  latestPublishedAt: string | null;
+  matchSignals: string[];
+  articles: DuplicateClusterArticle[];
+}
+
+const TITLE_STOPWORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'for', 'to', 'of', 'in', 'on', 'at', 'by', 'from',
+  'crypto', 'cryptocurrency', 'market', 'markets', 'news', 'update', 'latest', 'today',
+  'with', 'after', 'amid', 'as', 'is', 'are', 'be', 'this', 'that',
+]);
+
+function toDate(value?: Date | string | null): Date | null {
+  if (!value) return null;
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function titleSignature(title: string): string {
+  const tokens = title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3 && !TITLE_STOPWORDS.has(token));
+
+  return Array.from(new Set(tokens)).slice(0, 8).join(' ');
+}
+
+function urlPathSignature(url: string): string {
+  try {
+    const normalized = normalizeUrl(url);
+    const parsed = new URL(normalized);
+    const pathTokens = parsed.pathname
+      .toLowerCase()
+      .split('/')
+      .map((token) => token.trim())
+      .filter((token) => token.length >= 4 && !/^\d+$/.test(token))
+      .slice(0, 4);
+
+    const pathKey = pathTokens.join('/');
+    return `${parsed.hostname}|${pathKey}`;
+  } catch {
+    return '';
+  }
+}
+
+export function clusterDuplicateStories(
+  articles: DuplicateClusterArticle[],
+  options?: {
+    similarityThreshold?: number;
+    minClusterSize?: number;
+    maxAgeHours?: number;
+    maxTimeGapHours?: number;
+  }
+): DuplicateCluster[] {
+  const similarityThreshold = options?.similarityThreshold ?? 0.84;
+  const minClusterSize = options?.minClusterSize ?? 2;
+  const maxAgeHours = options?.maxAgeHours ?? 48;
+  const maxTimeGapHours = options?.maxTimeGapHours ?? 72;
+
+  const now = Date.now();
+  const prepared = articles
+    .map((article) => {
+      const publishedAt = toDate(article.publishedAt);
+      return {
+        ...article,
+        publishedAt,
+        titleKey: titleSignature(article.titleOriginal),
+        urlKey: urlPathSignature(article.urlNormalized || article.url),
+      };
+    })
+    .filter((article) => {
+      if (!article.publishedAt) return true;
+      return now - article.publishedAt.getTime() <= maxAgeHours * 60 * 60 * 1000;
+    })
+    .sort((a, b) => (toDate(b.publishedAt)?.getTime() || 0) - (toDate(a.publishedAt)?.getTime() || 0));
+
+  type MutableCluster = {
+    matchSignals: Set<string>;
+    representative: typeof prepared[number];
+    latestPublishedAt: Date | null;
+    articles: typeof prepared;
+  };
+
+  const clusters: MutableCluster[] = [];
+
+  for (const article of prepared) {
+    let bestMatch: { clusterIndex: number; score: number; signal: string } | null = null;
+
+    for (let i = 0; i < clusters.length; i++) {
+      const cluster = clusters[i];
+      const rep = cluster.representative;
+
+      if (article.publishedAt && cluster.latestPublishedAt) {
+        const hoursApart = Math.abs(article.publishedAt.getTime() - cluster.latestPublishedAt.getTime()) / (60 * 60 * 1000);
+        if (hoursApart > maxTimeGapHours) continue;
+      }
+
+      let score = 0;
+      let signal = '';
+
+      if (article.urlKey && rep.urlKey && article.urlKey === rep.urlKey) {
+        score = 1;
+        signal = 'url-path';
+      } else if (article.titleKey && rep.titleKey && article.titleKey === rep.titleKey) {
+        score = 0.95;
+        signal = 'title-key';
+      } else {
+        const similarity = calculateTitleSimilarity(article.titleOriginal, rep.titleOriginal);
+        if (similarity >= similarityThreshold) {
+          score = similarity;
+          signal = 'title-similarity';
+        }
+      }
+
+      if (score > 0 && (!bestMatch || score > bestMatch.score)) {
+        bestMatch = { clusterIndex: i, score, signal };
+      }
+    }
+
+    if (bestMatch) {
+      const cluster = clusters[bestMatch.clusterIndex];
+      cluster.articles.push(article);
+      cluster.matchSignals.add(bestMatch.signal);
+
+      if (article.publishedAt && (!cluster.latestPublishedAt || article.publishedAt > cluster.latestPublishedAt)) {
+        cluster.latestPublishedAt = article.publishedAt;
+      }
+      continue;
+    }
+
+    clusters.push({
+      matchSignals: new Set(),
+      representative: article,
+      latestPublishedAt: article.publishedAt,
+      articles: [article],
+    });
+  }
+
+  return clusters
+    .filter((cluster) => cluster.articles.length >= minClusterSize)
+    .map((cluster, index) => ({
+      clusterId: `cluster-${index + 1}`,
+      size: cluster.articles.length,
+      representativeTitle: cluster.representative.titleOriginal,
+      representativeUrl: cluster.representative.url,
+      latestPublishedAt: cluster.latestPublishedAt?.toISOString() || null,
+      matchSignals: Array.from(cluster.matchSignals),
+      articles: cluster.articles.map((article) => ({
+        id: article.id,
+        titleOriginal: article.titleOriginal,
+        url: article.url,
+        urlNormalized: article.urlNormalized,
+        publishedAt: article.publishedAt,
+        sourceName: article.sourceName,
+      })),
+    }))
+    .sort((a, b) => {
+      if (b.size !== a.size) return b.size - a.size;
+      const aTime = a.latestPublishedAt ? new Date(a.latestPublishedAt).getTime() : 0;
+      const bTime = b.latestPublishedAt ? new Date(b.latestPublishedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+}
+
 // ── Full-Text Search Utilities ────────────────────────────────────
 export { sanitizeSearchQuery, detectLanguage, buildFTSQuery } from './search.js';
 

@@ -56,6 +56,10 @@ Replace these values:
 # Line ~21 - Discord Webhook URL
 DISCORD_WEBHOOK_URL="paste-your-webhook-url-here"
 
+# Optional Telegram hub (for bi-daily + high-impact updates)
+TELEGRAM_BOT_TOKEN="paste-your-telegram-bot-token-here"
+TELEGRAM_CHAT_ID="paste-your-telegram-chat-id-here"
+
 # Line ~27-29 - LLM Provider Configuration
 # For OpenRouter (recommended - includes xAI Grok 4 Fast):
 LLM_PROVIDER="openrouter"
@@ -74,7 +78,7 @@ ANTHROPIC_API_KEY="paste-your-anthropic-key-here"
 LLM_MODEL="claude-3-sonnet-20240229"
 ```
 
-**That's it!** Just configure your webhook and LLM provider.
+**That's it!** Configure Discord + LLM, and optionally Telegram.
 
 ---
 
@@ -124,7 +128,8 @@ Then open:
 
 1. Wait a few minutes for the worker to fetch and process articles
 2. Check your Discord channel - you should see news posts!
-3. Open http://localhost:3000 to see the dashboard
+3. If Telegram is configured, check your Telegram chat/channel too
+4. Open http://localhost:3000 to see the dashboard
 
 ---
 

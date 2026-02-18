@@ -7,6 +7,8 @@ import { RSSFetcher } from './services/rss-fetcher.js';
 import { APINewsFetcher } from './services/api-news-fetcher.js';
 import { ImpactFilter } from './services/impact-filter.js';
 import { DiscordWebhookService } from './services/discord-webhook.js';
+import { TelegramService, escapeHtml } from './services/telegram.js';
+import { evaluateBreakingNewsCandidate } from './services/breaking-news.js';
 import { EnrichmentMapper } from './services/enrichment-mapper.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
 import { processFetchAPINewsJob, type FetchAPINewsJobData } from './jobs/fetch-api-news.js';
@@ -491,8 +493,8 @@ async function processPendingPosts() {
 }
 
 // ============================================================
-// High-impact article posting
-// Posts enriched articles with HIGH market impact to Discord
+// High-impact / breaking article posting
+// Posts HIGH market impact articles and rule-triggered BREAKING medium-impact articles
 // Limited to MAX_HIGH_IMPACT_POSTS_PER_DAY per day
 // ============================================================
 async function processHighImpactArticles() {
@@ -501,8 +503,13 @@ async function processHighImpactArticles() {
   }
 
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return; // No webhook configured
+  const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
+  const hasTelegramConfig = Boolean(telegramBotToken && telegramChatId);
+  const hasDiscordConfig = Boolean(webhookUrl);
+
+  if (!hasDiscordConfig && !hasTelegramConfig) {
+    return; // No notification hub configured
   }
 
   // Check daily quota
@@ -516,18 +523,23 @@ async function processHighImpactArticles() {
     return; // Quota exceeded for today
   }
 
-  // Find enriched HIGH-impact articles not yet posted
+  const breakingEnabled = process.env.ENABLE_BREAKING_NEWS_MODE === 'true';
+  const allowMediumImpactBreaking = process.env.BREAKING_NEWS_ALLOW_MEDIUM_IMPACT !== 'false';
+  const breakingMinImpactScore = parseFloat(process.env.BREAKING_NEWS_MIN_IMPACT_SCORE || '0.75');
+  const breakingMinKeywordMatches = parseInt(process.env.BREAKING_NEWS_MIN_KEYWORD_MATCHES || '1', 10);
+
+  // Find enriched candidates not yet posted as HIGH_IMPACT or BREAKING
   const candidates = await prisma.article.findMany({
     where: {
       status: 'ENRICHED',
-      enrichment: { marketImpact: 'HIGH' },
-      postings: { none: { postingType: 'HIGH_IMPACT' } },
+      enrichment: { marketImpact: { in: ['HIGH', 'MEDIUM'] } },
+      postings: { none: { postingType: { in: ['HIGH_IMPACT', 'BREAKING'] } } },
     },
     include: {
       enrichment: true,
       source: true,
     },
-    take: 3,
+    take: 8,
     orderBy: { publishedAt: 'desc' },
   });
 
@@ -535,7 +547,10 @@ async function processHighImpactArticles() {
     return;
   }
 
-  const discordService = new DiscordWebhookService(webhookUrl);
+  const discordService = webhookUrl ? new DiscordWebhookService(webhookUrl) : null;
+  const telegramService = hasTelegramConfig
+    ? new TelegramService(telegramBotToken as string, telegramChatId as string)
+    : null;
 
   for (const article of candidates) {
     // Check quota again (might have changed in loop)
@@ -550,16 +565,89 @@ async function processHighImpactArticles() {
       break;
     }
 
+    let attemptedPostingType: 'HIGH_IMPACT' | 'BREAKING' = 'HIGH_IMPACT';
+
     try {
       if (!article.enrichment) {
-        logger.warn({ articleId: article.id }, 'Skipping Discord post for article without enrichment');
+        logger.warn({ articleId: article.id }, 'Skipping high-impact post for article without enrichment');
         continue;
       }
-      // Post to Discord
-      await discordService.postArticle({
-        ...article,
-        enrichment: article.enrichment
-      });
+
+      const breakingEval = evaluateBreakingNewsCandidate(
+        {
+          title: article.titleOriginal,
+          extractedText: article.extractedText,
+          marketImpact: article.enrichment.marketImpact,
+          impactScore: article.impactScore ? Number(article.impactScore) : null,
+        },
+        {
+          breakingEnabled,
+          allowMediumImpact: allowMediumImpactBreaking,
+          minImpactScore: breakingMinImpactScore,
+          minKeywordMatches: breakingMinKeywordMatches,
+        }
+      );
+
+      if (!breakingEval.shouldNotify) {
+        logger.debug(
+          {
+            articleId: article.id,
+            marketImpact: article.enrichment.marketImpact,
+            impactScore: article.impactScore ? Number(article.impactScore) : null,
+            reason: breakingEval.reason,
+          },
+          'Skipping candidate that does not meet high-impact/breaking rules'
+        );
+        continue;
+      }
+
+      attemptedPostingType = breakingEval.postingType;
+
+      const deliveryErrors: string[] = [];
+      let delivered = false;
+      const alertEmoji = breakingEval.postingType === 'BREAKING' ? '🚨' : '🔥';
+
+      if (discordService) {
+        try {
+          await discordService.postArticle({
+            ...article,
+            enrichment: article.enrichment,
+          });
+          delivered = true;
+        } catch (error) {
+          deliveryErrors.push(`discord: ${(error as Error).message}`);
+        }
+      }
+
+      if (telegramService) {
+        try {
+          const title = article.enrichment.titleTh || article.titleOriginal;
+          const summary = article.enrichment.summaryTh || article.extractedText || 'No summary available';
+          const tags = Array.isArray(article.enrichment.tags) ? article.enrichment.tags as string[] : [];
+          const message = [
+            `${alertEmoji} <b>${escapeHtml(title)}</b>`,
+            '',
+            escapeHtml(summary.substring(0, 1000)),
+            '',
+            `<b>Impact:</b> ${escapeHtml(article.enrichment.marketImpact)}`,
+            `<b>Alert Type:</b> ${escapeHtml(breakingEval.postingType)}`,
+            `<b>Sentiment:</b> ${escapeHtml(article.enrichment.sentiment)}`,
+            `<b>Source:</b> ${escapeHtml(article.originalSourceName || article.source.name)}`,
+            breakingEval.matchedKeywords.length > 0 ? `<b>Triggers:</b> ${escapeHtml(breakingEval.matchedKeywords.join(', '))}` : '',
+            tags.length > 0 ? `<b>Tags:</b> ${escapeHtml(tags.join(', '))}` : '',
+            `<a href=\"${article.url}\">Read full article</a>`,
+          ].filter(Boolean).join('\n');
+
+          await telegramService.sendHtmlMessage(message);
+          delivered = true;
+        } catch (error) {
+          deliveryErrors.push(`telegram: ${(error as Error).message}`);
+        }
+      }
+
+      if (!delivered) {
+        throw new Error(deliveryErrors.join(' | ') || 'No notification hub delivered the high-impact update');
+      }
 
       // Increment quota
       await prisma.highImpactQuota.update({
@@ -573,7 +661,7 @@ async function processHighImpactArticles() {
           articleId: article.id,
           discordChannelId: 'high-impact-webhook',
           status: 'POSTED',
-          postingType: 'HIGH_IMPACT',
+          postingType: breakingEval.postingType,
           postedAt: new Date(),
         },
       });
@@ -582,7 +670,10 @@ async function processHighImpactArticles() {
         articleId: article.id,
         title: article.titleOriginal.substring(0, 50),
         marketImpact: article.enrichment?.marketImpact,
-      }, 'Posted high-impact article to Discord');
+        alertType: breakingEval.postingType,
+        triggerReason: breakingEval.reason,
+        partialDeliveryErrors: deliveryErrors.length > 0 ? deliveryErrors : undefined,
+      }, 'Posted high-impact article notification');
 
       // Rate limit: 30s between posts to avoid spam
       await sleep(30000);
@@ -590,7 +681,7 @@ async function processHighImpactArticles() {
       logger.error({
         error: (error as Error).message,
         articleId: article.id,
-      }, 'Failed to post high-impact article');
+      }, 'Failed to post high-impact article notification');
 
       // Create failed posting record
       await prisma.posting.create({
@@ -598,7 +689,7 @@ async function processHighImpactArticles() {
           articleId: article.id,
           discordChannelId: 'high-impact-webhook',
           status: 'FAILED',
-          postingType: 'HIGH_IMPACT',
+          postingType: attemptedPostingType,
           error: (error as Error).message,
         },
       });
@@ -664,6 +755,8 @@ async function checkSummarySchedule() {
   const now = new Date();
   const candidateSlots = getSummarySlotsAroundNow(now);
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+  const telegramChatId = process.env.TELEGRAM_CHAT_ID;
 
   for (const slot of candidateSlots) {
     const { scheduleType, summaryKey, slotStartUtc } = slot;
@@ -693,11 +786,16 @@ async function checkSummarySchedule() {
     scheduledSummaryKeys.add(summaryKey);
 
     logger.info(
-      { scheduleType, summaryKey, webhookConfigured: Boolean(webhookUrl) },
+      {
+        scheduleType,
+        summaryKey,
+        webhookConfigured: Boolean(webhookUrl),
+        telegramConfigured: Boolean(telegramBotToken && telegramChatId),
+      },
       'Scheduling bi-daily summary generation'
     );
 
-    const payload = { scheduleType, webhookUrl };
+    const payload = { scheduleType, webhookUrl, telegramBotToken, telegramChatId };
     try {
       await summaryQueue.add(
         `summary-${summaryKey}`,

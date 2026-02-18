@@ -1,12 +1,15 @@
 import { PrismaClient } from '@prisma/client';
 import { createLogger, escapeMarkdown } from '@crypto-news/shared';
 import type { LLMProviderInterface } from '@crypto-news/shared';
+import { TelegramService, escapeHtml } from '../services/telegram.js';
 
 const logger = createLogger('worker:job:generate-summary');
 
 export interface GenerateSummaryJobData {
   scheduleType: 'morning' | 'evening';
   webhookUrl?: string;
+  telegramBotToken?: string;
+  telegramChatId?: string;
 }
 
 interface HeadlineItem {
@@ -285,13 +288,67 @@ async function postSummaryToDiscord(
   }
 }
 
+async function postSummaryToTelegram(
+  telegramBotToken: string,
+  telegramChatId: string,
+  summaryText: string,
+  sectionTitle: string,
+  headlines: HeadlineItem[],
+  prices: PriceData,
+  scheduleType: 'morning' | 'evening'
+): Promise<void> {
+  const timeEmoji = scheduleType === 'morning' ? '🌅' : '🌆';
+  const telegramService = new TelegramService(telegramBotToken, telegramChatId);
+  const summaryLabel = scheduleType === 'morning' ? 'Morning Brief (07:00 ICT)' : 'Evening Wrap (19:00 ICT)';
+
+  const escapeUrlForHtmlAttr = (url: string): string =>
+    url
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '%3C')
+      .replace(/>/g, '%3E');
+
+  const coinLines = [
+    `BTC ${formatPrice(prices.btc.price)} (${formatChange(prices.btc.change24h)})`,
+    `ETH ${formatPrice(prices.eth.price)} (${formatChange(prices.eth.change24h)})`,
+    `SOL ${formatPrice(prices.sol.price)} (${formatChange(prices.sol.change24h)})`,
+    `HYPE ${formatPrice(prices.hype.price)} (${formatChange(prices.hype.change24h)})`,
+  ];
+
+  const headlineLines = headlines
+    .slice(0, 8)
+    .map((h, i) => `${i + 1}. <a href="${escapeUrlForHtmlAttr(h.url)}">${escapeHtml(h.title.substring(0, 90))}</a>`)
+    .join('\n');
+
+  const message = [
+    `${timeEmoji} <b>${escapeHtml(sectionTitle)}</b>`,
+    `<i>${summaryLabel}</i>`,
+    '━━━━━━━━━━',
+    '',
+    '<b>Market Context</b>',
+    escapeHtml(summaryText.substring(0, 1700)),
+    '',
+    '━━━━━━━━━━',
+    headlineLines ? `<b>📰 ข่าวเด่น ${headlineLines.split('\n').length} ข่าว</b>` : '',
+    headlineLines,
+    '',
+    '━━━━━━━━━━',
+    '<b>💰 ราคาตลาด</b>',
+    ...coinLines.map((line) => `• ${escapeHtml(line)}`),
+    `• MCap ${escapeHtml(formatMarketCap(prices.totalMarketCap))} (${escapeHtml(formatChange(prices.marketCapChange24h))})`,
+    `• Fear & Greed ${escapeHtml(String(prices.fearGreedIndex))} (${escapeHtml(prices.fearGreedLabel)})`,
+  ].filter(Boolean).join('\n');
+
+  await telegramService.sendHtmlMessage(message);
+}
+
 // Main job processor
 export async function processGenerateSummaryJob(
   data: GenerateSummaryJobData,
   prisma: PrismaClient,
   llmProvider: LLMProviderInterface
 ): Promise<{ success: boolean; summaryId: string }> {
-  const { scheduleType, webhookUrl } = data;
+  const { scheduleType, webhookUrl, telegramBotToken, telegramChatId } = data;
 
   logger.info({ scheduleType }, 'Generating bi-daily market summary');
 
@@ -384,7 +441,9 @@ export async function processGenerateSummaryJob(
     },
   });
 
-  // 5. Post to Discord (optional)
+  // 5. Post to Discord/Telegram (optional)
+  const postErrors: string[] = [];
+
   if (webhookUrl) {
     try {
       await postSummaryToDiscord(
@@ -406,14 +465,41 @@ export async function processGenerateSummaryJob(
 
       logger.info({ summaryId: summary.id, scheduleType }, 'Bi-daily summary posted to Discord');
     } catch (error) {
-      await prisma.marketSummary.update({
-        where: { id: summary.id },
-        data: { error: (error as Error).message },
-      });
+      postErrors.push(`discord: ${(error as Error).message}`);
       logger.error({ error: (error as Error).message }, 'Failed to post summary to Discord');
     }
-  } else {
-    logger.warn({ summaryId: summary.id }, 'DISCORD_WEBHOOK_URL is missing; stored summary without Discord post');
+  }
+
+  if (telegramBotToken && telegramChatId) {
+    try {
+      await postSummaryToTelegram(
+        telegramBotToken,
+        telegramChatId,
+        summaryText,
+        sectionTitle,
+        headlines,
+        prices,
+        scheduleType
+      );
+      logger.info({ summaryId: summary.id, scheduleType }, 'Bi-daily summary posted to Telegram');
+    } catch (error) {
+      postErrors.push(`telegram: ${(error as Error).message}`);
+      logger.error({ error: (error as Error).message }, 'Failed to post summary to Telegram');
+    }
+  }
+
+  if (!webhookUrl && !(telegramBotToken && telegramChatId)) {
+    logger.warn(
+      { summaryId: summary.id },
+      'No notification hub configured; stored summary without Discord/Telegram post'
+    );
+  }
+
+  if (postErrors.length > 0) {
+    await prisma.marketSummary.update({
+      where: { id: summary.id },
+      data: { error: postErrors.join(' | ') },
+    });
   }
 
   // 6. Audit

@@ -8,6 +8,7 @@ import {
   Newspaper,
   Rss,
   BarChart3,
+  ShieldAlert,
   Download,
   PenSquare,
   X,
@@ -19,6 +20,7 @@ const navigation = [
   { name: 'My Posts', href: '/posts', icon: PenSquare },
   { name: 'Sources', href: '/sources', icon: Rss },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Reliability', href: '/reliability', icon: ShieldAlert },
   { name: 'Export', href: '/export', icon: Download },
 ];
 
