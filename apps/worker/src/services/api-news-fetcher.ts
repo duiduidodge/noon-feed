@@ -130,8 +130,11 @@ export class APINewsFetcher {
         try {
           const response = await fetch(url, {
             headers: {
+              // Some providers block non-browser clients unless these headers are present.
               'User-Agent': this.userAgent,
               'Accept': 'application/json',
+              'Origin': 'https://cryptocurrency.cv',
+              'Referer': 'https://cryptocurrency.cv/',
             },
             signal: controller.signal,
           });
@@ -139,7 +142,21 @@ export class APINewsFetcher {
           clearTimeout(timeout);
 
           if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            let details = '';
+            try {
+              const body = await response.text();
+              details = body ? ` | ${body.substring(0, 240)}` : '';
+            } catch {
+              // Keep fallback error message.
+            }
+
+            if (response.status === 403) {
+              throw new Error(
+                `HTTP 403: Forbidden from ${this.baseUrl}. Provider likely blocked automated requests.${details}`
+              );
+            }
+
+            throw new Error(`HTTP ${response.status}: ${response.statusText}${details}`);
           }
 
           const data = await response.json() as APINewsResponse;

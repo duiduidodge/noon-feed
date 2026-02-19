@@ -31,7 +31,6 @@ async function runSourceFetches(config: ReturnType<typeof buildConfig>) {
 
   logger.info({ rssSources: rssSources.length, apiSources: apiSources.length, backfillHours }, 'Running one-shot source fetch');
 
-  /*
   for (const source of rssSources) {
     try {
       await processFetchRSSJob(
@@ -48,7 +47,6 @@ async function runSourceFetches(config: ReturnType<typeof buildConfig>) {
       logger.error({ sourceId: source.id, error: (error as Error).message }, 'RSS fetch failed in one-shot run');
     }
   }
-  */
 
   for (const source of apiSources) {
     try {

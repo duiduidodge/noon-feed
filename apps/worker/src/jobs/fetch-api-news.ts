@@ -4,6 +4,7 @@ import { EnrichmentMapper } from '../services/enrichment-mapper.js';
 import type { APINewsFetcher } from '../services/api-news-fetcher.js';
 
 const logger = createLogger('worker:job:fetch-api-news');
+const JOB_TYPE = 'FETCH_API_NEWS';
 
 export interface FetchAPINewsJobData {
   sourceId: string;
@@ -25,7 +26,7 @@ export async function processFetchAPINewsJob(
   // Audit start
   await prisma.jobAudit.create({
     data: {
-      jobType: 'FETCH_RSS', // Use same job type for consistency
+      jobType: JOB_TYPE,
       status: 'STARTED',
       metadata: { sourceId, sourceName, type: 'API' },
     },
@@ -183,7 +184,7 @@ export async function processFetchAPINewsJob(
     // Audit complete
     await prisma.jobAudit.create({
       data: {
-        jobType: 'FETCH_RSS',
+        jobType: JOB_TYPE,
         status: 'COMPLETED',
         metadata: {
           sourceId,
@@ -207,7 +208,7 @@ export async function processFetchAPINewsJob(
     // Audit failure
     await prisma.jobAudit.create({
       data: {
-        jobType: 'FETCH_RSS',
+        jobType: JOB_TYPE,
         status: 'FAILED',
         error: (error as Error).message,
         metadata: { sourceId, sourceName, type: 'API' },
