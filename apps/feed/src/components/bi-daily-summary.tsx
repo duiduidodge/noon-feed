@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
 import { SummaryModal } from './summary-modal';
 import { Maximize2, ExternalLink } from 'lucide-react';
+import Image from 'next/image';
 
 interface Headline {
   title: string;
@@ -33,6 +34,26 @@ interface Summary {
   createdAt: string;
 }
 
+interface LivePriceCoin {
+  id: string;
+  symbol: string;
+  name: string;
+  image: string | null;
+  priceUsd: number;
+  changePercent24Hr: number;
+}
+
+interface LivePricesResponse {
+  majors: LivePriceCoin[];
+  global: {
+    totalMcap: number;
+    totalVolume: number;
+    btcDominance: number;
+    avgChange24h: number;
+  };
+  asOf?: string;
+}
+
 function formatPrice(price: number): string {
   if (price >= 1000) return `$${price.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
   if (price >= 1) return `$${price.toFixed(2)}`;
@@ -50,6 +71,13 @@ function formatMarketCap(value: number): string {
   return `$${(value / 1e6).toFixed(0)}M`;
 }
 
+function formatCompactCurrency(value: number): string {
+  if (value >= 1e12) return `$${(value / 1e12).toFixed(2)}T`;
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+  return `$${value.toFixed(2)}`;
+}
+
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
   const hours = date.getHours().toString().padStart(2, '0');
@@ -63,6 +91,17 @@ function formatDateRich(isoString: string): string {
   const monthTh = date.toLocaleDateString('th-TH', { month: 'short' });
   const weekdayTh = date.toLocaleDateString('th-TH', { weekday: 'short' });
   return `${weekdayTh}, ${day} ${monthTh}`;
+}
+
+function formatDateImpact(isoString: string): string {
+  const date = new Date(isoString);
+  const fullDate = date.toLocaleDateString('th-TH', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  return `${fullDate} • ${formatTime(isoString)} UTC`;
 }
 
 // Mini gauge for inline Fear & Greed display
@@ -182,8 +221,8 @@ function highlightNumbers(text: string) {
 function CompactSummaryCard({ summary }: { summary: Summary }) {
   const [isOpen, setIsOpen] = useState(false);
   const isMorning = summary.scheduleType === 'morning';
-  const label = isMorning ? 'EARLY INTELLIGENCE' : 'MARKET CLOSE WRAP';
-  const subLabel = isMorning ? 'Morning Briefing' : 'Evening Briefing';
+  const label = isMorning ? 'MORNING SUMMARY' : 'EVENING SUMMARY';
+  const subLabel = isMorning ? 'Morning Summary' : 'Evening Summary';
 
   // Derive details
   const fgIndex = summary.prices?.fearGreedIndex ?? 50;
@@ -271,7 +310,7 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         title={label}
-        date={formatDateRich(summary.createdAt)}
+        date={formatDateImpact(summary.createdAt)}
       >
         <FullSummaryContent summary={summary} />
       </SummaryModal>
@@ -280,7 +319,6 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
 }
 
 function FullSummaryContent({ summary }: { summary: Summary }) {
-  const [mobileTab, setMobileTab] = useState<'overview' | 'summary' | 'sources'>('overview');
   const isMorning = summary.scheduleType === 'morning';
   const { data: liveMarket } = useQuery({
     queryKey: ['market-overview'],
@@ -291,235 +329,168 @@ function FullSummaryContent({ summary }: { summary: Summary }) {
     },
     refetchInterval: 60_000,
   });
+  const { data: livePrices } = useQuery({
+    queryKey: ['prices'],
+    queryFn: async () => {
+      const res = await fetch('/api/prices');
+      if (!res.ok) throw new Error('Failed to fetch prices');
+      return res.json() as Promise<LivePricesResponse>;
+    },
+    refetchInterval: 60_000,
+  });
 
   const { prices } = summary;
   const liveFG = liveMarket?.fearGreedIndex ?? prices.fearGreedIndex;
   const liveFGLabel = liveMarket?.fearGreedLabel ?? prices.fearGreedLabel;
   const moodTone =
     liveFG >= 55 ? 'BULLISH' : liveFG <= 45 ? 'BEARISH' : 'NEUTRAL';
+  const globalMCap = livePrices?.global.totalMcap ?? prices.totalMarketCap;
+  const globalVolume = livePrices?.global.totalVolume ?? 0;
+  const btcDom = livePrices?.global.btcDominance ?? 0;
+  const globalChange = livePrices?.global.avgChange24h ?? prices.marketCapChange24h;
 
-  const marketTiles = [
-    { label: 'BTC', value: formatPrice(prices.btc.price), change: prices.btc.change24h },
-    { label: 'ETH', value: formatPrice(prices.eth.price), change: prices.eth.change24h },
-    { label: 'SOL', value: formatPrice(prices.sol.price), change: prices.sol.change24h },
-    { label: 'HYPE', value: formatPrice(prices.hype.price), change: prices.hype.change24h },
-  ];
+  const majors = livePrices?.majors?.length
+    ? livePrices.majors
+        .filter((coin) => ['BTC', 'ETH', 'XRP', 'SOL', 'HYPE'].includes(coin.symbol))
+        .sort((a, b) => ['BTC', 'ETH', 'XRP', 'SOL', 'HYPE'].indexOf(a.symbol) - ['BTC', 'ETH', 'XRP', 'SOL', 'HYPE'].indexOf(b.symbol))
+    : [
+        { id: 'btc', symbol: 'BTC', name: 'Bitcoin', image: null, priceUsd: prices.btc.price, changePercent24Hr: prices.btc.change24h },
+        { id: 'eth', symbol: 'ETH', name: 'Ethereum', image: null, priceUsd: prices.eth.price, changePercent24Hr: prices.eth.change24h },
+        { id: 'xrp', symbol: 'XRP', name: 'XRP', image: null, priceUsd: 0, changePercent24Hr: 0 },
+        { id: 'sol', symbol: 'SOL', name: 'Solana', image: null, priceUsd: prices.sol.price, changePercent24Hr: prices.sol.change24h },
+        { id: 'hype', symbol: 'HYPE', name: 'Hyperliquid', image: null, priceUsd: prices.hype.price, changePercent24Hr: prices.hype.change24h },
+      ];
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {marketTiles.map((tile) => {
-          const positive = tile.change >= 0;
-          return (
-            <div
-              key={tile.label}
-              className="rounded-lg border border-border/35 bg-surface/35 px-2.5 py-2"
-            >
-              <div className="mb-1 flex items-center justify-between">
-                <span className="font-mono-data text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/80">
-                  {tile.label}
-                </span>
-                <span
-                  className={clsx(
-                    'font-mono-data text-[10px] font-semibold',
-                    positive ? 'text-bullish' : 'text-bearish'
-                  )}
-                >
-                  {formatChange(tile.change)}
-                </span>
-              </div>
-              <p className="font-mono-data text-[12px] font-bold text-foreground">{tile.value}</p>
-            </div>
-          );
-        })}
-      </div>
+    <div className="grid h-full min-h-0 grid-cols-1 gap-2.5 lg:grid-cols-12">
+      <section className="lg:col-span-4 rounded-xl border border-border/35 bg-surface/28 p-3">
+        <div className="mb-2.5 flex items-center justify-between">
+          <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            Market Mood
+          </h4>
+          <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 font-mono-data text-[10px] text-primary/90">
+            {summary.createdAt ? formatTime(summary.createdAt) : 'Live'}
+          </span>
+        </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-3 lg:min-h-0 lg:flex-1">
-        <section className="lg:col-span-4 rounded-xl border border-border/35 bg-surface/28 p-3 lg:min-h-0">
-          <div className="mb-2 flex items-center justify-between">
-            <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Mood
-            </h4>
-            <span className="font-mono-data text-[10px] text-muted-foreground/80">Live</span>
-          </div>
-          <div className="mb-2 flex items-center justify-between rounded-lg border border-border/30 bg-card/45 px-3 py-2">
-            <div>
-              <p className="font-display text-xl font-bold uppercase tracking-tight text-foreground">
-                {liveFGLabel}
-              </p>
-              <p className="font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
-                {moodTone} • {liveFG}/100
-              </p>
-            </div>
-            <MiniMoodGauge value={liveFG} compact />
-          </div>
-          <div className="rounded-lg border border-border/30 bg-card/45 px-3 py-2">
-            <p className="font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
-              Total Market Cap
+        <div className="mb-2.5 rounded-lg border border-border/30 bg-card/45 px-3 py-3">
+          <MiniMoodGauge value={liveFG} label={liveFGLabel} />
+          <p className="mt-1 text-center font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
+            {moodTone} • {liveFG}/100
+          </p>
+        </div>
+
+        <div className="mb-2.5 grid grid-cols-3 gap-1.5">
+          <div className="rounded-lg border border-border/30 bg-card/45 px-2 py-2">
+            <p className="font-mono-data text-[9px] uppercase tracking-[0.14em] text-muted-foreground/75">MCap</p>
+            <p className="mt-1 font-mono-data text-[12px] font-bold text-foreground">{formatMarketCap(globalMCap)}</p>
+            <p className={clsx('font-mono-data text-[10px] font-semibold', globalChange >= 0 ? 'text-bullish' : 'text-bearish')}>
+              {formatChange(globalChange)}
             </p>
-            <div className="mt-1 flex items-center justify-between">
-              <p className="font-mono-data text-[13px] font-bold text-foreground">
-                {formatMarketCap(prices.totalMarketCap)}
-              </p>
-              <span
-                className={clsx(
-                  'rounded px-1.5 py-0.5 font-mono-data text-[10px] font-semibold',
-                  prices.marketCapChange24h >= 0
-                    ? 'bg-bullish/10 text-bullish'
-                    : 'bg-bearish/10 text-bearish'
-                )}
-              >
-                {formatChange(prices.marketCapChange24h)}
-              </span>
-            </div>
           </div>
-        </section>
+          <div className="rounded-lg border border-border/30 bg-card/45 px-2 py-2">
+            <p className="font-mono-data text-[9px] uppercase tracking-[0.14em] text-muted-foreground/75">Volume</p>
+            <p className="mt-1 font-mono-data text-[12px] font-bold text-foreground">
+              {globalVolume > 0 ? formatCompactCurrency(globalVolume) : 'N/A'}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border/30 bg-card/45 px-2 py-2">
+            <p className="font-mono-data text-[9px] uppercase tracking-[0.14em] text-muted-foreground/75">BTC Dom</p>
+            <p className="mt-1 font-mono-data text-[12px] font-bold text-foreground">
+              {btcDom > 0 ? `${btcDom.toFixed(1)}%` : 'N/A'}
+            </p>
+          </div>
+        </div>
 
-        <section className="hidden lg:col-span-4 lg:flex lg:min-h-0 lg:flex-col rounded-xl border border-border/35 bg-surface/28 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Executive Summary
-            </h4>
-            <span className="font-mono-data text-[10px] text-muted-foreground/70">
-              {isMorning ? 'Morning' : 'Evening'}
-            </span>
-          </div>
-          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
-            <div className="font-thai text-[13px] leading-relaxed text-foreground/90">
-              <FormattedSummary text={summary.summaryText} />
-            </div>
-          </div>
-        </section>
-
-        <section className="hidden lg:col-span-4 lg:flex lg:min-h-0 lg:flex-col rounded-xl border border-border/35 bg-surface/28 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Sources
-            </h4>
-            <span className="font-mono-data text-[10px] text-muted-foreground/70">
-              {summary.articleCount} Articles
-            </span>
-          </div>
-          <div className="custom-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-            {summary.headlines.map((headline, idx) => (
-              <a
-                key={idx}
-                href={headline.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block rounded-lg border border-border/30 bg-card/45 p-2.5 transition-colors hover:border-primary/35 hover:bg-card/65"
-              >
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <span className="font-mono-data text-[10px] font-bold uppercase tracking-[0.16em] text-primary/80">
-                    {(idx + 1).toString().padStart(2, '0')}
-                  </span>
-                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/35 transition-colors group-hover:text-primary/80" />
+        <div className="rounded-lg border border-border/30 bg-card/45 p-2.5">
+          <p className="mb-2 font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
+            Majors
+          </p>
+          <div className="custom-scrollbar max-h-[210px] space-y-1.5 overflow-y-auto pr-0.5 lg:max-h-[320px]">
+            {majors.map((coin) => {
+              const positive = coin.changePercent24Hr >= 0;
+              return (
+                <div key={coin.id} className="flex items-center justify-between rounded-md border border-border/25 bg-surface/25 px-2 py-1.5">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {coin.image ? (
+                      <Image src={coin.image} alt={coin.symbol} width={18} height={18} className="h-[18px] w-[18px] rounded-full" />
+                    ) : (
+                      <div className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-surface/70 font-mono-data text-[8px] text-muted-foreground">
+                        {coin.symbol[0]}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-mono-data text-[10px] font-bold text-foreground">{coin.symbol}</p>
+                      <p className="truncate font-mono-data text-[9px] uppercase tracking-[0.08em] text-muted-foreground/70">
+                        {coin.name}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono-data text-[11px] font-semibold text-foreground">
+                      {coin.priceUsd > 0 ? formatPrice(coin.priceUsd) : 'N/A'}
+                    </p>
+                    <p className={clsx('font-mono-data text-[10px] font-semibold', positive ? 'text-bullish' : 'text-bearish')}>
+                      {formatChange(coin.changePercent24Hr)}
+                    </p>
+                  </div>
                 </div>
-                <p className="line-clamp-2 font-thai text-[12px] leading-snug text-foreground/90">
-                  {headline.title}
-                </p>
-                <p className="mt-1 font-mono-data text-[9px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                  {headline.source}
-                </p>
-              </a>
-            ))}
+              );
+            })}
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
 
-      <div className="lg:hidden">
-        <div className="mb-2 grid grid-cols-3 gap-2">
-          {[
-            { key: 'overview', label: 'Overview' },
-            { key: 'summary', label: 'Summary' },
-            { key: 'sources', label: 'Sources' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setMobileTab(tab.key as 'overview' | 'summary' | 'sources')}
-              className={clsx(
-                'rounded-md border px-2 py-2 font-mono-data text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors',
-                mobileTab === tab.key
-                  ? 'border-primary/45 bg-primary/10 text-primary'
-                  : 'border-border/35 bg-surface/28 text-muted-foreground'
-              )}
+      <section className="lg:col-span-4 flex min-h-0 flex-col rounded-xl border border-border/35 bg-surface/28 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            Text Summary
+          </h4>
+          <span className="font-mono-data text-[10px] text-muted-foreground/70">
+            {isMorning ? 'Morning' : 'Evening'}
+          </span>
+        </div>
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
+          <div className="font-thai text-[13px] leading-relaxed text-foreground/90">
+            <FormattedSummary text={summary.summaryText} />
+          </div>
+        </div>
+      </section>
+
+      <section className="lg:col-span-4 flex min-h-0 flex-col rounded-xl border border-border/35 bg-surface/28 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            News Sources
+          </h4>
+          <span className="font-mono-data text-[10px] text-muted-foreground/70">
+            {summary.articleCount} Articles
+          </span>
+        </div>
+        <div className="custom-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+          {summary.headlines.map((headline, idx) => (
+            <a
+              key={idx}
+              href={headline.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group block rounded-lg border border-border/30 bg-card/45 p-2.5 transition-colors hover:border-primary/35 hover:bg-card/65"
             >
-              {tab.label}
-            </button>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="font-mono-data text-[10px] font-bold uppercase tracking-[0.16em] text-primary/80">
+                  {(idx + 1).toString().padStart(2, '0')}
+                </span>
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/35 transition-colors group-hover:text-primary/80" />
+              </div>
+              <p className="line-clamp-2 font-thai text-[12px] leading-snug text-foreground/90">
+                {headline.title}
+              </p>
+              <p className="mt-1 font-mono-data text-[9px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                {headline.source}
+              </p>
+            </a>
           ))}
         </div>
-
-        <div className="custom-scrollbar max-h-[42dvh] overflow-y-auto rounded-xl border border-border/35 bg-surface/28 p-3">
-          {mobileTab === 'overview' && (
-            <div className="space-y-2">
-              <div className="rounded-lg border border-border/30 bg-card/45 px-3 py-2">
-                <p className="font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
-                  Market Sentiment
-                </p>
-                <div className="mt-1 flex items-center justify-between">
-                  <p className="font-display text-lg font-bold uppercase tracking-tight text-foreground">
-                    {liveFGLabel}
-                  </p>
-                  <MiniMoodGauge value={liveFG} compact />
-                </div>
-              </div>
-              <div className="rounded-lg border border-border/30 bg-card/45 px-3 py-2">
-                <p className="font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
-                  Total Market Cap
-                </p>
-                <div className="mt-1 flex items-center justify-between">
-                  <p className="font-mono-data text-[13px] font-bold text-foreground">
-                    {formatMarketCap(prices.totalMarketCap)}
-                  </p>
-                  <span
-                    className={clsx(
-                      'rounded px-1.5 py-0.5 font-mono-data text-[10px] font-semibold',
-                      prices.marketCapChange24h >= 0
-                        ? 'bg-bullish/10 text-bullish'
-                        : 'bg-bearish/10 text-bearish'
-                    )}
-                  >
-                    {formatChange(prices.marketCapChange24h)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {mobileTab === 'summary' && (
-            <div className="font-thai text-[13px] leading-relaxed text-foreground/90">
-              <FormattedSummary text={summary.summaryText} />
-            </div>
-          )}
-
-          {mobileTab === 'sources' && (
-            <div className="space-y-2">
-              {summary.headlines.map((headline, idx) => (
-                <a
-                  key={idx}
-                  href={headline.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group block rounded-lg border border-border/30 bg-card/45 p-2.5 transition-colors hover:border-primary/35 hover:bg-card/65"
-                >
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <span className="font-mono-data text-[10px] font-bold uppercase tracking-[0.16em] text-primary/80">
-                      {(idx + 1).toString().padStart(2, '0')}
-                    </span>
-                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/35 transition-colors group-hover:text-primary/80" />
-                  </div>
-                  <p className="line-clamp-2 font-thai text-[12px] leading-snug text-foreground/90">
-                    {headline.title}
-                  </p>
-                  <p className="mt-1 font-mono-data text-[9px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                    {headline.source}
-                  </p>
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      </section>
     </div>
   );
 }

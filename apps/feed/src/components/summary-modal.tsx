@@ -42,13 +42,13 @@ export function SummaryModal({ isOpen, onClose, children, title, date }: Summary
           className="relative z-[101] flex h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-border/40 bg-card shadow-2xl ring-1 ring-border/10"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="flex items-start justify-between gap-3 border-b border-border/15 px-4 py-3 sm:px-5 sm:py-4">
+          <div className="flex items-start justify-between gap-3 border-b border-border/15 bg-surface/18 px-4 py-3 sm:px-5 sm:py-4">
             <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-2 font-mono-data text-[10px] uppercase tracking-[0.18em] text-muted-foreground/75">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 font-mono-data text-[10px] font-semibold uppercase tracking-[0.18em] text-primary">
                 <Calendar className="h-3 w-3" />
                 {date}
               </div>
-              <h2 className="truncate font-display text-base font-bold uppercase tracking-wide text-foreground sm:text-xl">
+              <h2 className="truncate font-display text-base font-bold uppercase tracking-[0.06em] text-foreground sm:text-xl">
                 {title}
               </h2>
             </div>
