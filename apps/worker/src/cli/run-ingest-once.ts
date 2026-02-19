@@ -97,8 +97,8 @@ async function processPendingArticles(config: ReturnType<typeof buildConfig>) {
   logger.info({ totalProcessed }, 'Finished one-shot pending article processing');
 }
 
-async function enrichAPIArticles() {
-  // Apply free enrichment mapping to all fetched articles (RSS + API)
+async function enrichFetchedArticles() {
+  // Apply free enrichment mapping to fetched articles from both RSS and API sources.
   const articles = await prisma.article.findMany({
     where: {
       status: 'FETCHED',
@@ -108,7 +108,7 @@ async function enrichAPIArticles() {
     orderBy: { publishedAt: 'desc' },
   });
 
-  logger.info({ count: articles.length }, 'Applying free enrichment to API articles');
+  logger.info({ count: articles.length }, 'Applying free enrichment to fetched articles');
 
   let enriched = 0;
   for (const article of articles) {
@@ -154,7 +154,7 @@ async function enrichAPIArticles() {
     }
   }
 
-  logger.info({ enriched }, 'Finished enriching API articles');
+  logger.info({ enriched }, 'Finished enriching fetched articles');
 }
 
 async function printStatus() {
@@ -190,7 +190,7 @@ async function main() {
 
   await runSourceFetches(config);
   await processPendingArticles(config);
-  await enrichAPIArticles(); // Apply free enrichment to API articles
+  await enrichFetchedArticles(); // Apply free enrichment to fetched articles
   await printStatus();
 
   logger.info('One-shot ingest run complete');
