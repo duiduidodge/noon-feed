@@ -160,7 +160,7 @@ export function FeedHeader() {
         className={`fixed inset-0 z-40 bg-background/95 backdrop-blur-xl transition-all duration-500 md:hidden ${isMenuOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
           }`}
       >
-        <div className={`flex flex-col h-full pt-[80px] px-6 pb-10 transition-all duration-500 delay-100 ${isMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+        <div className={`flex min-h-[100dvh] flex-col overflow-y-auto pt-20 px-6 pb-10 transition-all duration-500 delay-100 ${isMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
           <div className="flex flex-col gap-1">
             {NAV_ITEMS.map((item, idx) => {
               const isActive = activeTab === item.label;
@@ -192,7 +192,7 @@ export function FeedHeader() {
           <div className="mt-auto">
             <div className="p-5 rounded-2xl bg-surface/50 border border-border/30 backdrop-blur-sm">
               <h4 className="font-mono-data text-[10px] uppercase tracking-widest text-muted-foreground mb-3">Market Status</h4>
-              <MarketTicker />
+              <MarketTicker marquee={false} compact />
             </div>
           </div>
         </div>

@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import Image from 'next/image';
 import { clsx } from 'clsx';
 import { SummaryModal } from './summary-modal';
-import { FileText, Maximize2, ChevronRight, ExternalLink } from 'lucide-react';
+import { Maximize2, ExternalLink } from 'lucide-react';
 
 interface Headline {
   title: string;
@@ -66,42 +65,8 @@ function formatDateRich(isoString: string): string {
   return `${weekdayTh}, ${day} ${monthTh}`;
 }
 
-const COIN_LOGOS: Record<string, string> = {
-  BTC: 'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png',
-  ETH: 'https://coin-images.coingecko.com/coins/images/279/large/ethereum.png',
-  SOL: 'https://coin-images.coingecko.com/coins/images/4128/large/solana.png',
-  HYPE: 'https://coin-images.coingecko.com/coins/images/50882/large/hyperliquid.jpg',
-};
-
-// Mini price chip for the top strip
-function PriceChip({ coin, price, change }: { coin: string; price: number; change: number }) {
-  const isPositive = change >= 0;
-  const coinLogo = COIN_LOGOS[coin];
-
-  return (
-    <div className="inline-flex items-center gap-1.5 rounded-lg border border-border/40 bg-surface/40 px-2 py-1 transition-all hover:bg-surface/60 hover:border-border/60 group cursor-default">
-      {coinLogo ? (
-        <Image src={coinLogo} alt={coin} width={14} height={14} className="h-3.5 w-3.5 rounded-full grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
-      ) : (
-        <span className="inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-surface font-mono-data text-[7px] text-muted-foreground border border-border/50">
-          {coin[0]}
-        </span>
-      )}
-      <span className="font-mono-data text-[10px] font-semibold text-foreground">
-        {coin}
-      </span>
-      <span className={clsx(
-        'font-mono-data text-[9px] font-semibold tabular-nums',
-        isPositive ? 'text-bullish' : 'text-bearish'
-      )}>
-        {formatChange(change)}
-      </span>
-    </div>
-  );
-}
-
 // Mini gauge for inline Fear & Greed display
-function MiniMoodGauge({ value, label, compact }: { value: number; label: string; compact?: boolean }) {
+function MiniMoodGauge({ value, compact, label = '' }: { value: number; compact?: boolean; label?: string }) {
   const valueColor =
     value <= 25 ? 'text-bearish' :
       value <= 45 ? 'text-orange-500' :
@@ -165,50 +130,6 @@ function MiniMoodGauge({ value, label, compact }: { value: number; label: string
         <text x={cx} y={cy - 12} textAnchor="middle" className={clsx('font-mono-data font-bold', valueColor)} style={{ fontSize: '18px', fill: 'currentColor' }}>{value}</text>
       </svg>
       <span className={clsx('font-mono-data text-[9px] font-bold uppercase tracking-widest', valueColor)}>{label}</span>
-    </div>
-  );
-}
-
-// Redesigned coin card for 2x2 grid in summary section
-function CoinGridCard({ coin, price, change }: { coin: string; price: number; change: number }) {
-  const isPositive = change >= 0;
-  const coinLogos: Record<string, string> = {
-    BTC: 'https://coin-images.coingecko.com/coins/images/1/small/bitcoin.png',
-    ETH: 'https://coin-images.coingecko.com/coins/images/279/small/ethereum.png',
-    SOL: 'https://coin-images.coingecko.com/coins/images/4128/small/solana.png',
-    HYPE: 'https://coin-images.coingecko.com/coins/images/50882/small/hyperliquid.jpg',
-  };
-  const coinLogo = coinLogos[coin];
-
-  return (
-    <div className="group relative overflow-hidden rounded-lg border border-border/30 bg-surface/40 p-2.5 flex flex-col items-center gap-1 transition-all duration-200 hover:bg-surface/60 hover:border-border/50">
-      {/* Top accent gradient */}
-      <div className={clsx(
-        'absolute inset-x-0 top-0 h-[2px] opacity-60 transition-opacity group-hover:opacity-100',
-        isPositive ? 'bg-bullish' : 'bg-bearish'
-      )} />
-
-      {/* Header */}
-      <div className="flex items-center gap-1.5 w-full justify-between">
-        <div className="flex items-center gap-1.5">
-          {coinLogo ? (
-            <Image src={coinLogo} alt={coin} width={16} height={16} className="h-4 w-4 rounded-full grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 transition-all" />
-          ) : (
-            <div className="h-4 w-4 rounded-full bg-muted" />
-          )}
-          <span className="font-mono-data text-[10px] font-bold text-muted-foreground">{coin}</span>
-        </div>
-        <span className={clsx('font-mono-data text-[9px] font-semibold', isPositive ? 'text-bullish' : 'text-bearish')}>
-          {formatChange(change)}
-        </span>
-      </div>
-
-      {/* Price */}
-      <div className="flex-1 flex items-end">
-        <span className="font-mono-data text-xs font-bold text-foreground">
-          {formatPrice(price)}
-        </span>
-      </div>
     </div>
   );
 }
@@ -359,6 +280,7 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
 }
 
 function FullSummaryContent({ summary }: { summary: Summary }) {
+  const [mobileTab, setMobileTab] = useState<'overview' | 'summary' | 'sources'>('overview');
   const isMorning = summary.scheduleType === 'morning';
   const { data: liveMarket } = useQuery({
     queryKey: ['market-overview'],
@@ -373,101 +295,229 @@ function FullSummaryContent({ summary }: { summary: Summary }) {
   const { prices } = summary;
   const liveFG = liveMarket?.fearGreedIndex ?? prices.fearGreedIndex;
   const liveFGLabel = liveMarket?.fearGreedLabel ?? prices.fearGreedLabel;
+  const moodTone =
+    liveFG >= 55 ? 'BULLISH' : liveFG <= 45 ? 'BEARISH' : 'NEUTRAL';
+
+  const marketTiles = [
+    { label: 'BTC', value: formatPrice(prices.btc.price), change: prices.btc.change24h },
+    { label: 'ETH', value: formatPrice(prices.eth.price), change: prices.eth.change24h },
+    { label: 'SOL', value: formatPrice(prices.sol.price), change: prices.sol.change24h },
+    { label: 'HYPE', value: formatPrice(prices.hype.price), change: prices.hype.change24h },
+  ];
 
   return (
-    <div className="space-y-8">
-      {/* 
-        DASHBOARD HEADER 
-        Two main cards: Left (Sentiment/Mood), Right (Key Assets)
-      */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Card 1: Market Mood */}
-        <div className="relative overflow-hidden rounded-2xl bg-surface/30 border border-white/5 p-5 flex items-center justify-between">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 to-blue-500/5" />
-          <div className="relative z-10">
-            <h4 className="font-mono-data text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Market Sentiment</h4>
-            <div className="text-3xl font-display font-bold text-foreground tracking-tight">{liveFGLabel}</div>
-            <div className="text-xs font-mono-data text-muted-foreground/60 mt-1">Index: {liveFG}/100</div>
-          </div>
-          <div className="relative z-10 scale-90 origin-right">
-            <MiniMoodGauge value={liveFG} label="" />
-          </div>
-        </div>
-
-        {/* Card 2: Market Cap & Dominance (Replaced Key Movers with Global Stats for higher level view) */}
-        <div className="relative overflow-hidden rounded-2xl bg-surface/30 border border-white/5 p-5 flex flex-col justify-center">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-teal-500/5" />
-          <div className="relative z-10 flex items-center justify-between mb-4">
-            <div>
-              <h4 className="font-mono-data text-[10px] uppercase tracking-widest text-muted-foreground mb-0.5">Global Cap</h4>
-              <div className="text-2xl font-mono-data font-bold tracking-tight text-foreground">{formatMarketCap(prices.totalMarketCap)}</div>
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {marketTiles.map((tile) => {
+          const positive = tile.change >= 0;
+          return (
+            <div
+              key={tile.label}
+              className="rounded-lg border border-border/35 bg-surface/35 px-2.5 py-2"
+            >
+              <div className="mb-1 flex items-center justify-between">
+                <span className="font-mono-data text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground/80">
+                  {tile.label}
+                </span>
+                <span
+                  className={clsx(
+                    'font-mono-data text-[10px] font-semibold',
+                    positive ? 'text-bullish' : 'text-bearish'
+                  )}
+                >
+                  {formatChange(tile.change)}
+                </span>
+              </div>
+              <p className="font-mono-data text-[12px] font-bold text-foreground">{tile.value}</p>
             </div>
-            <div className={clsx("px-2 py-1 rounded text-xs font-bold font-mono-data", prices.marketCapChange24h >= 0 ? "bg-bullish/10 text-bullish" : "bg-bearish/10 text-bearish")}>
-              {formatChange(prices.marketCapChange24h)}
-            </div>
-          </div>
-          {/* Mini strip of coins */}
-          <div className="relative z-10 flex items-center gap-2">
-            <PriceChip coin="BTC" price={prices.btc.price} change={prices.btc.change24h} />
-            <PriceChip coin="ETH" price={prices.eth.price} change={prices.eth.change24h} />
-            <PriceChip coin="SOL" price={prices.sol.price} change={prices.sol.change24h} />
-          </div>
-        </div>
+          );
+        })}
       </div>
 
-      {/* 
-        MAIN EDITORIAL CONTENT 
-        Two column layout on large screens: Text Left, Stories Right
-      */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Text Column */}
-        <div className="lg:col-span-8">
-          <div className="prose prose-invert prose-p:font-thai prose-p:text-lg prose-p:leading-8 prose-p:text-foreground/90 max-w-none">
-            <div className="mb-6 flex items-center gap-2 pb-4 border-b border-border/10">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-              <span className="font-mono-data text-xs font-bold uppercase tracking-[0.2em] text-primary">Executive Summary</span>
-            </div>
-            <FormattedSummary text={summary.summaryText} />
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:gap-3 lg:min-h-0 lg:flex-1">
+        <section className="lg:col-span-4 rounded-xl border border-border/35 bg-surface/28 p-3 lg:min-h-0">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Mood
+            </h4>
+            <span className="font-mono-data text-[10px] text-muted-foreground/80">Live</span>
           </div>
+          <div className="mb-2 flex items-center justify-between rounded-lg border border-border/30 bg-card/45 px-3 py-2">
+            <div>
+              <p className="font-display text-xl font-bold uppercase tracking-tight text-foreground">
+                {liveFGLabel}
+              </p>
+              <p className="font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
+                {moodTone} • {liveFG}/100
+              </p>
+            </div>
+            <MiniMoodGauge value={liveFG} compact />
+          </div>
+          <div className="rounded-lg border border-border/30 bg-card/45 px-3 py-2">
+            <p className="font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
+              Total Market Cap
+            </p>
+            <div className="mt-1 flex items-center justify-between">
+              <p className="font-mono-data text-[13px] font-bold text-foreground">
+                {formatMarketCap(prices.totalMarketCap)}
+              </p>
+              <span
+                className={clsx(
+                  'rounded px-1.5 py-0.5 font-mono-data text-[10px] font-semibold',
+                  prices.marketCapChange24h >= 0
+                    ? 'bg-bullish/10 text-bullish'
+                    : 'bg-bearish/10 text-bearish'
+                )}
+              >
+                {formatChange(prices.marketCapChange24h)}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="hidden lg:col-span-4 lg:flex lg:min-h-0 lg:flex-col rounded-xl border border-border/35 bg-surface/28 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Executive Summary
+            </h4>
+            <span className="font-mono-data text-[10px] text-muted-foreground/70">
+              {isMorning ? 'Morning' : 'Evening'}
+            </span>
+          </div>
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="font-thai text-[13px] leading-relaxed text-foreground/90">
+              <FormattedSummary text={summary.summaryText} />
+            </div>
+          </div>
+        </section>
+
+        <section className="hidden lg:col-span-4 lg:flex lg:min-h-0 lg:flex-col rounded-xl border border-border/35 bg-surface/28 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <h4 className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+              Sources
+            </h4>
+            <span className="font-mono-data text-[10px] text-muted-foreground/70">
+              {summary.articleCount} Articles
+            </span>
+          </div>
+          <div className="custom-scrollbar min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+            {summary.headlines.map((headline, idx) => (
+              <a
+                key={idx}
+                href={headline.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group block rounded-lg border border-border/30 bg-card/45 p-2.5 transition-colors hover:border-primary/35 hover:bg-card/65"
+              >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <span className="font-mono-data text-[10px] font-bold uppercase tracking-[0.16em] text-primary/80">
+                    {(idx + 1).toString().padStart(2, '0')}
+                  </span>
+                  <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/35 transition-colors group-hover:text-primary/80" />
+                </div>
+                <p className="line-clamp-2 font-thai text-[12px] leading-snug text-foreground/90">
+                  {headline.title}
+                </p>
+                <p className="mt-1 font-mono-data text-[9px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                  {headline.source}
+                </p>
+              </a>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <div className="lg:hidden">
+        <div className="mb-2 grid grid-cols-3 gap-2">
+          {[
+            { key: 'overview', label: 'Overview' },
+            { key: 'summary', label: 'Summary' },
+            { key: 'sources', label: 'Sources' },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setMobileTab(tab.key as 'overview' | 'summary' | 'sources')}
+              className={clsx(
+                'rounded-md border px-2 py-2 font-mono-data text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors',
+                mobileTab === tab.key
+                  ? 'border-primary/45 bg-primary/10 text-primary'
+                  : 'border-border/35 bg-surface/28 text-muted-foreground'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Stories Sidebar */}
-        <div className="lg:col-span-4 space-y-6">
-          <div className="rounded-xl border border-white/5 bg-surface/20 p-5">
-            <h4 className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4 flex items-center gap-2">
-              <FileText className="w-3 h-3" />
-              Source Material
-            </h4>
-            <div className="space-y-3">
-              {summary.headlines.slice(0, 5).map((headline, idx) => (
+        <div className="custom-scrollbar max-h-[42dvh] overflow-y-auto rounded-xl border border-border/35 bg-surface/28 p-3">
+          {mobileTab === 'overview' && (
+            <div className="space-y-2">
+              <div className="rounded-lg border border-border/30 bg-card/45 px-3 py-2">
+                <p className="font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
+                  Market Sentiment
+                </p>
+                <div className="mt-1 flex items-center justify-between">
+                  <p className="font-display text-lg font-bold uppercase tracking-tight text-foreground">
+                    {liveFGLabel}
+                  </p>
+                  <MiniMoodGauge value={liveFG} compact />
+                </div>
+              </div>
+              <div className="rounded-lg border border-border/30 bg-card/45 px-3 py-2">
+                <p className="font-mono-data text-[10px] uppercase tracking-[0.16em] text-muted-foreground/75">
+                  Total Market Cap
+                </p>
+                <div className="mt-1 flex items-center justify-between">
+                  <p className="font-mono-data text-[13px] font-bold text-foreground">
+                    {formatMarketCap(prices.totalMarketCap)}
+                  </p>
+                  <span
+                    className={clsx(
+                      'rounded px-1.5 py-0.5 font-mono-data text-[10px] font-semibold',
+                      prices.marketCapChange24h >= 0
+                        ? 'bg-bullish/10 text-bullish'
+                        : 'bg-bearish/10 text-bearish'
+                    )}
+                  >
+                    {formatChange(prices.marketCapChange24h)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mobileTab === 'summary' && (
+            <div className="font-thai text-[13px] leading-relaxed text-foreground/90">
+              <FormattedSummary text={summary.summaryText} />
+            </div>
+          )}
+
+          {mobileTab === 'sources' && (
+            <div className="space-y-2">
+              {summary.headlines.map((headline, idx) => (
                 <a
                   key={idx}
                   href={headline.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group block p-3 rounded-lg bg-background/40 hover:bg-background/80 border border-transparent hover:border-border/30 transition-all"
+                  className="group block rounded-lg border border-border/30 bg-card/45 p-2.5 transition-colors hover:border-primary/35 hover:bg-card/65"
                 >
-                  <div className="flex items-start justify-between gap-2 mb-1">
-                    <span className="font-mono-data text-[9px] font-bold text-primary/70 group-hover:text-primary">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="font-mono-data text-[10px] font-bold uppercase tracking-[0.16em] text-primary/80">
                       {(idx + 1).toString().padStart(2, '0')}
                     </span>
-                    <ExternalLink className="w-3 h-3 text-muted-foreground/30 group-hover:text-foreground opacity-0 group-hover:opacity-100 transition-all" />
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground/35 transition-colors group-hover:text-primary/80" />
                   </div>
-                  <h5 className="font-thai text-xs font-medium leading-relaxed text-foreground/80 group-hover:text-foreground line-clamp-2">
+                  <p className="line-clamp-2 font-thai text-[12px] leading-snug text-foreground/90">
                     {headline.title}
-                  </h5>
-                  <div className="mt-2 text-[9px] font-mono-data text-muted-foreground uppercase tracking-wider">
+                  </p>
+                  <p className="mt-1 font-mono-data text-[9px] uppercase tracking-[0.14em] text-muted-foreground/70">
                     {headline.source}
-                  </div>
+                  </p>
                 </a>
               ))}
             </div>
-            <div className="mt-4 pt-4 border-t border-white/5 text-center">
-              <span className="font-mono-data text-[9px] text-muted-foreground/50">
-                Based on {summary.articleCount} analyzed articles
-              </span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

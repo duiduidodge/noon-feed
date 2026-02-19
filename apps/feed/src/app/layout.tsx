@@ -33,7 +33,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-background font-body antialiased">
+      <body className="min-h-[100dvh] overflow-x-hidden bg-background font-body antialiased">
         <Providers>
           <FeedHeader />
           {children}

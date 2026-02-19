@@ -37,7 +37,12 @@ const STABLECOIN_IDS = new Set([
 ]);
 const STABLECOIN_SYMBOLS = new Set(['USDT', 'USDC', 'DAI', 'FDUSD', 'BUSD', 'FRAX', 'TUSD', 'USDP', 'USDD', 'USDE', 'PYUSD']);
 
-export function MarketTicker() {
+interface MarketTickerProps {
+  marquee?: boolean;
+  compact?: boolean;
+}
+
+export function MarketTicker({ marquee = true, compact = false }: MarketTickerProps) {
   const { data } = useQuery({
     queryKey: ['prices'],
     queryFn: async () => {
@@ -59,7 +64,7 @@ export function MarketTicker() {
   const isPositive = data.global.avgChange24h >= 0;
 
   const tickerContent = (
-    <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 whitespace-nowrap">
+    <div className={clsx('flex items-center whitespace-nowrap', compact ? 'gap-2 px-2' : 'gap-2 px-3 md:gap-3 md:px-4')}>
       {/* Global stats — grouped in a subtle card */}
       <div className="inline-flex items-center gap-2 md:gap-3 rounded-full bg-surface/50 border border-border/30 px-2.5 md:px-3 py-0.5">
         <span
@@ -95,7 +100,8 @@ export function MarketTicker() {
           <div
             key={coin.id}
             className={clsx(
-              'inline-flex items-center gap-2 rounded-full border px-3 py-0.5 font-mono-data text-[11px] transition-colors',
+              'inline-flex items-center gap-2 rounded-full border py-0.5 font-mono-data text-[11px] transition-colors',
+              compact ? 'px-2.5' : 'px-3',
               'bg-surface/40 border-border/30'
             )}
           >
@@ -125,6 +131,14 @@ export function MarketTicker() {
       })}
     </div>
   );
+
+  if (!marquee) {
+    return (
+      <div className="overflow-x-auto no-scrollbar py-1">
+        {tickerContent}
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex overflow-hidden py-1">

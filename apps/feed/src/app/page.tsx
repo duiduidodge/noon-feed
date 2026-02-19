@@ -74,7 +74,7 @@ export default async function FeedPage() {
   const initialArticles = await getInitialArticles();
 
   return (
-    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-background">
+    <div className="min-h-[100dvh] lg:h-[100dvh] lg:overflow-hidden bg-background">
       <main className="mx-auto flex h-full w-full max-w-[1640px] flex-col px-2 pb-3 pt-2 md:px-3 md:pb-4 lg:px-4">
 
         {/* 
@@ -82,7 +82,7 @@ export default async function FeedPage() {
           Desktop: Left (Market + Alpha) | Center (Feed) | Right (Gainers/Losers + Chatter)
           Mobile: Vertical Stack
         */}
-        <div className="flex flex-col gap-3 lg:grid lg:h-[calc(100vh-104px)] lg:grid-cols-12 lg:gap-4">
+        <div className="flex flex-col gap-3 lg:grid lg:h-[calc(100dvh-104px)] lg:grid-cols-12 lg:gap-4">
 
           {/* 
             LEFT COLUMN: Market Data Fused
