@@ -4,17 +4,16 @@ import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import { MarketTicker } from './market-ticker';
 import { ThemeToggle } from './theme-toggle';
-import { Menu, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
-import Link from 'next/link';
 import SearchModal from './SearchModal';
 
 const NAV_ITEMS = [
   { label: 'Latest Intel', sectionId: 'section-latest-intel', path: '/' },
   { label: 'Briefing', sectionId: 'section-briefing', path: '/briefing' },
   { label: 'Posts', sectionId: 'section-posts', path: '/posts' },
+  { label: 'Alpha', sectionId: null, path: null },
   { label: 'Markets', sectionId: 'section-markets', path: '/markets' },
-  { label: 'Data', sectionId: null, path: null }, // Future feature
 ];
 
 export function FeedHeader() {
@@ -76,8 +75,8 @@ export function FeedHeader() {
   return (
     <header className="sticky top-0 z-50">
       {/* Main navigation bar */}
-      <div className="bg-background/80 backdrop-blur-xl border-b border-border/40 transition-all duration-300 relative z-50">
-        <div className="mx-auto flex h-[72px] max-w-[1780px] items-center justify-between px-4 lg:px-6">
+      <div className="bg-background/90 backdrop-blur-xl border-b border-border/45 transition-all duration-300 relative z-50">
+        <div className="mx-auto flex h-[64px] md:h-[72px] max-w-[1640px] items-center justify-between px-3 md:px-4 lg:px-6">
           {/* Logo — noon PNG */}
           <div className="flex items-center cursor-pointer opacity-90 hover:opacity-100 transition-opacity" onClick={() => router.push('/')}>
             <Image
@@ -85,13 +84,13 @@ export function FeedHeader() {
               alt="noon"
               width={160}
               height={46}
-              className="h-9 w-auto logo-light select-none"
+              className="h-8 md:h-9 w-auto logo-light select-none"
               priority
             />
           </div>
 
           {/* Navigation tabs — center */}
-          <nav className="hidden md:flex items-center gap-6" role="navigation" aria-label="Main navigation">
+          <nav className="hidden md:flex items-center gap-6 lg:gap-7" role="navigation" aria-label="Main navigation">
             {NAV_ITEMS.map((item) => {
               const isActive = activeTab === item.label;
               return (
@@ -100,26 +99,26 @@ export function FeedHeader() {
                   onClick={() => handleNavClick(item)}
                   disabled={!item.sectionId}
                   className={`
-                    relative py-2 text-[13px] font-medium tracking-wide transition-all duration-200
+                    relative py-2 text-[14px] font-medium tracking-tight transition-all duration-200
                     ${isActive
                       ? 'text-foreground font-semibold'
-                      : 'text-muted-foreground hover:text-foreground/80'
+                      : 'text-muted-foreground hover:text-foreground/85'
                     }
                     ${!item.sectionId ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
                   `}
                 >
-                  {item.label}
+                  <span className="inline-flex items-center gap-1.5">
+                    {item.label}
+                    {!item.sectionId && !item.path && (
+                      <span className="rounded-full border border-border/60 bg-card/70 px-1.5 py-0.5 font-mono-data text-[8px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+                        Soon
+                      </span>
+                    )}
+                  </span>
 
                   {/* Active Indicator */}
                   {isActive && (
-                    <span className="absolute -bottom-[25px] left-0 right-0 h-[2px] bg-primary shadow-[0_-2px_8px_hsl(var(--primary)/0.4)] rounded-t-full scale-x-100 transition-transform duration-300" />
-                  )}
-
-                  {/* 'Soon' Badge */}
-                  {!item.sectionId && (
-                    <span className="absolute -top-3 -right-3 text-[9px] font-mono-data text-muted-foreground/50 uppercase tracking-tighter">
-                      SOON
-                    </span>
+                    <span className="absolute -bottom-[22px] left-0 right-0 h-[2px] bg-primary dark:shadow-none shadow-[0_-2px_8px_hsl(var(--primary)/0.4)] rounded-t-full scale-x-100 transition-transform duration-300" />
                   )}
                 </button>
               );
@@ -127,13 +126,13 @@ export function FeedHeader() {
           </nav>
 
           {/* Right controls: search + theme toggle + menu */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 md:gap-2">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="group flex items-center justify-center h-10 w-10 rounded-full hover:bg-surface/50 transition-all duration-200"
+              className="group flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface/50 transition-all duration-200 md:h-10 md:w-10"
               aria-label="Search articles"
             >
-              <Search className="h-[18px] w-[18px] text-muted-foreground group-hover:text-primary transition-colors" />
+              <Search className="h-[17px] w-[17px] text-muted-foreground group-hover:text-primary transition-colors" />
             </button>
 
             <div className="h-4 w-px bg-border/40 mx-1" />
@@ -142,7 +141,7 @@ export function FeedHeader() {
 
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="group flex items-center justify-center h-10 w-10 rounded-full hover:bg-surface/50 transition-all duration-200 relative z-50"
+              className="group relative z-50 flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface/50 transition-all duration-200 md:h-10 md:w-10"
               aria-label={isMenuOpen ? "Close menu" : "Open menu"}
               aria-expanded={isMenuOpen}
             >
@@ -179,7 +178,7 @@ export function FeedHeader() {
                   <span className={`text-2xl font-display font-bold tracking-tight transition-colors ${isActive ? 'text-primary' : 'text-foreground group-hover:text-primary/70'}`}>
                     {item.label}
                   </span>
-                  {isActive && <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_hsl(var(--primary))]" />}
+                  {isActive && <div className="h-2 w-2 rounded-full bg-primary dark:shadow-none shadow-[0_0_10px_hsl(var(--primary))]" />}
                   {!item.sectionId && (
                     <span className="px-2 py-0.5 rounded-full bg-surface text-[10px] font-mono-data uppercase tracking-wider text-muted-foreground">
                       Soon
@@ -200,7 +199,9 @@ export function FeedHeader() {
       </div>
 
       {/* Market ticker strip (Desktop) */}
-      <div className="border-b border-border/30 bg-background/40 backdrop-blur-md overflow-hidden h-[34px] flex items-center">
+      <div className="relative hidden h-[36px] items-center overflow-hidden border-b border-border/30 bg-background/70 backdrop-blur-md md:flex">
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-background via-background/80 to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background via-background/80 to-transparent z-10" />
         <MarketTicker />
       </div>
 

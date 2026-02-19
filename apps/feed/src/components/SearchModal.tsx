@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, X, TrendingUp, TrendingDown, Minus, ExternalLink, Zap, Flame, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -122,9 +123,18 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
     return <FileText className="w-4 h-4 text-gray-500" />;
   };
 
-  if (!isOpen) return null;
+  // ... existing hooks
 
-  return (
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[10vh]">
         {/* Backdrop */}
@@ -133,7 +143,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
-          className="absolute inset-0 bg-background/80 backdrop-blur-md"
+          className="fixed inset-0 bg-background/80 backdrop-blur-md"
           onClick={onClose}
         />
 
@@ -143,7 +153,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.98, y: -10 }}
           transition={{ type: 'spring', damping: 30, stiffness: 350 }}
-          className="relative w-full max-w-2xl mx-4 z-10"
+          className="relative w-full max-w-2xl mx-4 z-[101]"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Main container */}
@@ -196,14 +206,14 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   <div className="px-4 pb-2">
                     <h3 className="text-[10px] font-mono-data uppercase tracking-widest text-muted-foreground/50 font-bold">Top Results</h3>
                   </div>
-                  {results.map((result, index) => (
-                    <motion.button
+                  {results.toSorted((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()).map((result, index) => (
+                    <motion.div
                       key={result.id}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.02 }}
                       onClick={() => handleResultClick(result)}
-                      className={`w-full text-left px-4 py-3 transition-colors flex items-start gap-4 group ${index === selectedIndex
+                      className={`w-full text-left px-4 py-3 transition-colors flex items-start gap-4 cursor-pointer group ${index === selectedIndex
                         ? 'bg-surface'
                         : 'hover:bg-surface/50'
                         }`}
@@ -237,7 +247,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                         </div>
                       </div>
                       <ExternalLink className="w-4 h-4 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </motion.button>
+                    </motion.div>
                   ))}
                 </div>
               )}
@@ -262,6 +272,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
           </div>
         </motion.div>
       </div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

@@ -32,7 +32,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const { data, isLoading, error, dataUpdatedAt } = useQuery({
+  const { data, isLoading, error, dataUpdatedAt, refetch } = useQuery({
     queryKey: ['feed-articles'],
     queryFn: () => fetchArticles(null, null),
     refetchInterval: 2 * 60 * 1000,
@@ -83,17 +83,17 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
   return (
     <div className="flex h-full min-h-0 flex-col space-y-0">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-5 border-b border-border/40 bg-surface/20 backdrop-blur-sm sticky top-0 z-10 transition-all duration-300">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/35 bg-surface/28 px-4 py-4 backdrop-blur-md transition-all duration-300 md:px-6 md:py-5">
         <h2 className="font-display text-lg font-extrabold tracking-tight text-foreground uppercase flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           Latest Intel
         </h2>
         <div className="text-right">
-          <div className="font-mono-data text-[11px] font-bold text-muted-foreground/80">
-            {allArticles.length} <span className="text-[10px] font-normal opacity-70">ARTICLES</span>
+          <div className="font-mono-data text-[11px] font-semibold text-muted-foreground/85">
+            {allArticles.length} <span className="text-[10px] font-normal opacity-80">ARTICLES</span>
           </div>
           {dataUpdatedAt > 0 && (
-            <div className="font-mono-data text-[10px] text-muted-foreground/50">
+            <div className="font-mono-data text-[11px] text-muted-foreground/68">
               Updated {new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </div>
           )}
@@ -102,14 +102,30 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
 
       <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar scroll-smooth">
         {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-primary/60" />
+          <div className="space-y-3 px-4 py-4 md:px-5 md:py-5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border border-border/35 bg-card/65 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="h-4 w-28 animate-shimmer rounded-full" />
+                  <div className="h-3 w-14 animate-shimmer rounded-full" />
+                </div>
+                <div className="mb-2 h-5 w-[82%] animate-shimmer rounded" />
+                <div className="mb-2 h-5 w-[74%] animate-shimmer rounded" />
+                <div className="h-3 w-full animate-shimmer rounded" />
+              </div>
+            ))}
           </div>
         ) : error ? (
-          <div className="px-4 py-12 text-center">
-            <p className="font-mono-data text-xs uppercase tracking-wider text-bearish/80">
+          <div className="px-6 py-14 text-center">
+            <p className="font-mono-data text-xs uppercase tracking-wider text-bearish/80 mb-4">
               Feed unavailable
             </p>
+            <button
+              onClick={() => void refetch()}
+              className="rounded-full border border-border/60 bg-card/70 px-4 py-2 font-mono-data text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground hover:border-primary/40 hover:text-primary transition-colors"
+            >
+              Retry
+            </button>
           </div>
         ) : allArticles.length === 0 ? (
           <div className="px-4 py-20 text-center">
@@ -119,7 +135,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
           </div>
         ) : (
           <>
-            <div className="divide-y divide-border/20">
+            <div className="divide-y divide-border/15">
               {allArticles.map((article, i) => (
                 <NewsCard key={article.id} article={article} index={i} />
               ))}

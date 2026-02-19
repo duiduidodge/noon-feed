@@ -11,11 +11,11 @@
      ═══════════════════════════════════════ */
   :root {
     /* Cream Background */
-    --background: 75 40% 96%;
+    --background: 78 34% 95%;
     /* Deep Forest Text */
     --foreground: 120 15% 10%;
 
-    --card: 75 40% 98%;
+    --card: 76 35% 97%;
     --card-foreground: 120 15% 10%;
 
     --popover: 75 40% 98%;
@@ -37,10 +37,10 @@
     --accent-dim: 112 18% 55%;
     --accent-foreground: 0 0% 100%;
 
-    --surface: 80 30% 92%;
+    --surface: 84 24% 90%;
 
-    --border: 112 15% 82%;
-    --input: 112 15% 82%;
+    --border: 112 14% 80%;
+    --input: 112 14% 80%;
     --ring: 122 20% 45%;
 
     --bullish: 150 70% 34%;
@@ -54,34 +54,34 @@
      ═══════════════════════════════════════ */
   .dark {
     /* Deep Black-Green */
-    --background: 140 15% 5%;
-    --foreground: 120 15% 92%;
+    --background: 142 16% 6%;
+    --foreground: 120 16% 96%;
 
-    --card: 140 15% 7%;
-    --card-foreground: 120 15% 92%;
+    --card: 142 13% 8%;
+    --card-foreground: 120 16% 95%;
 
-    --popover: 140 15% 7%;
-    --popover-foreground: 120 15% 92%;
+    --popover: 142 13% 8%;
+    --popover-foreground: 120 16% 95%;
 
     /* Bright Sage Primary */
-    --primary: 110 40% 55%;
+    --primary: 112 32% 52%;
     --primary-foreground: 0 0% 0%;
 
-    --secondary: 140 15% 12%;
-    --secondary-foreground: 120 15% 92%;
+    --secondary: 142 13% 13%;
+    --secondary-foreground: 120 16% 95%;
 
-    --muted: 140 15% 12%;
-    --muted-foreground: 120 10% 60%;
+    --muted: 142 12% 14%;
+    --muted-foreground: 120 12% 74%;
 
-    --accent: 110 40% 55%;
-    --accent-dim: 110 30% 45%;
+    --accent: 112 30% 52%;
+    --accent-dim: 112 24% 44%;
     --accent-foreground: 0 0% 0%;
 
-    --surface: 140 15% 9%;
+    --surface: 142 12% 11%;
 
-    --border: 140 10% 18%;
-    --input: 140 10% 18%;
-    --ring: 110 40% 55%;
+    --border: 142 10% 28%;
+    --input: 142 10% 28%;
+    --ring: 112 32% 52%;
 
     --bullish: 150 60% 45%;
     --bearish: 0 65% 55%;
@@ -90,11 +90,16 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
 
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(circle at 14% -8%, hsl(var(--primary) / 0.08), transparent 36%),
+      radial-gradient(circle at 92% 0%, hsl(var(--accent) / 0.06), transparent 30%),
+      linear-gradient(to bottom, hsl(var(--background)) 0%, hsl(var(--background)) 68%, hsl(var(--surface) / 0.18) 100%);
+    color: hsl(var(--foreground));
     font-family: 'DM Sans', 'Anuphan', -apple-system, BlinkMacSystemFont, sans-serif;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
@@ -124,23 +129,32 @@ body::before {
   inset: 0;
   z-index: 9999;
   pointer-events: none;
-  opacity: 0.03;
+  opacity: 0.02;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
   background-repeat: repeat;
   background-size: 256px 256px;
 }
 
 .dark body::before {
-  opacity: 0.04;
+  opacity: 0;
 }
 
 /* --- Glass Utilities --- */
 .glass-panel {
-  @apply bg-card/60 backdrop-blur-md border border-border/50 shadow-sm;
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border) / 0.5);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
 .glass-panel-hover {
-  @apply transition-all duration-300 hover:bg-card/80 hover:border-border/80 hover:shadow-md;
+  transition: all 0.3s;
+}
+.glass-panel-hover:hover {
+  background: hsl(var(--card) / 0.8);
+  border-color: hsl(var(--border) / 0.8);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
 
 /* --- Scrollbar Refinement --- */
@@ -383,12 +397,22 @@ body::before {
 
 /* Column panel subtle shadow for visual separation */
 .column-panel {
-  box-shadow: 0 1px 3px 0 hsl(var(--background) / 0.15), 0 0 0 1px hsl(var(--border) / 0.08);
-  transition: box-shadow 0.2s ease;
+  box-shadow: 0 16px 30px -28px hsl(var(--foreground) / 0.4), 0 1px 0 hsl(var(--border) / 0.35);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .dark .column-panel {
-  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.35), 0 0 0 1px hsl(var(--border) / 0.12);
+  box-shadow: 0 10px 24px -20px rgba(0, 0, 0, 0.55), 0 1px 0 hsl(var(--border) / 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.dark body {
+  background-image: linear-gradient(to bottom, hsl(var(--background)), hsl(var(--background)));
+}
+
+.column-panel:hover {
+  border-color: hsl(var(--border) / 0.85);
 }
 
 /* Thai typography utility */
@@ -445,7 +469,7 @@ body::before {
 }
 
 .dark .card-high-impact::after {
-  background: radial-gradient(circle at top left, hsl(30 90% 60% / 0.12), transparent 40%);
+  background: radial-gradient(circle at top left, hsl(30 90% 60% / 0.08), transparent 42%);
 }
 
 /* Coin row hover micro-interaction */

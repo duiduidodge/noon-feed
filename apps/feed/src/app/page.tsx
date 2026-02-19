@@ -1,10 +1,9 @@
-import { FeedHeader } from '@/components/feed-header';
 import { NewsFeed } from '@/components/news-feed';
-import { PricesColumn } from '@/components/prices-column';
 import { BiDailySummary } from '@/components/bi-daily-summary';
-import { MyPostsWidget } from '@/components/my-posts-widget';
+import { PricesColumn } from '@/components/prices-column';
+import { PanelShell } from '@/components/panel-shell';
+import { MarketChatterPanel } from '@/components/market-chatter-panel';
 import type { FeedArticle } from '@/components/news-card';
-import { LowImpactFeed } from '@/components/low-impact-feed';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,31 +74,61 @@ export default async function FeedPage() {
   const initialArticles = await getInitialArticles();
 
   return (
-    <div className="min-h-screen">
-      <main className="mx-auto flex w-full max-w-[1780px] flex-1 flex-col px-4 pb-4 lg:px-5">
-        <div className="grid min-h-0 grid-cols-1 gap-2.5 md:grid-cols-2 lg:h-[calc(100vh-94px)] lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(260px,0.65fr)] xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)_minmax(260px,0.65fr)_minmax(220px,0.5fr)] xl:gap-3 lg:mt-2">
-          {/* Col 1: Latest Intel — news feed */}
-          <section id="section-latest-intel" className="min-h-0 overflow-hidden rounded-2xl border border-border/60 bg-card/50 shadow-sm column-panel">
-            <NewsFeed initialArticles={initialArticles} />
-          </section>
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-background">
+      <main className="mx-auto flex h-full w-full max-w-[1640px] flex-col px-2 pb-3 pt-2 md:px-3 md:pb-4 lg:px-4">
 
-          {/* Col 2: Morning/Evening Briefing */}
-          <section id="section-briefing" className="min-h-0 overflow-y-auto rounded-2xl border border-border/60 bg-card/50 custom-scrollbar shadow-sm column-panel">
-            <BiDailySummary />
-          </section>
+        {/* 
+          3-Column Layout 
+          Desktop: Left (Market + Alpha) | Center (Feed) | Right (Gainers/Losers + Chatter)
+          Mobile: Vertical Stack
+        */}
+        <div className="flex flex-col gap-3 lg:grid lg:h-[calc(100vh-104px)] lg:grid-cols-12 lg:gap-4">
 
-          {/* Col 3: My Posts */}
-          <aside id="section-posts" className="min-h-0 overflow-hidden rounded-2xl border border-border/60 bg-card/50 shadow-sm column-panel">
-            <MyPostsWidget />
-          </aside>
+          {/* 
+            LEFT COLUMN: Market Data Fused
+            - Market Mood
+            - Majors
+            - Trending
+            - Volume Surge (Alpha)
+          */}
+          <div id="section-markets" className="order-2 lg:order-none lg:col-span-3 flex flex-col gap-3 lg:overflow-hidden">
+            <PanelShell className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+                <PricesColumn />
+              </div>
+            </PanelShell>
+          </div>
 
-          {/* Col 4: Market Mood */}
-          <aside id="section-markets" className="min-h-0 overflow-y-auto rounded-2xl border border-border/60 bg-card/50 p-3 custom-scrollbar shadow-sm column-panel">
-            <PricesColumn />
-            <div className="mt-6 border-t border-border/20 pt-6">
-              <LowImpactFeed />
+          {/* 
+            CENTER COLUMN: Main Feed
+            - Compact Briefing Cards
+            - Latest News
+          */}
+          <div className="order-1 lg:order-none lg:col-span-6 flex flex-col gap-3 lg:overflow-hidden">
+
+            {/* Briefing (Compact) - Height is auto based on content */}
+            <PanelShell id="section-briefing" className="order-2 lg:order-1 shrink-0 bg-transparent border-0 p-0 shadow-none overflow-visible !bg-none">
+              <BiDailySummary />
+            </PanelShell>
+
+            {/* News Feed */}
+            <PanelShell id="section-latest-intel" className="order-1 lg:order-2 flex-1 min-h-0 overflow-hidden relative">
+              <NewsFeed initialArticles={initialArticles} />
+            </PanelShell>
+          </div>
+
+          {/* 
+            RIGHT COLUMN: Chatter Only
+            - Market Chatter
+          */}
+          <div id="section-posts" className="order-3 lg:order-none lg:col-span-3 flex flex-col gap-3 lg:overflow-hidden">
+
+            {/* Market Chatter */}
+            <div className="flex-1 min-h-[300px] overflow-hidden">
+              <MarketChatterPanel className="h-full" />
             </div>
-          </aside>
+          </div>
+
         </div>
       </main>
     </div>

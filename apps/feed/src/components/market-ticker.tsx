@@ -59,9 +59,9 @@ export function MarketTicker() {
   const isPositive = data.global.avgChange24h >= 0;
 
   const tickerContent = (
-    <div className="flex items-center gap-3 px-4 whitespace-nowrap">
+    <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 whitespace-nowrap">
       {/* Global stats — grouped in a subtle card */}
-      <div className="inline-flex items-center gap-3 rounded-full bg-surface/40 border border-border/20 px-3 py-0.5">
+      <div className="inline-flex items-center gap-2 md:gap-3 rounded-full bg-surface/50 border border-border/30 px-2.5 md:px-3 py-0.5">
         <span
           className={clsx(
             'font-mono-data text-[11px] font-bold',
@@ -96,7 +96,7 @@ export function MarketTicker() {
             key={coin.id}
             className={clsx(
               'inline-flex items-center gap-2 rounded-full border px-3 py-0.5 font-mono-data text-[11px] transition-colors',
-              'bg-surface/30 border-border/20'
+              'bg-surface/40 border-border/30'
             )}
           >
             {coin.image ? (

@@ -882,7 +882,6 @@ async function main() {
   const intervalMs = config.worker.fetchIntervalMinutes * 60 * 1000;
   let lastRSSFetch = Date.now();
   let lastAPIFetch = Date.now();
-
   logger.info({ intervalMinutes: config.worker.fetchIntervalMinutes }, 'Worker started, entering main loop');
 
   while (true) {

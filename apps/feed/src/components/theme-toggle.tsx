@@ -18,7 +18,7 @@ export function ThemeToggle() {
     return (
         <button
             onClick={handleToggle}
-            className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface/60 transition-all duration-200 overflow-hidden"
+            className="relative flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface/60 transition-all duration-200 overflow-hidden md:h-9 md:w-9"
             aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
         >
             {/* Burst ring animation */}
