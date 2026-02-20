@@ -144,7 +144,9 @@ export function MarketTicker({ marquee = true, compact = false }: MarketTickerPr
     <div className="relative flex overflow-hidden py-1">
       <div className="animate-scroll-ticker flex shrink-0">
         {tickerContent}
-        {tickerContent}
+        <div aria-hidden="true">
+          {tickerContent}
+        </div>
       </div>
     </div>
   );

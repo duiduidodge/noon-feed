@@ -83,53 +83,53 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
   return (
     <div className="flex h-full min-h-0 flex-col space-y-0">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/35 bg-surface/28 px-4 py-4 backdrop-blur-md transition-all duration-300 md:px-6 md:py-5">
-        <h2 className="font-display text-lg font-extrabold tracking-tight text-foreground uppercase flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/35 bg-card/90 px-4 py-3 backdrop-blur-lg transition-all duration-normal md:px-5">
+        <h2 className="font-display text-[11px] font-bold tracking-[0.2em] text-foreground/70 uppercase flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
           Latest Intel
         </h2>
-        <div className="text-right">
-          <div className="font-mono-data text-[11px] font-semibold text-muted-foreground/85">
-            {allArticles.length} <span className="text-[10px] font-normal opacity-80">ARTICLES</span>
-          </div>
+        <div className="flex items-center gap-3">
+          <span className="font-mono-data text-[11px] font-semibold text-muted-foreground/55">
+            {allArticles.length} <span className="font-normal opacity-75">articles</span>
+          </span>
           {dataUpdatedAt > 0 && (
-            <div className="font-mono-data text-[11px] text-muted-foreground/68">
-              Updated {new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </div>
+            <span className="hidden sm:block font-mono-data text-[11px] text-muted-foreground/40">
+              {new Date(dataUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
           )}
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar scroll-smooth">
+      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar scroll-smooth" role="feed" aria-label="News articles">
         {isLoading ? (
-          <div className="space-y-3 px-4 py-4 md:px-5 md:py-5">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-xl border border-border/35 bg-card/65 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div className="h-4 w-28 animate-shimmer rounded-full" />
-                  <div className="h-3 w-14 animate-shimmer rounded-full" />
+          <div className="divide-y divide-border/15">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="px-4 py-[9px] md:px-5 pl-7">
+                <div className="mb-[5px] flex items-center gap-2">
+                  <div className="h-[5px] w-[5px] animate-shimmer rounded-full" />
+                  <div className="h-2.5 w-20 animate-shimmer rounded-full" />
+                  <div className="ml-auto h-2 w-10 animate-shimmer rounded-full" />
                 </div>
-                <div className="mb-2 h-5 w-[82%] animate-shimmer rounded" />
-                <div className="mb-2 h-5 w-[74%] animate-shimmer rounded" />
-                <div className="h-3 w-full animate-shimmer rounded" />
+                <div className="h-3.5 w-[88%] animate-shimmer rounded mb-1.5" />
+                <div className="h-3.5 w-[65%] animate-shimmer rounded" />
               </div>
             ))}
           </div>
         ) : error ? (
-          <div className="px-6 py-14 text-center">
-            <p className="font-mono-data text-xs uppercase tracking-wider text-bearish/80 mb-4">
+          <div className="px-5 py-12 text-center">
+            <p className="font-mono-data text-[10px] uppercase tracking-wider text-bearish/70 mb-3">
               Feed unavailable
             </p>
             <button
               onClick={() => void refetch()}
-              className="rounded-full border border-border/60 bg-card/70 px-4 py-2 font-mono-data text-[10px] font-semibold uppercase tracking-[0.18em] text-foreground hover:border-primary/40 hover:text-primary transition-colors"
+              className="rounded border border-border/50 px-3 py-1.5 font-mono-data text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors duration-fast focus-ring"
             >
               Retry
             </button>
           </div>
         ) : allArticles.length === 0 ? (
-          <div className="px-4 py-20 text-center">
-            <p className="font-mono-data text-xs text-muted-foreground/50 uppercase tracking-wider">
+          <div className="px-5 py-16 text-center">
+            <p className="font-mono-data text-[10px] text-muted-foreground/45 uppercase tracking-wider">
               No intel found
             </p>
           </div>
@@ -142,41 +142,36 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
             </div>
 
             {hasMore && allArticles.length > 0 && (
-              <div className="p-6">
+              <div className="px-4 py-4 flex flex-col items-center gap-2">
                 <button
                   onClick={handleLoadMore}
                   disabled={isLoadingMore}
-                  className="w-full relative overflow-hidden rounded-xl border border-primary/20 bg-primary/5 py-3 font-mono-data text-[11px] font-bold uppercase tracking-widest text-primary/80 transition-all duration-300 hover:border-primary/50 hover:text-primary hover:bg-primary/10 hover:shadow-[0_0_15px_-3px_hsl(var(--primary)/0.2)] disabled:opacity-50 group"
+                  aria-busy={isLoadingMore}
+                  className="font-mono-data text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50 hover:text-primary/80 transition-colors duration-fast disabled:opacity-40 focus-ring rounded px-3 py-1.5"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                   {isLoadingMore ? (
-                    <span className="inline-flex items-center gap-2 relative z-10">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span className="inline-flex items-center gap-1.5">
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
                       Loading...
                     </span>
                   ) : (
-                    <span className="relative z-10">Load More Intel</span>
+                    '+ Load More'
                   )}
                 </button>
-                {isLoadingMore && (
-                  <div className="mt-3 grid grid-cols-1 gap-3">
-                    {Array.from({ length: 2 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="h-20 animate-pulse rounded-lg bg-surface/30 border border-border/20"
-                      />
-                    ))}
-                  </div>
-                )}
                 {loadMoreError && (
-                  <p className="mt-3 text-center font-mono-data text-[10px] text-bearish">{loadMoreError}</p>
+                  <p className="font-mono-data text-[10px] text-bearish">{loadMoreError}</p>
                 )}
               </div>
             )}
-            <div ref={sentinelRef} className="h-4 w-full" aria-hidden="true" />
+            <div
+              ref={sentinelRef}
+              className="h-4 w-full"
+              aria-hidden="true"
+              aria-label={isLoadingMore ? 'Loading more articles' : undefined}
+            />
             {!hasMore && allArticles.length > 0 && (
-              <div className="p-8 text-center border-t border-border/20">
-                <p className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-muted-foreground/50">
+              <div className="px-4 py-5 text-center border-t border-border/15">
+                <p className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-muted-foreground/35">
                   End of Stream
                 </p>
               </div>

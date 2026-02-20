@@ -1,6 +1,6 @@
 import { formatTimeAgo } from '@/lib/utils';
 import { clsx } from 'clsx';
-import { Flame } from 'lucide-react';
+import { Flame, TrendingUp, TrendingDown, ArrowUpRight } from 'lucide-react';
 
 export interface FeedArticle {
   id: string;
@@ -19,7 +19,6 @@ interface NewsCardProps {
   index?: number;
 }
 
-// Source color map for instant visual recognition
 const SOURCE_COLORS: Record<string, string> = {
   COINDESK: 'bg-blue-500',
   COINTELEGRAPH: 'bg-amber-500',
@@ -38,67 +37,116 @@ function getSourceColor(name: string) {
 export function NewsCard({ article, index = 0 }: NewsCardProps) {
   const isHighImpact = article.marketImpact === 'HIGH';
 
-  return (
-    <a
-      href={article.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={clsx(
-        'group relative block border-b border-border/40 px-4 md:px-5 py-4 md:py-5 transition-all duration-300 hover:bg-surface/45',
-        'overflow-hidden',
-        isHighImpact && 'card-high-impact'
-      )}
-      style={{ animationDelay: `${index * 50}ms` }}
-    >
-      {/* Hover Highlight */}
-      <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 pointer-events-none" />
+  // Button border + text tinted by sentiment — ties the CTA to the article's market signal
+  const readBtnClass =
+    article.sentiment === 'POSITIVE'
+      ? 'border-bullish/20 text-bullish/50 hover:border-bullish/45 hover:text-bullish/85 hover:bg-bullish/5'
+      : article.sentiment === 'NEGATIVE'
+        ? 'border-bearish/20 text-bearish/40 hover:border-bearish/40 hover:text-bearish/75 hover:bg-bearish/5'
+        : 'border-border/28 text-muted-foreground/35 hover:border-primary/35 hover:text-primary/72 hover:bg-primary/5';
 
-      {/* Top Meta Row */}
-      <div className="relative mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {/* Source Badge */}
-          <div className="flex items-center gap-1.5 rounded-full border border-border/55 bg-surface/45 px-2 py-0.5 backdrop-blur-sm transition-colors group-hover:bg-surface/70 group-hover:border-border/70">
-            <span className={clsx('h-1.5 w-1.5 rounded-full shrink-0', getSourceColor(article.sourceName))} />
-            <span className="font-mono-data text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/78 group-hover:text-foreground transition-colors">
+  return (
+    <article className="group relative">
+
+      {/* ── Main headline link — covers meta + title + snippet ── */}
+      <a
+        href={article.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={clsx(
+          'relative block px-5 pt-[14px] pb-2 md:px-6 transition-colors duration-150 focus-ring',
+          'hover:bg-surface/25',
+          isHighImpact && 'bg-orange-500/[0.03]'
+        )}
+        aria-label={`${article.title} — ${article.sourceName}, ${article.publishedAt ? formatTimeAgo(article.publishedAt) : 'just now'}`}
+      >
+        {/* Sentiment accent bar — scoped to headline area */}
+        <div
+          className={clsx(
+            'absolute left-0 top-[14px] bottom-[8px] w-[2px] rounded-r-full transition-all duration-150',
+            article.sentiment === 'POSITIVE'
+              ? 'bg-bullish opacity-35 group-hover:opacity-80'
+              : article.sentiment === 'NEGATIVE'
+                ? 'bg-bearish opacity-35 group-hover:opacity-80'
+                : 'opacity-0'
+          )}
+          aria-hidden="true"
+        />
+
+        <div className="pl-3">
+          {/* Meta row */}
+          <div className="flex items-center gap-2 mb-2">
+            <span
+              className={clsx('h-2 w-2 rounded-full flex-shrink-0', getSourceColor(article.sourceName))}
+              aria-hidden="true"
+            />
+            <span className="font-mono-data text-[12px] font-bold uppercase tracking-[0.14em] text-muted-foreground/60 group-hover:text-muted-foreground/85 transition-colors duration-150 truncate">
               {article.sourceName}
             </span>
-          </div>
 
-          <span className="text-[11px] text-border/40">•</span>
+            {article.sentiment === 'POSITIVE' && (
+              <TrendingUp className="h-3.5 w-3.5 text-bullish opacity-75 flex-shrink-0" />
+            )}
+            {article.sentiment === 'NEGATIVE' && (
+              <TrendingDown className="h-3.5 w-3.5 text-bearish opacity-75 flex-shrink-0" />
+            )}
+            {isHighImpact && (
+              <div className="flex items-center gap-1 flex-shrink-0 rounded border border-orange-500/35 bg-orange-500/10 px-1.5 py-0.5">
+                <Flame className="h-3 w-3 text-orange-400 fill-orange-400 animate-pulse" />
+                <span className="font-mono-data text-[10px] font-bold uppercase tracking-widest text-orange-400">
+                  Hot
+                </span>
+              </div>
+            )}
 
-          <span className="font-mono-data text-[11px] text-muted-foreground/75 group-hover:text-muted-foreground/95 transition-colors">
-            {article.publishedAt ? formatTimeAgo(article.publishedAt) : 'Just now'}
-          </span>
-        </div>
-
-        {isHighImpact && (
-          <div className="flex items-center gap-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 backdrop-blur-md shadow-[0_0_12px_-3px_rgba(249,115,22,0.4)]">
-            <Flame className="h-3 w-3 fill-orange-500 text-orange-500 animate-pulse" />
-            <span className="font-mono-data text-[9px] font-bold uppercase tracking-wider text-orange-500">
-              High Impact
+            <span className="ml-auto font-mono-data text-[12px] text-muted-foreground/45 group-hover:text-muted-foreground/65 transition-colors duration-150 flex-shrink-0 pl-2 tabular-nums">
+              {article.publishedAt ? formatTimeAgo(article.publishedAt) : 'now'}
             </span>
           </div>
+
+          {/* Title */}
+          <h3 className="text-[18px] leading-[1.45] font-semibold text-foreground/85 group-hover:text-foreground transition-colors duration-150 line-clamp-2 mb-1.5">
+            {article.title}
+          </h3>
+
+          {/* Snippet */}
+          {article.snippet && (
+            <p className="line-clamp-1 text-[13px] leading-relaxed text-muted-foreground/55 group-hover:text-muted-foreground/70 transition-colors duration-150">
+              {article.snippet}
+            </p>
+          )}
+        </div>
+      </a>
+
+      {/* ── Read Article button ── */}
+      {/* Separate <a> outside the headline link — no nested anchors */}
+      <div
+        className={clsx(
+          'flex justify-end px-5 pb-3 pt-1 md:px-6',
+          isHighImpact && 'bg-orange-500/[0.03]'
         )}
+      >
+        <a
+          href={article.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={clsx(
+            'group/btn inline-flex items-center gap-[5px]',
+            'font-mono-data text-[10px] font-bold uppercase tracking-[0.16em]',
+            'rounded border px-2.5 py-[5px]',
+            'transition-all duration-150 focus-ring',
+            readBtnClass
+          )}
+          aria-label={`Read full article: ${article.title}`}
+        >
+          Read Article
+          <ArrowUpRight
+            className="h-[11px] w-[11px] transition-transform duration-150 group-hover/btn:translate-x-[2px] group-hover/btn:-translate-y-[2px]"
+            aria-hidden="true"
+          />
+        </a>
       </div>
 
-      {/* Title */}
-      <h3 className="relative mb-2.5 font-thai text-[15px] md:text-[16px] font-semibold leading-relaxed text-foreground/95 transition-colors duration-200 group-hover:text-foreground">
-        {article.title}
-      </h3>
-
-      {/* Snippet */}
-      {article.snippet && (
-        <p className="relative line-clamp-2 font-sans text-[12.5px] md:text-[13px] leading-relaxed text-muted-foreground/85 transition-colors group-hover:text-foreground/80">
-          {article.snippet}
-        </p>
-      )}
-
-      {/* Footer / Sentiment (Hidden by default, shown on hover/expansion idea if we had space, but for now just subtle sentiment bar) */}
-      <div className={clsx(
-        "absolute bottom-0 left-0 h-[2px] w-full transition-all duration-500",
-        article.sentiment === 'POSITIVE' ? 'bg-bullish' : article.sentiment === 'NEGATIVE' ? 'bg-bearish' : 'bg-transparent',
-        "opacity-0 group-hover:opacity-40"
-      )} />
-    </a>
+    </article>
   );
 }

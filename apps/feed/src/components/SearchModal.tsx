@@ -161,7 +161,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
 
             {/* Search Input Area */}
             <div className="relative border-b border-border/10 bg-surface/30">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" aria-hidden="true" />
               <input
                 ref={inputRef}
                 type="text"
@@ -170,6 +170,11 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                 placeholder="Search intel..."
                 className="w-full pl-14 pr-12 py-5 bg-transparent text-lg text-foreground placeholder-muted-foreground/60 focus:outline-none font-medium"
                 spellCheck={false}
+                role="combobox"
+                aria-expanded={results.length > 0}
+                aria-controls="search-results"
+                aria-activedescendant={results.length > 0 ? `search-result-${selectedIndex}` : undefined}
+                aria-label="Search articles"
               />
               <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
                 {loading && (
@@ -187,7 +192,7 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
             </div>
 
             {/* Results Area */}
-            <div ref={resultsRef} className="max-h-[60vh] overflow-y-auto custom-scrollbar bg-card/50">
+            <div ref={resultsRef} id="search-results" role="listbox" className="max-h-[60vh] overflow-y-auto custom-scrollbar bg-card/50">
               {query.length < 2 && !loading && (
                 <div className="p-12 text-center text-muted-foreground/40">
                   <Search className="w-10 h-10 mx-auto mb-3 opacity-20" />
@@ -209,6 +214,9 @@ export default function SearchModal({ isOpen, onClose }: SearchModalProps) {
                   {results.toSorted((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()).map((result, index) => (
                     <motion.div
                       key={result.id}
+                      id={`search-result-${index}`}
+                      role="option"
+                      aria-selected={index === selectedIndex}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: index * 0.02 }}

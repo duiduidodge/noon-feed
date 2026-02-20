@@ -75,55 +75,36 @@ export default async function FeedPage() {
 
   return (
     <div className="min-h-[100dvh] lg:h-[100dvh] lg:overflow-hidden bg-background">
-      <main className="mx-auto flex h-full w-full max-w-[1640px] flex-col px-2 pb-3 pt-2 md:px-3 md:pb-4 lg:px-4">
+      <main className="mx-auto flex h-full w-full max-w-[1640px] flex-col px-3 pb-unit-3 pt-unit-2 md:px-unit-4 md:pb-unit-4 lg:px-unit-4">
 
-        {/* 
-          3-Column Layout 
-          Desktop: Left (Market + Alpha) | Center (Feed) | Right (Gainers/Losers + Chatter)
-          Mobile: Vertical Stack
-        */}
-        <div className="flex flex-col gap-3 lg:grid lg:h-[calc(100dvh-104px)] lg:grid-cols-12 lg:gap-4">
+        {/* 3-Column Layout */}
+        <div className="flex flex-col gap-unit-3 lg:grid lg:h-[calc(100dvh-104px)] lg:grid-cols-12 lg:gap-unit-4">
 
-          {/* 
-            LEFT COLUMN: Market Data Fused
-            - Market Mood
-            - Majors
-            - Trending
-            - Volume Surge (Alpha)
-          */}
-          <div id="section-markets" className="order-2 lg:order-none lg:col-span-3 flex flex-col gap-3 lg:overflow-hidden">
-            <PanelShell className="flex-1 overflow-hidden flex flex-col">
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-3">
+          {/* LEFT COLUMN: Market Data */}
+          <div id="section-markets" className="order-2 lg:order-none lg:col-span-3 flex flex-col gap-unit-3 lg:overflow-hidden">
+            <PanelShell variant="secondary" className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-unit-3">
                 <PricesColumn />
               </div>
             </PanelShell>
           </div>
 
-          {/* 
-            CENTER COLUMN: Main Feed
-            - Compact Briefing Cards
-            - Latest News
-          */}
-          <div className="order-1 lg:order-none lg:col-span-6 flex flex-col gap-3 lg:overflow-hidden">
+          {/* CENTER COLUMN: Main Feed */}
+          <div className="order-1 lg:order-none lg:col-span-6 flex flex-col gap-unit-3 lg:overflow-hidden">
 
-            {/* Briefing (Compact) - Height is auto based on content */}
+            {/* Briefing (Compact) */}
             <PanelShell id="section-briefing" className="order-2 lg:order-1 shrink-0 bg-transparent border-0 p-0 shadow-none overflow-visible !bg-none">
               <BiDailySummary />
             </PanelShell>
 
             {/* News Feed */}
-            <PanelShell id="section-latest-intel" className="order-1 lg:order-2 flex-1 min-h-0 overflow-hidden relative">
+            <PanelShell id="section-latest-intel" variant="primary" className="order-1 lg:order-2 flex-1 min-h-0 overflow-hidden relative">
               <NewsFeed initialArticles={initialArticles} />
             </PanelShell>
           </div>
 
-          {/* 
-            RIGHT COLUMN: Chatter Only
-            - Market Chatter
-          */}
-          <div id="section-posts" className="order-3 lg:order-none lg:col-span-3 flex flex-col gap-3 lg:overflow-hidden">
-
-            {/* Market Chatter */}
+          {/* RIGHT COLUMN: Chatter */}
+          <div id="section-posts" className="order-3 lg:order-none lg:col-span-3 flex flex-col gap-unit-3 lg:overflow-hidden">
             <div className="flex-1 min-h-[300px] overflow-hidden">
               <MarketChatterPanel className="h-full" />
             </div>

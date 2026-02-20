@@ -15,29 +15,32 @@ export function MarketChatterPanel({ className, id }: MarketChatterPanelProps) {
       id={id}
       className={cn(
         'flex flex-col min-h-0 overflow-hidden',
-        'rounded-2xl border border-border/50',
+        'rounded-2xl',
         'bg-card/72 backdrop-blur-sm',
-        'column-panel',
+        'panel-secondary',
         className
       )}
     >
       {/* Header bar */}
-      <div className="flex items-center gap-2 border-b border-border/30 bg-surface/18 px-3 py-3 shrink-0">
+      <div className="flex items-center gap-2 border-b border-border/30 bg-surface/18 px-unit-3 py-unit-3 shrink-0">
         <div className="flex items-center gap-1.5">
-          <Radio className="w-3.5 h-3.5 text-muted-foreground/60 animate-pulse" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/84 font-mono-data">
+          <div className="relative">
+            <Radio className="w-3.5 h-3.5 text-muted-foreground/60" aria-hidden="true" />
+            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-bullish" aria-hidden="true" />
+          </div>
+          <span className="text-label font-semibold uppercase tracking-[0.14em] text-foreground/85 font-mono-data">
             Market Chatter
           </span>
         </div>
-        <div className="flex-1 h-px bg-gradient-to-r from-border/40 to-transparent" />
-        <span className="text-[8px] font-mono-data text-muted-foreground/30 uppercase tracking-wider">
-          30s
+        <div className="flex-1 h-px bg-gradient-to-r from-border/40 to-transparent" aria-hidden="true" />
+        <span className="text-micro font-mono-data text-muted-foreground/65 uppercase tracking-wider">
+          Live
         </span>
       </div>
 
       {/* Scrollable body */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-        <div className="px-3 py-3">
+        <div className="px-unit-3 py-unit-3">
           <LowImpactFeed standalone limit={14} />
         </div>
       </div>
