@@ -66,6 +66,9 @@ async function runSourceFetches(config: ReturnType<typeof buildConfig>) {
   }
 }
 
+// Leave a 4-minute buffer before the 25-minute GitHub Actions timeout
+const ARTICLE_FETCH_BUDGET_MS = 20 * 60 * 1000;
+
 async function processPendingArticles(config: ReturnType<typeof buildConfig>) {
   const articleFetcher = new ArticleFetcher({
     userAgent: config.fetcher.userAgent,
@@ -73,8 +76,14 @@ async function processPendingArticles(config: ReturnType<typeof buildConfig>) {
   });
 
   let totalProcessed = 0;
+  const startTime = Date.now();
 
   for (let i = 0; i < pendingMaxBatches; i++) {
+    if (Date.now() - startTime > ARTICLE_FETCH_BUDGET_MS) {
+      logger.warn({ totalProcessed, elapsedMs: Date.now() - startTime }, 'Article fetch time budget reached, stopping early');
+      break;
+    }
+
     const pendingArticles = await prisma.article.findMany({
       where: { status: 'PENDING' },
       take: pendingBatchSize,
@@ -85,6 +94,10 @@ async function processPendingArticles(config: ReturnType<typeof buildConfig>) {
     if (pendingArticles.length === 0) break;
 
     for (const article of pendingArticles) {
+      if (Date.now() - startTime > ARTICLE_FETCH_BUDGET_MS) {
+        logger.warn({ totalProcessed, elapsedMs: Date.now() - startTime }, 'Article fetch time budget reached mid-batch, stopping early');
+        break;
+      }
       try {
         await processFetchArticleJob({ articleId: article.id }, prisma, articleFetcher);
         totalProcessed += 1;
@@ -94,7 +107,7 @@ async function processPendingArticles(config: ReturnType<typeof buildConfig>) {
     }
   }
 
-  logger.info({ totalProcessed }, 'Finished one-shot pending article processing');
+  logger.info({ totalProcessed, elapsedMs: Date.now() - startTime }, 'Finished one-shot pending article processing');
 }
 
 async function enrichFetchedArticles() {
