@@ -68,12 +68,12 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
 
   const valueColor =
     value <= 25
-      ? 'text-bearish'
+      ? 'text-red-400'
       : value <= 45
-        ? 'text-orange-500'
+        ? 'text-orange-400'
         : value <= 55
-          ? 'text-yellow-600'
-          : 'text-bullish';
+          ? 'text-yellow-400'
+          : 'text-emerald-400';
 
   return (
     <div
@@ -83,12 +83,11 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
     >
       <svg
         viewBox="0 0 128 72"
-        className="w-full max-w-[150px] overflow-visible drop-shadow-[0_2px_8px_rgba(2ef44444,0.3)]"
+        className="w-full max-w-[150px] overflow-visible"
         aria-hidden="true"
       >
         <defs>
           <linearGradient id="moodGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            {/* Hard-coded hex values to prevent stop-color variable parsing errors */}
             <stop offset="0%" stopColor="#ef4444" />
             <stop offset="25%" stopColor="#f97316" />
             <stop offset="50%" stopColor="#eab308" />
@@ -105,7 +104,6 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
           strokeWidth="6"
           strokeLinecap="round"
           opacity="0.2"
-          className="text-muted-foreground"
           strokeDasharray="2 6"
         />
 
@@ -120,51 +118,28 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
           className="transition-all duration-1000 ease-out"
         />
 
-        {/* Needle Reticle */}
-        <circle
-          cx={needleX}
-          cy={needleY}
-          r="6"
-          fill="currentColor"
-          opacity="0.2"
-          className={valueColor}
-        />
+        {/* Needle reticle */}
+        <circle cx={needleX} cy={needleY} r="6" fill="currentColor" opacity="0.2" className={valueColor} />
         <circle cx={needleX} cy={needleY} r="3" fill="currentColor" className={valueColor} />
         <line
-          x1={cx}
-          y1={cy}
-          x2={needleX}
-          y2={needleY}
+          x1={cx} y1={cy} x2={needleX} y2={needleY}
           className="text-muted-foreground opacity-30"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
+          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"
         />
         <circle cx={cx} cy={cy} r="2.5" className="text-muted-foreground" fill="currentColor" />
 
-        {/* Value centered inside arc */}
+        {/* Score */}
         <text
-          x={cx}
-          y={cy - 10}
+          x={cx} y={cy - 10}
           textAnchor="middle"
           className={clsx('font-mono-data font-bold tracking-tighter', valueColor)}
-          style={{
-            fontSize: '32px',
-            fill: 'currentColor',
-            filter: 'drop-shadow(0px 0px 8px currentColor)',
-          }}
+          style={{ fontSize: '32px', fill: 'currentColor', filter: 'drop-shadow(0px 0px 8px currentColor)' }}
         >
           {value}
         </text>
       </svg>
 
-      {/* Label BELOW the gauge */}
-      <span
-        className={clsx(
-          'font-mono-data text-micro font-semibold uppercase tracking-wider -mt-1',
-          valueColor
-        )}
-      >
+      <span className={clsx('font-mono-data text-micro font-semibold uppercase tracking-wider -mt-1', valueColor)}>
         {label}
       </span>
     </div>
@@ -241,7 +216,7 @@ export function PricesColumn() {
       </div>
 
       {/* ── Mood Gauge Container ── */}
-      <div className="relative flex justify-center py-4 min-h-[140px] rounded-2xl border border-border/40 bg-surface/30 backdrop-blur-md shadow-inner group transition-all duration-normal hover:bg-surface/40 hover:border-primary/30 overflow-visible">
+      <div className="relative flex justify-center py-4 min-h-[140px] rounded-2xl border border-border/40 bg-surface/30 backdrop-blur-md shadow-inner transition-all duration-normal hover:bg-surface/40 hover:border-primary/30 overflow-visible">
         <div
           className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/10 to-transparent"
           aria-hidden="true"
@@ -456,7 +431,7 @@ function CoinRow({
   return (
     <div
       className={clsx(
-        'group relative grid grid-cols-[30px_74px_1fr_auto_auto] items-center gap-2.5 px-2 py-3.5 cursor-default',
+        'group relative grid grid-cols-[32px_76px_1fr_auto] items-center gap-2.5 px-2 py-4 cursor-default',
         'border-b border-border/15 last:border-0',
         'transition-colors duration-fast',
         isPositive ? 'hover:bg-bullish/[0.04]' : 'hover:bg-bearish/[0.04]'
@@ -475,7 +450,7 @@ function CoinRow({
       />
 
       {/* Icon with hover ring */}
-      <div className="relative shrink-0 ml-1">
+      <div className="relative shrink-0">
         <div
           className={clsx(
             'absolute -inset-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-normal',
@@ -489,7 +464,7 @@ function CoinRow({
             alt=""
             width={30}
             height={30}
-            className="relative h-[30px] w-[30px] rounded-full grayscale opacity-55 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-slow"
+            className="relative h-[30px] w-[30px] rounded-full grayscale-[40%] opacity-75 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-slow"
           />
         ) : (
           <div className="relative h-[30px] w-[30px] rounded-full bg-surface/50 flex items-center justify-center">
@@ -511,31 +486,27 @@ function CoinRow({
       </div>
 
       {/* Gradient sparkline */}
-      <div className="min-w-0 h-9 opacity-60 group-hover:opacity-100 transition-opacity duration-normal">
+      <div className="min-w-0 h-9 opacity-80 group-hover:opacity-100 transition-opacity duration-normal">
         {sparklineSvg}
       </div>
 
-      {/* Price */}
-      <div className="min-w-[82px] text-right">
-        <div
-          className={clsx(NUMERIC_TEXT_CLASS, 'text-small font-bold text-foreground leading-none')}
-        >
+      {/* Price + change stacked in a single right column */}
+      <div className="flex flex-col items-end gap-1 shrink-0">
+        <div className={clsx(NUMERIC_TEXT_CLASS, 'text-small font-bold text-foreground leading-none whitespace-nowrap')}>
           {formatPrice(coin.priceUsd)}
         </div>
-      </div>
-
-      {/* Change % pill badge */}
-      <div
-        className={clsx(
-          'min-w-[72px] justify-end shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full',
-          `${NUMERIC_TEXT_CLASS} text-caption font-semibold whitespace-nowrap transition-all duration-fast group-hover:translate-x-0.5`,
-          'border transition-colors duration-fast',
-          isPositive
-            ? 'text-bullish/95 bg-bullish/10 border-bullish/25 group-hover:bg-bullish/15'
-            : 'text-bearish/95 bg-bearish/14 border-bearish/30 group-hover:bg-bearish/20'
-        )}
-      >
-        {formatMovePercent(coin.changePercent24Hr)}
+        <div
+          className={clsx(
+            'inline-flex items-center px-1.5 py-[3px] rounded-full',
+            `${NUMERIC_TEXT_CLASS} text-[10px] font-semibold whitespace-nowrap`,
+            'border transition-colors duration-fast',
+            isPositive
+              ? 'text-bullish/95 bg-bullish/10 border-bullish/25 group-hover:bg-bullish/15'
+              : 'text-bearish/95 bg-bearish/14 border-bearish/30 group-hover:bg-bearish/20'
+          )}
+        >
+          {formatMovePercent(coin.changePercent24Hr)}
+        </div>
       </div>
     </div>
   );
@@ -544,19 +515,18 @@ function CoinRow({
 // ─── Metric card (used in the 3-column grid) ───
 function MetricCard({ label, value, change }: { label: string; value: string; change?: number }) {
   return (
-    <div className="relative flex flex-col items-center justify-center p-unit-2 overflow-hidden group hover:bg-surface/30 transition-all duration-normal">
+    <div className="relative flex flex-col p-unit-2 overflow-hidden group hover:bg-surface/30 transition-all duration-normal">
       <div
-        className="absolute inset-x-0 bottom-0 h-0.5 bg-gradient-to-r from-transparent via-primary/20 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-primary/25 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
         aria-hidden="true"
       />
-
-      <span className="font-mono-data text-micro text-muted-foreground/70 uppercase tracking-wider mb-0.5">
+      <span className="font-mono-data text-[8.5px] text-muted-foreground/50 uppercase tracking-[0.12em] mb-1">
         {label}
       </span>
       <span
         className={clsx(
           NUMERIC_TEXT_CLASS,
-          'text-label font-bold text-foreground group-hover:text-primary transition-colors duration-fast'
+          'text-[13px] font-bold text-foreground leading-none group-hover:text-primary transition-colors duration-fast'
         )}
       >
         {value}
@@ -564,7 +534,7 @@ function MetricCard({ label, value, change }: { label: string; value: string; ch
       {change !== undefined && (
         <span
           className={clsx(
-            `${NUMERIC_TEXT_CLASS} text-micro font-medium mt-0.5 flex items-center gap-0.5`,
+            `${NUMERIC_TEXT_CLASS} text-[9px] font-semibold mt-1`,
             change >= 0 ? 'text-bullish' : 'text-bearish'
           )}
         >
