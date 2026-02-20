@@ -283,7 +283,6 @@ export function GainersLosersWidget() {
               change={item.change24h}
               maxAbsChange={gainersMaxAbs}
               ariaLabel={`${item.symbol} ${formatMovePercent(item.change24h)} up`}
-              showSpark={true}
             />
           ))}
         </div>
@@ -315,7 +314,6 @@ export function GainersLosersWidget() {
               change={item.change24h}
               maxAbsChange={losersMaxAbs}
               ariaLabel={`${item.symbol} ${formatMovePercent(item.change24h)} down`}
-              showSpark={true}
             />
           ))}
         </div>
