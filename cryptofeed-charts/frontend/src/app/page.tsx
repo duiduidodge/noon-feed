@@ -23,16 +23,16 @@ function useStreamState(coin: Coin) {
   const [liquidations, setLiquidations] = useState<LiquidationMsg[]>([]);
 
   const { connected } = useChartStream(coin, {
-    onCandle: useCallback((c) => setLatestCandle(c), []),
-    onTrade: useCallback((t) => {
+    onCandle: useCallback((c: CandleMsg) => setLatestCandle(c), []),
+    onTrade: useCallback((t: TradeMsg) => {
       setTrades((prev) => {
         const next = [t, ...prev];
         return next.length > MAX_TRADES ? next.slice(0, MAX_TRADES) : next;
       });
     }, []),
-    onBook: useCallback((b) => setBook(b), []),
-    onFunding: useCallback((f) => setFunding(f), []),
-    onLiquidation: useCallback((l) => {
+    onBook: useCallback((b: BookMsg) => setBook(b), []),
+    onFunding: useCallback((f: FundingMsg) => setFunding(f), []),
+    onLiquidation: useCallback((l: LiquidationMsg) => {
       setLiquidations((prev) => {
         const next = [l, ...prev];
         return next.length > MAX_LIQUIDATIONS ? next.slice(0, MAX_LIQUIDATIONS) : next;

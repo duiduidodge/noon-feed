@@ -81,7 +81,7 @@ export function CandleChart({ coin, timeframe, latestCandle }: Props) {
         .then((r) => r.json())
         .then((data: CandleMsg[]) => {
           if (Array.isArray(data) && data.length > 0) {
-            series.setData(data as Parameters<typeof series.setData>[0]);
+            series.setData(data as unknown as Parameters<typeof series.setData>[0]);
             chart.timeScale().fitContent();
           }
         })
