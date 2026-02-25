@@ -5,13 +5,6 @@ import type { CandleMsg } from "@/hooks/useChartStream";
 import type { Timeframe } from "./TimeframeSelector";
 import type { Coin } from "./CoinSelector";
 
-const COIN_COLORS: Record<Coin, string> = {
-  BTC: "#f7931a",
-  ETH: "#627eea",
-  SOL: "#9945ff",
-  XRP: "#346aa9",
-};
-
 type Props = {
   coin: Coin;
   timeframe: Timeframe;
@@ -24,86 +17,106 @@ export function CandleChart({ coin, timeframe, latestCandle }: Props) {
   const seriesRef = useRef<unknown>(null);
   const initedRef = useRef(false);
 
-  // Init chart once
+  // Init chart once per coin/timeframe
   useEffect(() => {
-    if (!containerRef.current || initedRef.current) return;
+    if (initedRef.current) return;
 
+    let cancelled = false;
     let cleanup: (() => void) | undefined;
 
-    import("lightweight-charts").then(({ createChart, ColorType, CrosshairMode }) => {
-      if (!containerRef.current) return;
+    // Defer one frame so CSS layout is fully computed before reading dimensions
+    const raf = requestAnimationFrame(() => {
+      if (cancelled || !containerRef.current) return;
 
-      const w = containerRef.current.clientWidth || 800;
-      const h = containerRef.current.clientHeight || 500;
+      const container = containerRef.current;
+      const w = container.clientWidth || 800;
+      const h = container.clientHeight || 500;
 
-      const chart = createChart(containerRef.current, {
-        width: w,
-        height: h,
-        autoSize: true,
-        layout: {
-          background: { type: ColorType.Solid, color: "hsl(150 14% 6%)" },
-          textColor: "hsl(120 18% 60%)",
-          fontFamily: "JetBrains Mono, monospace",
-          fontSize: 11,
-        },
-        grid: {
-          vertLines: { color: "hsl(150 10% 11%)" },
-          horzLines: { color: "hsl(150 10% 11%)" },
-        },
-        crosshair: {
-          mode: CrosshairMode.Normal,
-          vertLine: { color: "hsl(142 52% 60% / 0.4)", labelBackgroundColor: "hsl(150 14% 8%)" },
-          horzLine: { color: "hsl(142 52% 60% / 0.4)", labelBackgroundColor: "hsl(150 14% 8%)" },
-        },
-        rightPriceScale: {
-          borderColor: "hsl(150 10% 16%)",
-        },
-        timeScale: {
-          borderColor: "hsl(150 10% 16%)",
-          timeVisible: true,
-          secondsVisible: false,
-        },
-        handleScroll: true,
-        handleScale: true,
-      });
+      import("lightweight-charts").then(({ createChart, ColorType, CrosshairMode }) => {
+        if (cancelled || !containerRef.current) return;
 
-      const accentColor = COIN_COLORS[coin];
-      void accentColor;
-      const series = chart.addCandlestickSeries({
-        upColor: "hsl(142 72% 46%)",
-        downColor: "hsl(0 78% 54%)",
-        borderUpColor: "hsl(142 72% 46%)",
-        borderDownColor: "hsl(0 78% 54%)",
-        wickUpColor: "hsl(142 72% 46%)",
-        wickDownColor: "hsl(0 78% 54%)",
-      });
+        const chart = createChart(container, {
+          width: w,
+          height: h,
+          layout: {
+            background: { type: ColorType.Solid, color: "hsl(150 14% 6%)" },
+            textColor: "hsl(120 18% 60%)",
+            fontFamily: "JetBrains Mono, monospace",
+            fontSize: 11,
+          },
+          grid: {
+            vertLines: { color: "hsl(150 10% 11%)" },
+            horzLines: { color: "hsl(150 10% 11%)" },
+          },
+          crosshair: {
+            mode: CrosshairMode.Normal,
+            vertLine: { color: "hsl(142 52% 60% / 0.4)", labelBackgroundColor: "hsl(150 14% 8%)" },
+            horzLine: { color: "hsl(142 52% 60% / 0.4)", labelBackgroundColor: "hsl(150 14% 8%)" },
+          },
+          rightPriceScale: { borderColor: "hsl(150 10% 16%)" },
+          timeScale: {
+            borderColor: "hsl(150 10% 16%)",
+            timeVisible: true,
+            secondsVisible: false,
+          },
+          handleScroll: true,
+          handleScale: true,
+        });
 
-      chartRef.current = chart;
-      seriesRef.current = series;
-      initedRef.current = true;
+        const series = chart.addCandlestickSeries({
+          upColor: "hsl(142 72% 46%)",
+          downColor: "hsl(0 78% 54%)",
+          borderUpColor: "hsl(142 72% 46%)",
+          borderDownColor: "hsl(0 78% 54%)",
+          wickUpColor: "hsl(142 72% 46%)",
+          wickDownColor: "hsl(0 78% 54%)",
+        });
 
-      // Load seed candles
-      const apiBase = process.env.NEXT_PUBLIC_CHARTS_API_URL?.replace(/^wss?/, "http") ?? "http://localhost:8080";
-      fetch(`${apiBase}/candles/${coin}?tf=${timeframe}&limit=200`)
-        .then((r) => r.json())
-        .then((data: CandleMsg[]) => {
-          if (Array.isArray(data) && data.length > 0) {
-            series.setData(data as unknown as Parameters<typeof series.setData>[0]);
-            chart.timeScale().fitContent();
-          }
-        })
-        .catch(() => {});
+        chartRef.current = chart;
+        seriesRef.current = series;
+        initedRef.current = true;
 
-      cleanup = () => {
-        chart.remove();
-        initedRef.current = false;
-        chartRef.current = null;
-        seriesRef.current = null;
-      };
+        // Resize observer — keep chart size in sync with container
+        const ro = new ResizeObserver(() => {
+          if (!containerRef.current) return;
+          chart.applyOptions({
+            width: containerRef.current.clientWidth,
+            height: containerRef.current.clientHeight,
+          });
+        });
+        ro.observe(container);
+
+        // Load seed candles
+        const apiBase =
+          process.env.NEXT_PUBLIC_CHARTS_API_URL?.replace(/^wss?:\/\//, "https://") ??
+          "http://localhost:8080";
+        fetch(`${apiBase}/candles/${coin}?tf=${timeframe}&limit=200`)
+          .then((r) => r.json())
+          .then((data: CandleMsg[]) => {
+            if (Array.isArray(data) && data.length > 0) {
+              series.setData(
+                data as unknown as Parameters<typeof series.setData>[0]
+              );
+              chart.timeScale().fitContent();
+            }
+          })
+          .catch((err) => console.error("[CandleChart] seed fetch failed:", err));
+
+        cleanup = () => {
+          ro.disconnect();
+          chart.remove();
+          initedRef.current = false;
+          chartRef.current = null;
+          seriesRef.current = null;
+        };
+      }).catch((err) => console.error("[CandleChart] import failed:", err));
     });
 
-    return () => cleanup?.();
-  // Reinit when coin or timeframe changes
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      cleanup?.();
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coin, timeframe]);
 
