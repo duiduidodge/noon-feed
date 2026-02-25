@@ -9,82 +9,87 @@ function fmtPrice(n: number) {
   return n.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
 
-function fmtSize(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  if (n >= 1)    return n.toFixed(3);
-  return n.toFixed(4);
+function fmtVol(usd: number) {
+  if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(1)}M`;
+  if (usd >= 1_000)     return `$${(usd / 1_000).toFixed(0)}K`;
+  return `$${usd.toFixed(0)}`;
 }
 
-// USD value threshold for a "whale" trade
 const WHALE_USD = 50_000;
 
 export function TradesPanel({ trades }: { trades: TradeMsg[] }) {
-  // Buy/sell volume split across the buffered trades
   let buyVol = 0, sellVol = 0;
   for (const t of trades) {
     const usd = t.price * t.size;
     if (t.side === "buy") buyVol += usd; else sellVol += usd;
   }
   const totalVol = buyVol + sellVol;
-  const buyPct   = totalVol > 0 ? (buyVol / totalVol) * 100 : 50;
+  const buyPct = totalVol > 0 ? (buyVol / totalVol) * 100 : 50;
 
   return (
-    <div className="border-t border-border/40 bg-surface/20 shrink-0">
-      {/* Buy / Sell flow ratio bar */}
-      <div className="px-3 pt-1.5 pb-1 flex items-center gap-2">
-        <span className="text-[9px] font-mono uppercase tracking-widest text-foreground/30 shrink-0">
-          Flow
-        </span>
-        <div className="flex-1 h-[5px] rounded-full overflow-hidden bg-surface/60 flex">
+    <div className="border-t border-border/25 bg-background/60 shrink-0">
+      {/* Flow ratio row */}
+      <div className="flex items-center gap-3 px-4 pt-2 pb-1.5">
+        {/* Buy label + vol */}
+        <div className="flex items-center gap-1.5 w-20 shrink-0">
+          <span className="text-[10px] font-mono font-semibold text-bullish tabular-nums">
+            {buyPct.toFixed(1)}%
+          </span>
+          <span className="text-[9px] font-mono text-foreground/30">
+            {fmtVol(buyVol)}
+          </span>
+        </div>
+
+        {/* Bar */}
+        <div className="flex-1 h-2 rounded-full overflow-hidden bg-surface/80 flex">
           <div
-            className="bg-bullish/70 h-full transition-all duration-300"
+            className="h-full rounded-full bg-bullish/60 transition-all duration-500"
             style={{ width: `${buyPct}%` }}
           />
-          <div className="bg-bearish/70 h-full flex-1" />
+          <div className="h-full flex-1 bg-bearish/50" />
         </div>
-        <span className="text-[9px] font-mono text-bullish shrink-0 w-8 text-right">
-          {buyPct.toFixed(0)}%
-        </span>
-        <span className="text-[9px] font-mono text-foreground/25 shrink-0">|</span>
-        <span className="text-[9px] font-mono text-bearish shrink-0 w-8">
-          {(100 - buyPct).toFixed(0)}%
-        </span>
+
+        {/* Sell label + vol */}
+        <div className="flex items-center gap-1.5 w-20 shrink-0 justify-end">
+          <span className="text-[9px] font-mono text-foreground/30">
+            {fmtVol(sellVol)}
+          </span>
+          <span className="text-[10px] font-mono font-semibold text-bearish tabular-nums">
+            {(100 - buyPct).toFixed(1)}%
+          </span>
+        </div>
       </div>
 
-      {/* Trades ticker */}
-      <div className="flex items-center gap-1 px-3 pb-2 overflow-x-auto">
+      {/* Trade chips */}
+      <div className="flex items-center gap-1 px-4 pb-2.5 overflow-x-auto no-scrollbar">
         {trades.length === 0 ? (
           <span className="text-[10px] font-mono text-foreground/20">waiting for stream…</span>
         ) : (
-          trades.slice(0, 35).map((t, i) => {
+          trades.slice(0, 38).map((t, i) => {
             const usd = t.price * t.size;
             const isWhale = usd >= WHALE_USD;
+            const isBuy = t.side === "buy";
             return (
               <span
                 key={i}
-                title={`$${usd.toLocaleString("en-US", { maximumFractionDigits: 0 })}`}
+                title={`${isBuy ? "BUY" : "SELL"} ${t.size} @ ${fmtPrice(t.price)} = ${fmtVol(usd)}`}
                 className={clsx(
-                  "shrink-0 font-mono transition-opacity",
-                  i === 0 ? "opacity-100" : i < 6 ? "opacity-75" : "opacity-45",
-                  isWhale
-                    ? clsx(
-                        "text-[10px] px-2 py-0.5 rounded font-bold border",
-                        t.side === "buy"
-                          ? "bg-bullish/20 text-bullish border-bullish/40"
-                          : "bg-bearish/20 text-bearish border-bearish/40"
-                      )
-                    : clsx(
-                        "text-[10px] px-1.5 py-0.5 rounded",
-                        t.side === "buy"
-                          ? "bg-bullish/8 text-bullish/80"
-                          : "bg-bearish/8 text-bearish/80"
-                      )
+                  "shrink-0 font-mono text-[10px] px-1.5 py-0.5 rounded transition-all duration-200",
+                  i === 0 ? "opacity-100" : i < 4 ? "opacity-80" : i < 12 ? "opacity-55" : "opacity-30",
+                  isWhale ? clsx(
+                    "font-bold px-2 py-1 border",
+                    isBuy
+                      ? "bg-bullish/15 text-bullish border-bullish/30"
+                      : "bg-bearish/15 text-bearish border-bearish/30"
+                  ) : clsx(
+                    isBuy ? "text-bullish/75" : "text-bearish/75"
+                  )
                 )}
               >
-                {t.side === "buy" ? "▲" : "▼"} {fmtPrice(t.price)}
+                {isBuy ? "▲" : "▼"}&thinsp;{fmtPrice(t.price)}
                 {isWhale && (
-                  <span className="ml-1 text-[9px] opacity-80">
-                    {fmtSize(t.size)}
+                  <span className="ml-1 text-[8px] opacity-70">
+                    {fmtVol(usd)}
                   </span>
                 )}
               </span>
