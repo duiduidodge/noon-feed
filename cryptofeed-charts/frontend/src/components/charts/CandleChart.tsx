@@ -114,5 +114,5 @@ export function CandleChart({ coin, timeframe, latestCandle }: Props) {
     } catch { /* series may not be ready */ }
   }, [latestCandle]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }
