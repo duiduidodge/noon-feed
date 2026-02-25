@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { label: 'Posts', sectionId: 'section-posts', path: '/posts' },
   { label: 'Alpha', sectionId: null, path: null },
   { label: 'Markets', sectionId: 'section-markets', path: '/markets' },
+  { label: 'Charts', sectionId: null, path: '/charts' },
 ];
 
 export function FeedHeader() {
@@ -34,6 +35,8 @@ export function FeedHeader() {
       setActiveTab('Posts');
     } else if (pathname.includes('/markets')) {
       setActiveTab('Markets');
+    } else if (pathname.includes('/charts')) {
+      setActiveTab('Charts');
     }
   }, [pathname]);
 
