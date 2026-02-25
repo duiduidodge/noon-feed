@@ -1,3 +1,10 @@
+export type IndicatorConfig = {
+  id: string;
+  type: "sma" | "ema";
+  period: number;
+  color: string;
+};
+
 export type OHLCPoint = {
   time: number;
   open: number;

@@ -12,14 +12,14 @@ import {
 import type { CandleMsg } from "@/hooks/useChartStream";
 import type { Timeframe } from "./TimeframeSelector";
 import type { Coin } from "./CoinSelector";
-import type { IndicatorKey } from "./IndicatorSelector";
-import { calcSMA, calcEMA, calcRSI, type OHLCPoint } from "@/lib/indicators";
+import { calcSMA, calcEMA, calcRSI, type OHLCPoint, type IndicatorConfig } from "@/lib/indicators";
 
 type Props = {
   coin: Coin;
   timeframe: Timeframe;
   latestCandle: CandleMsg | null;
-  indicators: Set<IndicatorKey>;
+  indicators: IndicatorConfig[];
+  showRSI: boolean;
 };
 
 const BULL_COLOR = "#22c55e";
@@ -42,16 +42,11 @@ const CHART_THEME = {
   timeScale: { borderColor: "#1e2b1f", timeVisible: true, secondsVisible: false },
 };
 
-const MA_COLORS: Record<IndicatorKey, string> = {
-  ma20:  "#f59e0b",
-  ma50:  "#8b5cf6",
-  ma200: "#3b82f6",
-  ema9:  "#06b6d4",
-  ema21: "#f97316",
-  rsi14: "#d946ef",
-};
+function calcIndicatorPoints(config: IndicatorConfig, data: OHLCPoint[]) {
+  return config.type === "sma" ? calcSMA(data, config.period) : calcEMA(data, config.period);
+}
 
-function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
+function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI }: Props) {
   const containerRef    = useRef<HTMLDivElement>(null);
   const rsiContainerRef = useRef<HTMLDivElement>(null);
 
@@ -63,17 +58,25 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const volSeriesRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const maSeriesRef  = useRef<Record<IndicatorKey, any>>({} as Record<IndicatorKey, any>);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rsiSeriesRef = useRef<any>(null);
 
-  const syncingRef   = useRef(false);
-  const cleanupRef   = useRef<(() => void) | null>(null);
+  // Dynamic MA/EMA series — keyed by IndicatorConfig.id
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const indicatorSeriesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
+
+  // Keep latest candle data accessible to effects without re-running the main effect
+  const candleDataRef = useRef<OHLCPoint[]>([]);
+
+  // Keep latest indicators accessible inside the fetch callback
+  const currentIndicatorsRef = useRef(indicators);
+  currentIndicatorsRef.current = indicators;
+
+  const syncingRef = useRef(false);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   const [status, setStatus] = useState("mounting…");
-  const showRSI = indicators.has("rsi14");
 
-  // ── Main chart + RSI chart init ─────────────────────────────────────────
+  // ── Main chart + RSI init (reruns on coin/timeframe change only) ────────
   useEffect(() => {
     let destroyed = false;
     setStatus("rAF pending…");
@@ -91,13 +94,12 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
       const h = el.offsetHeight || Math.floor(window.innerHeight * 0.6);
       setStatus(`${w}×${h} — creating chart…`);
 
-      // ── Main chart ──
+      // ── Main chart ──────────────────────────────────────────────────────
       let chart: IChartApi;
       try {
         chart = createChart(el, {
           ...CHART_THEME,
-          width:  w,
-          height: h,
+          width: w, height: h,
           crosshair: {
             mode: CrosshairMode.Normal,
             vertLine: { color: "rgba(82,186,100,0.4)", labelBackgroundColor: "#0d1410" },
@@ -118,7 +120,7 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
         wickUpColor: BULL_COLOR, wickDownColor: BEAR_COLOR,
       });
 
-      // Volume
+      // Volume histogram
       const volSeries = chart.addHistogramSeries({
         priceFormat: { type: "volume" },
         priceScaleId: "vol",
@@ -127,21 +129,7 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
         scaleMargins: { top: 0.82, bottom: 0 },
       });
 
-      // MA/EMA line series
-      const maKeys: IndicatorKey[] = ["ma20", "ma50", "ma200", "ema9", "ema21"];
-      const maSeries: Record<string, ISeriesApi<"Line">> = {};
-      for (const key of maKeys) {
-        maSeries[key] = chart.addLineSeries({
-          color:           MA_COLORS[key],
-          lineWidth:       key === "ma200" ? 2 : 1,
-          priceLineVisible: false,
-          lastValueVisible: false,
-          crosshairMarkerVisible: false,
-          visible: false, // will be set after data load
-        });
-      }
-
-      // ── RSI chart ──
+      // ── RSI chart ───────────────────────────────────────────────────────
       const rsiChart = createChart(rsiEl, {
         ...CHART_THEME,
         width:  rsiEl.offsetWidth  || w,
@@ -157,38 +145,27 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
           borderColor: "#1e2b1f",
           scaleMargins: { top: 0.1, bottom: 0.1 },
           autoScale: false,
-          minimumWidth: 60,
         },
         timeScale: { borderColor: "#1e2b1f", timeVisible: false, secondsVisible: false },
         leftPriceScale: { visible: false },
       });
-      rsiChart.priceScale("right").applyOptions({ autoScale: false });
 
       const rsiSeries = rsiChart.addLineSeries({
-        color: MA_COLORS["rsi14"],
+        color: "#d946ef",
         lineWidth: 1,
         priceLineVisible: false,
         lastValueVisible: true,
         crosshairMarkerVisible: true,
       });
-
-      // RSI reference lines
       for (const { price, color } of [
-        { price: 70, color: "rgba(239,68,68,0.5)" },
-        { price: 30, color: "rgba(34,197,94,0.5)" },
+        { price: 70, color: "rgba(239,68,68,0.5)"  },
+        { price: 30, color: "rgba(34,197,94,0.5)"  },
         { price: 50, color: "rgba(255,255,255,0.15)" },
       ]) {
-        rsiSeries.createPriceLine({
-          price,
-          color,
-          lineWidth: 1,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: "",
-        });
+        rsiSeries.createPriceLine({ price, color, lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "" });
       }
 
-      // ── Time range sync ──
+      // ── Time range sync ─────────────────────────────────────────────────
       chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
         if (syncingRef.current || !range) return;
         syncingRef.current = true;
@@ -202,30 +179,32 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
         syncingRef.current = false;
       });
 
-      chartRef.current    = chart;
-      rsiChartRef.current = rsiChart;
-      seriesRef.current   = series;
+      // ── Assign refs ─────────────────────────────────────────────────────
+      chartRef.current     = chart;
+      rsiChartRef.current  = rsiChart;
+      seriesRef.current    = series;
       volSeriesRef.current = volSeries;
-      maSeriesRef.current  = maSeries as Record<IndicatorKey, ISeriesApi<"Line">>;
       rsiSeriesRef.current = rsiSeries;
 
-      // ── ResizeObserver ──
+      // ── ResizeObserver ───────────────────────────────────────────────────
       const ro = new ResizeObserver(() => {
-        if (!containerRef.current || !chartRef.current) return;
-        chartRef.current.applyOptions({
-          width:  containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight,
-        });
-        if (!rsiContainerRef.current || !rsiChartRef.current) return;
-        rsiChartRef.current.applyOptions({
-          width:  rsiContainerRef.current.offsetWidth,
-          height: rsiContainerRef.current.offsetHeight,
-        });
+        if (containerRef.current && chartRef.current) {
+          chartRef.current.applyOptions({
+            width:  containerRef.current.offsetWidth,
+            height: containerRef.current.offsetHeight,
+          });
+        }
+        if (rsiContainerRef.current && rsiChartRef.current) {
+          rsiChartRef.current.applyOptions({
+            width:  rsiContainerRef.current.offsetWidth,
+            height: rsiContainerRef.current.offsetHeight,
+          });
+        }
       });
       ro.observe(el);
       ro.observe(rsiEl);
 
-      // ── Fetch historical candles ──
+      // ── Fetch historical candles ─────────────────────────────────────────
       const base = (process.env.NEXT_PUBLIC_CHARTS_API_URL ?? "http://localhost:8080")
         .replace(/^wss:\/\//, "https://")
         .replace(/^ws:\/\//, "http://");
@@ -236,46 +215,46 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
         .then((r) => r.json())
         .then((data: OHLCPoint[]) => {
           if (destroyed || !seriesRef.current) return;
-          if (Array.isArray(data) && data.length > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            seriesRef.current.setData(data as any);
-            volSeriesRef.current?.setData(
-              data.map((c) => ({
-                time:  c.time,
-                value: c.volume,
-                color: c.close >= c.open ? BULL_VOL : BEAR_VOL,
-              }))
-            );
-
-            // Compute + set MA/EMA
-            const calcs: Record<string, ReturnType<typeof calcSMA>> = {
-              ma20:  calcSMA(data, 20),
-              ma50:  calcSMA(data, 50),
-              ma200: calcSMA(data, 200),
-              ema9:  calcEMA(data, 9),
-              ema21: calcEMA(data, 21),
-            };
-            for (const key of maKeys) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              maSeriesRef.current[key]?.setData(calcs[key] as any);
-              maSeriesRef.current[key]?.applyOptions({
-                visible: indicators.has(key),
-              });
-            }
-
-            // RSI
-            const rsiData = calcRSI(data, 14);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            rsiSeriesRef.current?.setData(rsiData as any);
-            if (rsiData.length > 0) {
-              rsiChart.priceScale("right").applyOptions({ autoScale: true });
-            }
-
-            chartRef.current?.timeScale().fitContent();
-            setStatus("");
-          } else {
-            setStatus(`fetch ok but empty`);
+          if (!Array.isArray(data) || data.length === 0) {
+            setStatus("fetch ok but empty");
+            return;
           }
+
+          // Candles + volume
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          seriesRef.current.setData(data as any);
+          volSeriesRef.current?.setData(
+            data.map((c) => ({
+              time: c.time, value: c.volume,
+              color: c.close >= c.open ? BULL_VOL : BEAR_VOL,
+            }))
+          );
+
+          // RSI
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          rsiSeriesRef.current?.setData(calcRSI(data, 14) as any);
+          rsiChart.priceScale("right").applyOptions({ autoScale: true });
+
+          // Store candle data for indicator effects
+          candleDataRef.current = data;
+
+          // Build all current indicator series
+          for (const config of currentIndicatorsRef.current) {
+            const pts = calcIndicatorPoints(config, data);
+            const s = chart.addLineSeries({
+              color: config.color,
+              lineWidth: 1,
+              priceLineVisible: false,
+              lastValueVisible: false,
+              crosshairMarkerVisible: false,
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            s.setData(pts as any);
+            indicatorSeriesRef.current.set(config.id, s);
+          }
+
+          chartRef.current?.timeScale().fitContent();
+          setStatus("");
         })
         .catch((err) => setStatus(`fetch error: ${err}`));
 
@@ -287,9 +266,10 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
         rsiChartRef.current  = null;
         seriesRef.current    = null;
         volSeriesRef.current = null;
-        maSeriesRef.current  = {} as Record<IndicatorKey, ISeriesApi<"Line">>;
         rsiSeriesRef.current = null;
-        cleanupRef.current   = null;
+        indicatorSeriesRef.current.clear();
+        candleDataRef.current = [];
+        cleanupRef.current    = null;
       };
     });
 
@@ -301,11 +281,42 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coin, timeframe]);
 
-  // ── Toggle MA/EMA visibility when indicators prop changes ───────────────
+  // ── Dynamic indicator series (add/remove/update periods) ────────────────
   useEffect(() => {
-    const maKeys: IndicatorKey[] = ["ma20", "ma50", "ma200", "ema9", "ema21"];
-    for (const key of maKeys) {
-      maSeriesRef.current[key]?.applyOptions({ visible: indicators.has(key) });
+    const chart = chartRef.current;
+    const data  = candleDataRef.current;
+    if (!chart || data.length === 0) return;
+
+    const existing = indicatorSeriesRef.current;
+    const newIds = new Set(indicators.map((i) => i.id));
+
+    // Remove deleted indicators
+    for (const [id, s] of [...existing]) {
+      if (!newIds.has(id)) {
+        try { chart.removeSeries(s); } catch { /* already gone */ }
+        existing.delete(id);
+      }
+    }
+
+    // Add new or update existing
+    for (const config of indicators) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pts = calcIndicatorPoints(config, data) as any;
+      if (existing.has(config.id)) {
+        const s = existing.get(config.id)!;
+        s.setData(pts);
+        s.applyOptions({ color: config.color });
+      } else {
+        const s = chart.addLineSeries({
+          color: config.color,
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        s.setData(pts);
+        existing.set(config.id, s);
+      }
     }
   }, [indicators]);
 
@@ -316,8 +327,7 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       seriesRef.current.update(latestCandle as any);
       volSeriesRef.current?.update({
-        time:  latestCandle.time,
-        value: latestCandle.volume,
+        time: latestCandle.time, value: latestCandle.volume,
         color: latestCandle.close >= latestCandle.open ? BULL_VOL : BEAR_VOL,
       });
     } catch { /* not ready */ }
@@ -334,10 +344,9 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
-      {/* Main chart */}
       <div ref={containerRef} style={{ flex: 1, minHeight: 0, width: "100%" }} />
 
-      {/* RSI pane */}
+      {/* RSI pane — height animated via CSS */}
       <div
         ref={rsiContainerRef}
         style={{
@@ -349,7 +358,6 @@ function CandleChart({ coin, timeframe, latestCandle, indicators }: Props) {
         }}
       />
 
-      {/* Status overlay */}
       {status && (
         <div style={{
           position: "absolute", top: 8, left: 8, zIndex: 10,

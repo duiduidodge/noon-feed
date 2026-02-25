@@ -4,12 +4,13 @@ import { useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { CoinSelector, type Coin } from "@/components/charts/CoinSelector";
 import { TimeframeSelector, type Timeframe } from "@/components/charts/TimeframeSelector";
-import { IndicatorSelector, type IndicatorKey } from "@/components/charts/IndicatorSelector";
+import { IndicatorSelector, SMA_PALETTE, EMA_PALETTE } from "@/components/charts/IndicatorSelector";
 import { TradesPanel } from "@/components/charts/TradesPanel";
 import { OrderBookPanel } from "@/components/charts/OrderBookPanel";
 import { FundingPanel } from "@/components/charts/FundingPanel";
 import { useChartStream } from "@/hooks/useChartStream";
 import type { CandleMsg, TradeMsg, BookMsg, FundingMsg, LiquidationMsg, OIMsg } from "@/hooks/useChartStream";
+import type { IndicatorConfig } from "@/lib/indicators";
 import clsx from "clsx";
 
 const CandleChart = dynamic(() => import("@/components/charts/CandleChart"), {
@@ -63,30 +64,52 @@ function fmtPrice(price: number | null): string {
   return price.toLocaleString("en-US", { maximumFractionDigits: 4 });
 }
 
+let _idSeq = 0;
+function uid() { return `ind-${++_idSeq}`; }
+
+function pickColor(palette: string[], existing: IndicatorConfig[]): string {
+  const used = new Set(existing.map((i) => i.color));
+  return palette.find((c) => !used.has(c)) ?? palette[existing.length % palette.length];
+}
+
 export default function ChartsPage() {
   const [coin, setCoin]           = useState<Coin>("BTC");
   const [timeframe, setTimeframe] = useState<Timeframe>("1h");
-  const [indicators, setIndicators] = useState<Set<IndicatorKey>>(
-    () => new Set<IndicatorKey>(["ma20", "ema21"])
-  );
-  const toggleIndicator = useCallback((k: IndicatorKey) => {
+
+  const [indicators, setIndicators] = useState<IndicatorConfig[]>([
+    { id: uid(), type: "sma", period: 20, color: SMA_PALETTE[0] },
+    { id: uid(), type: "ema", period: 21, color: EMA_PALETTE[0] },
+  ]);
+  const [showRSI, setShowRSI] = useState(false);
+
+  const addIndicator = useCallback((type: "sma" | "ema") => {
     setIndicators((prev) => {
-      const next = new Set(prev);
-      next.has(k) ? next.delete(k) : next.add(k);
-      return next;
+      const palette = type === "sma" ? SMA_PALETTE : EMA_PALETTE;
+      const existing = prev.filter((i) => i.type === type);
+      const color = pickColor(palette, existing);
+      const defaultPeriod = type === "sma"
+        ? ([20, 50, 200].find((p) => !existing.some((i) => i.period === p)) ?? 20)
+        : ([9, 21, 55].find((p) => !existing.some((i) => i.period === p)) ?? 9);
+      return [...prev, { id: uid(), type, period: defaultPeriod, color }];
     });
+  }, []);
+
+  const removeIndicator = useCallback((id: string) => {
+    setIndicators((prev) => prev.filter((i) => i.id !== id));
+  }, []);
+
+  const updatePeriod = useCallback((id: string, period: number) => {
+    setIndicators((prev) => prev.map((i) => i.id === id ? { ...i, period } : i));
   }, []);
 
   const { latestCandle, trades, book, funding, oi, liquidations, connected } =
     useStreamState(coin);
 
-  // Derive current price — latest trade is most reactive
   const currentPrice = useMemo(
     () => trades[0]?.price ?? latestCandle?.close ?? null,
     [trades, latestCandle]
   );
 
-  // Price direction from last 2 trades
   const priceDir: "up" | "down" | "flat" = useMemo(() => {
     if (!trades[0] || !trades[1]) return "flat";
     if (trades[0].price > trades[1].price) return "up";
@@ -136,7 +159,14 @@ export default function ChartsPage() {
         <div className="h-4 w-px bg-border/30" />
 
         {/* Indicators */}
-        <IndicatorSelector active={indicators} toggle={toggleIndicator} />
+        <IndicatorSelector
+          indicators={indicators}
+          showRSI={showRSI}
+          onAdd={addIndicator}
+          onRemove={removeIndicator}
+          onPeriodChange={updatePeriod}
+          onToggleRSI={() => setShowRSI((v) => !v)}
+        />
 
         {/* Divider */}
         <div className="h-4 w-px bg-border/30" />
@@ -164,6 +194,7 @@ export default function ChartsPage() {
               timeframe={timeframe}
               latestCandle={latestCandle}
               indicators={indicators}
+              showRSI={showRSI}
             />
           </div>
           <TradesPanel trades={trades} />
