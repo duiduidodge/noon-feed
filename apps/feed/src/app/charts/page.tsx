@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { CoinSelector, type Coin } from "@/components/charts/CoinSelector";
 import { TimeframeSelector, type Timeframe } from "@/components/charts/TimeframeSelector";
+import { IndicatorSelector, type IndicatorKey } from "@/components/charts/IndicatorSelector";
 import { TradesPanel } from "@/components/charts/TradesPanel";
 import { OrderBookPanel } from "@/components/charts/OrderBookPanel";
 import { FundingPanel } from "@/components/charts/FundingPanel";
@@ -65,6 +66,16 @@ function fmtPrice(price: number | null): string {
 export default function ChartsPage() {
   const [coin, setCoin]           = useState<Coin>("BTC");
   const [timeframe, setTimeframe] = useState<Timeframe>("1h");
+  const [indicators, setIndicators] = useState<Set<IndicatorKey>>(
+    () => new Set<IndicatorKey>(["ma20", "ema21"])
+  );
+  const toggleIndicator = useCallback((k: IndicatorKey) => {
+    setIndicators((prev) => {
+      const next = new Set(prev);
+      next.has(k) ? next.delete(k) : next.add(k);
+      return next;
+    });
+  }, []);
 
   const { latestCandle, trades, book, funding, oi, liquidations, connected } =
     useStreamState(coin);
@@ -124,6 +135,12 @@ export default function ChartsPage() {
         {/* Divider */}
         <div className="h-4 w-px bg-border/30" />
 
+        {/* Indicators */}
+        <IndicatorSelector active={indicators} toggle={toggleIndicator} />
+
+        {/* Divider */}
+        <div className="h-4 w-px bg-border/30" />
+
         {/* Connection pill */}
         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface/50">
           <div className={clsx(
@@ -146,6 +163,7 @@ export default function ChartsPage() {
               coin={coin}
               timeframe={timeframe}
               latestCandle={latestCandle}
+              indicators={indicators}
             />
           </div>
           <TradesPanel trades={trades} />
