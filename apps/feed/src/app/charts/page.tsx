@@ -86,8 +86,8 @@ export default function ChartsPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Chart area */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
-          {/* Chart container — position:relative so CandleChart can use absolute inset */}
-          <div className="flex-1 min-h-0" style={{ position: "relative" }}>
+          {/* Chart container — minHeight ensures canvas always has space */}
+          <div className="flex-1" style={{ minHeight: "300px", overflow: "hidden" }}>
             <CandleChart
               coin={coin}
               timeframe={timeframe}
