@@ -1,6 +1,6 @@
 "use client";
 
-import type { FundingMsg, LiquidationMsg } from "@/hooks/useChartStream";
+import type { FundingMsg, LiquidationMsg, OIMsg } from "@/hooks/useChartStream";
 import clsx from "clsx";
 
 function formatRate(rate: number) {
@@ -19,23 +19,33 @@ function formatTime(ms: number) {
 }
 
 function fmtUsd(n: number) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000)         return `$${(n / 1_000).toFixed(1)}K`;
   return `$${n.toFixed(0)}`;
+}
+
+function fmtOI(oi: number) {
+  // BinanceFutures OI is in base currency units (e.g. BTC)
+  if (oi >= 1_000_000) return `${(oi / 1_000_000).toFixed(2)}M`;
+  if (oi >= 1_000)     return `${(oi / 1_000).toFixed(2)}K`;
+  return oi.toLocaleString("en-US", { maximumFractionDigits: 2 });
 }
 
 export function FundingPanel({
   funding,
+  oi,
   liquidations,
 }: {
   funding: FundingMsg | null;
+  oi: OIMsg | null;
   liquidations: LiquidationMsg[];
 }) {
   const rate = funding?.rate ?? 0;
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Funding rate */}
+      {/* Funding rate + Open Interest (combined card) */}
       <div className="rounded-lg border border-border/40 bg-surface/60 p-3 space-y-2">
         <p className="text-[10px] font-mono uppercase tracking-widest text-foreground/40">
           Funding Rate
@@ -49,16 +59,26 @@ export function FundingPanel({
           >
             {formatRate(rate)}
           </span>
-          <span className="text-[10px] font-mono text-foreground/40">
-            / 8h
-          </span>
+          <span className="text-[10px] font-mono text-foreground/40">/ 8h</span>
         </div>
-        <div className="flex items-center justify-between border-t border-border/30 pt-1">
+        <div className="flex items-center justify-between border-t border-border/30 pt-1.5">
           <span className="text-[10px] font-mono text-foreground/40">Next in</span>
           <span className="text-[10px] font-mono text-foreground/60">
             {formatTime(funding?.next_funding_time ?? 0)}
           </span>
         </div>
+
+        {/* Open Interest */}
+        {oi && oi.open_interest > 0 && (
+          <div className="flex items-center justify-between border-t border-border/30 pt-1.5">
+            <span className="text-[10px] font-mono text-foreground/40 uppercase tracking-wider">
+              Open Int.
+            </span>
+            <span className="text-[10px] font-mono text-foreground/70">
+              {fmtOI(oi.open_interest)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Liquidations */}
@@ -66,33 +86,43 @@ export function FundingPanel({
         <p className="text-[10px] font-mono uppercase tracking-widest text-foreground/40">
           Liquidations
         </p>
-        <div className="space-y-1 overflow-y-auto max-h-48">
+        <div className="space-y-0.5 overflow-y-auto max-h-52">
           {liquidations.length === 0 ? (
             <p className="text-[10px] font-mono text-foreground/30 py-2 text-center">
               No recent liquidations
             </p>
           ) : (
-            liquidations.map((liq, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between py-0.5"
-              >
-                <span
+            liquidations.map((liq, i) => {
+              const usdValue = liq.size * liq.price;
+              const isLarge = usdValue >= 100_000;
+              return (
+                <div
+                  key={i}
                   className={clsx(
-                    "text-[10px] font-mono font-semibold uppercase",
-                    liq.side === "buy" ? "text-bullish" : "text-bearish"
+                    "flex items-center justify-between py-0.5 rounded px-1",
+                    isLarge && (liq.side === "buy" ? "bg-bullish/8" : "bg-bearish/8")
                   )}
                 >
-                  {liq.side === "buy" ? "LONG" : "SHORT"}
-                </span>
-                <span className="text-[10px] font-mono text-foreground/60">
-                  {fmtUsd(liq.size * liq.price)}
-                </span>
-                <span className="text-[10px] font-mono text-foreground/40">
-                  @{liq.price.toLocaleString()}
-                </span>
-              </div>
-            ))
+                  <span
+                    className={clsx(
+                      "text-[10px] font-mono font-semibold uppercase",
+                      liq.side === "buy" ? "text-bullish" : "text-bearish"
+                    )}
+                  >
+                    {liq.side === "buy" ? "LONG" : "SHORT"}
+                  </span>
+                  <span className={clsx(
+                    "text-[10px] font-mono",
+                    isLarge ? "text-foreground/80 font-semibold" : "text-foreground/60"
+                  )}>
+                    {fmtUsd(usdValue)}
+                  </span>
+                  <span className="text-[10px] font-mono text-foreground/40">
+                    @{liq.price.toLocaleString()}
+                  </span>
+                </div>
+              );
+            })
           )}
         </div>
       </div>

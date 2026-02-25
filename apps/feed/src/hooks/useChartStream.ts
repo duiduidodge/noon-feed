@@ -9,6 +9,7 @@ export type TradeMsg = { price: number; size: number; side: "buy" | "sell"; time
 export type BookMsg = { bid: number; ask: number; spread: number };
 export type FundingMsg = { rate: number; next_funding_time: number };
 export type LiquidationMsg = { side: "buy" | "sell"; size: number; price: number; time: number };
+export type OIMsg = { open_interest: number; timestamp: number };
 
 export type StreamHandlers = {
   onCandle?: (c: CandleMsg) => void;
@@ -16,6 +17,7 @@ export type StreamHandlers = {
   onBook?: (b: BookMsg) => void;
   onFunding?: (f: FundingMsg) => void;
   onLiquidation?: (l: LiquidationMsg) => void;
+  onOI?: (o: OIMsg) => void;
 };
 
 export function useChartStream(coin: string, handlers: StreamHandlers) {
@@ -45,6 +47,7 @@ export function useChartStream(coin: string, handlers: StreamHandlers) {
           case "book":        h.onBook?.(msg.data as BookMsg); break;
           case "funding":     h.onFunding?.(msg.data as FundingMsg); break;
           case "liquidation": h.onLiquidation?.(msg.data as LiquidationMsg); break;
+          case "oi":          h.onOI?.(msg.data as OIMsg); break;
         }
       } catch { /* ignore parse errors */ }
     };

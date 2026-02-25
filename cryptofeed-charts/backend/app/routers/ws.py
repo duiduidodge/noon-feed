@@ -95,6 +95,7 @@ async def websocket_endpoint(websocket: WebSocket, coin: str):
     try:
         await websocket.send_text(json.dumps({"type": "book", "data": snap.book.to_dict()}))
         await websocket.send_text(json.dumps({"type": "funding", "data": snap.funding.to_dict()}))
+        await websocket.send_text(json.dumps({"type": "oi", "data": snap.open_interest.to_dict()}))
         recent_trades = [t.to_dict() for t in list(snap.trades)[-20:]]
         for trade in recent_trades:
             await websocket.send_text(json.dumps({"type": "trade", "data": trade}))

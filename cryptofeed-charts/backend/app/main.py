@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI):
     feed_task.cancel()
     try:
         await feed_task
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, Exception):
         pass
     logger.info("cryptofeed FeedHandler stopped")
 

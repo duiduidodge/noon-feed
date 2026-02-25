@@ -79,6 +79,15 @@ class FundingData:
         return {"rate": self.rate, "next_funding_time": self.next_funding_time}
 
 
+class OpenInterestData:
+    def __init__(self):
+        self.open_interest: float = 0.0
+        self.timestamp: int = 0
+
+    def to_dict(self) -> dict:
+        return {"open_interest": self.open_interest, "timestamp": self.timestamp}
+
+
 class LiquidationEvent:
     __slots__ = ("side", "size", "price", "time")
 
@@ -101,6 +110,7 @@ class CoinStore:
         self.trades: Deque[Trade] = deque(maxlen=MAX_TRADES)
         self.book = BookSnapshot()
         self.funding = FundingData()
+        self.open_interest = OpenInterestData()
         self.liquidations: Deque[LiquidationEvent] = deque(maxlen=50)
 
     def update_candle(self, tf: str, bar: CandleBar):

@@ -6,6 +6,7 @@ import {
   ColorType,
   CrosshairMode,
   type IChartApi,
+  type ISeriesApi,
 } from "lightweight-charts";
 import type { CandleMsg } from "@/hooks/useChartStream";
 import type { Timeframe } from "./TimeframeSelector";
@@ -17,13 +18,20 @@ type Props = {
   latestCandle: CandleMsg | null;
 };
 
+const BULL_COLOR = "#22c55e";
+const BEAR_COLOR = "#ef4444";
+const BULL_VOL   = "rgba(34,197,94,0.35)";
+const BEAR_VOL   = "rgba(239,68,68,0.35)";
+
 function CandleChart({ coin, timeframe, latestCandle }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
+  const chartRef     = useRef<IChartApi | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const seriesRef = useRef<any>(null);
-  const cleanupRef = useRef<(() => void) | null>(null);
-  const [status, setStatus] = useState("mounting…");
+  const seriesRef    = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const volSeriesRef = useRef<any>(null);
+  const cleanupRef   = useRef<(() => void) | null>(null);
+  const [status, setStatus]   = useState("mounting…");
 
   useEffect(() => {
     let destroyed = false;
@@ -44,22 +52,26 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
           width: w,
           height: h,
           layout: {
-            background: { type: ColorType.Solid, color: "#111a14" },
-            textColor: "#a3bda3",
+            background: { type: ColorType.Solid, color: "#0d1410" },
+            textColor: "#7fa07f",
             fontFamily: "JetBrains Mono, monospace",
             fontSize: 11,
           },
           grid: {
-            vertLines: { color: "#1c231e" },
-            horzLines: { color: "#1c231e" },
+            vertLines: { color: "#161e17" },
+            horzLines: { color: "#161e17" },
           },
           crosshair: {
             mode: CrosshairMode.Normal,
-            vertLine: { color: "rgba(82,186,100,0.5)", labelBackgroundColor: "#101810" },
-            horzLine: { color: "rgba(82,186,100,0.5)", labelBackgroundColor: "#101810" },
+            vertLine: { color: "rgba(82,186,100,0.4)", labelBackgroundColor: "#0d1410" },
+            horzLine: { color: "rgba(82,186,100,0.4)", labelBackgroundColor: "#0d1410" },
           },
-          rightPriceScale: { borderColor: "#2b3530" },
-          timeScale: { borderColor: "#2b3530", timeVisible: true, secondsVisible: false },
+          rightPriceScale: { borderColor: "#1e2b1f" },
+          timeScale: {
+            borderColor: "#1e2b1f",
+            timeVisible: true,
+            secondsVisible: false,
+          },
           handleScroll: true,
           handleScale: true,
         });
@@ -69,16 +81,26 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
       }
 
       const series = chart.addCandlestickSeries({
-        upColor:         "#22c55e",
-        downColor:       "#ef4444",
-        borderUpColor:   "#22c55e",
-        borderDownColor: "#ef4444",
-        wickUpColor:     "#22c55e",
-        wickDownColor:   "#ef4444",
+        upColor:         BULL_COLOR,
+        downColor:       BEAR_COLOR,
+        borderUpColor:   BULL_COLOR,
+        borderDownColor: BEAR_COLOR,
+        wickUpColor:     BULL_COLOR,
+        wickDownColor:   BEAR_COLOR,
       });
 
-      chartRef.current  = chart;
-      seriesRef.current = series;
+      // Volume histogram — overlaid in the bottom 18% of the chart
+      const volSeries = chart.addHistogramSeries({
+        priceFormat: { type: "volume" },
+        priceScaleId: "vol",
+      });
+      chart.priceScale("vol").applyOptions({
+        scaleMargins: { top: 0.82, bottom: 0 },
+      });
+
+      chartRef.current    = chart;
+      seriesRef.current   = series;
+      volSeriesRef.current = volSeries;
 
       const ro = new ResizeObserver(() => {
         if (!containerRef.current || !chartRef.current) return;
@@ -93,19 +115,26 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
         .replace(/^wss:\/\//, "https://")
         .replace(/^ws:\/\//, "http://");
 
-      setStatus(`fetching ${base}/candles/${coin}…`);
+      setStatus(`fetching ${coin}…`);
 
-      fetch(`${base}/candles/${coin}?tf=${timeframe}&limit=200`)
+      fetch(`${base}/candles/${coin}?tf=${timeframe}&limit=300`)
         .then((r) => r.json())
         .then((data: CandleMsg[]) => {
           if (destroyed || !seriesRef.current) return;
           if (Array.isArray(data) && data.length > 0) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             seriesRef.current.setData(data as any);
+            volSeriesRef.current?.setData(
+              data.map((c) => ({
+                time:  c.time,
+                value: c.volume,
+                color: c.close >= c.open ? BULL_VOL : BEAR_VOL,
+              }))
+            );
             chartRef.current?.timeScale().fitContent();
             setStatus(""); // clear — chart is ready
           } else {
-            setStatus(`fetch ok but empty (${JSON.stringify(data).slice(0, 60)})`);
+            setStatus(`fetch ok but empty`);
           }
         })
         .catch((err) => setStatus(`fetch error: ${err}`));
@@ -113,9 +142,10 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
       cleanupRef.current = () => {
         ro.disconnect();
         chart.remove();
-        chartRef.current  = null;
-        seriesRef.current = null;
-        cleanupRef.current = null;
+        chartRef.current     = null;
+        seriesRef.current    = null;
+        volSeriesRef.current = null;
+        cleanupRef.current   = null;
       };
     });
 
@@ -127,11 +157,17 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coin, timeframe]);
 
+  // Live candle updates
   useEffect(() => {
     if (!seriesRef.current || !latestCandle) return;
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       seriesRef.current.update(latestCandle as any);
+      volSeriesRef.current?.update({
+        time:  latestCandle.time,
+        value: latestCandle.volume,
+        color: latestCandle.close >= latestCandle.open ? BULL_VOL : BEAR_VOL,
+      });
     } catch { /* not ready */ }
   }, [latestCandle]);
 
