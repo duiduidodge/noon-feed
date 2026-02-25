@@ -41,24 +41,23 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
         width: w,
         height: h,
         layout: {
-          // Slightly offset from page background so we can see chart borders
-          background: { type: ColorType.Solid, color: "hsl(150 14% 8%)" },
-          textColor: "hsl(120 18% 70%)",
+          background: { type: ColorType.Solid, color: "hsl(150, 14%, 8%)" },
+          textColor: "hsl(120, 18%, 70%)",
           fontFamily: "JetBrains Mono, monospace",
           fontSize: 11,
         },
         grid: {
-          vertLines: { color: "hsl(150 10% 13%)" },
-          horzLines: { color: "hsl(150 10% 13%)" },
+          vertLines: { color: "hsl(150, 10%, 13%)" },
+          horzLines: { color: "hsl(150, 10%, 13%)" },
         },
         crosshair: {
           mode: CrosshairMode.Normal,
-          vertLine: { color: "hsl(142 52% 60% / 0.5)", labelBackgroundColor: "hsl(150 14% 10%)" },
-          horzLine: { color: "hsl(142 52% 60% / 0.5)", labelBackgroundColor: "hsl(150 14% 10%)" },
+          vertLine: { color: "hsla(142, 52%, 60%, 0.5)", labelBackgroundColor: "hsl(150, 14%, 10%)" },
+          horzLine: { color: "hsla(142, 52%, 60%, 0.5)", labelBackgroundColor: "hsl(150, 14%, 10%)" },
         },
-        rightPriceScale: { borderColor: "hsl(150 10% 20%)" },
+        rightPriceScale: { borderColor: "hsl(150, 10%, 20%)" },
         timeScale: {
-          borderColor: "hsl(150 10% 20%)",
+          borderColor: "hsl(150, 10%, 20%)",
           timeVisible: true,
           secondsVisible: false,
         },
@@ -67,12 +66,12 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
       });
 
       const series = chart.addCandlestickSeries({
-        upColor:        "hsl(142 72% 46%)",
-        downColor:      "hsl(0 78% 54%)",
-        borderUpColor:  "hsl(142 72% 46%)",
-        borderDownColor:"hsl(0 78% 54%)",
-        wickUpColor:    "hsl(142 72% 46%)",
-        wickDownColor:  "hsl(0 78% 54%)",
+        upColor:         "hsl(142, 72%, 46%)",
+        downColor:       "hsl(0, 78%, 54%)",
+        borderUpColor:   "hsl(142, 72%, 46%)",
+        borderDownColor: "hsl(0, 78%, 54%)",
+        wickUpColor:     "hsl(142, 72%, 46%)",
+        wickDownColor:   "hsl(0, 78%, 54%)",
       });
 
       chartRef.current  = chart;
