@@ -33,7 +33,13 @@ export function CandleChart({ coin, timeframe, latestCandle }: Props) {
     import("lightweight-charts").then(({ createChart, ColorType, CrosshairMode }) => {
       if (!containerRef.current) return;
 
+      const w = containerRef.current.clientWidth || 800;
+      const h = containerRef.current.clientHeight || 500;
+
       const chart = createChart(containerRef.current, {
+        width: w,
+        height: h,
+        autoSize: true,
         layout: {
           background: { type: ColorType.Solid, color: "hsl(150 14% 6%)" },
           textColor: "hsl(120 18% 60%)",
@@ -87,19 +93,7 @@ export function CandleChart({ coin, timeframe, latestCandle }: Props) {
         })
         .catch(() => {});
 
-      // Resize observer
-      const ro = new ResizeObserver(() => {
-        if (containerRef.current) {
-          chart.applyOptions({
-            width: containerRef.current.clientWidth,
-            height: containerRef.current.clientHeight,
-          });
-        }
-      });
-      ro.observe(containerRef.current);
-
       cleanup = () => {
-        ro.disconnect();
         chart.remove();
         initedRef.current = false;
         chartRef.current = null;
