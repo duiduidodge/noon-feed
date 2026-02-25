@@ -1,15 +1,27 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { CoinSelector, type Coin } from "@/components/charts/CoinSelector";
 import { TimeframeSelector, type Timeframe } from "@/components/charts/TimeframeSelector";
-import { CandleChart } from "@/components/charts/CandleChart";
 import { TradesPanel } from "@/components/charts/TradesPanel";
 import { OrderBookPanel } from "@/components/charts/OrderBookPanel";
 import { FundingPanel } from "@/components/charts/FundingPanel";
 import { useChartStream } from "@/hooks/useChartStream";
 import type { CandleMsg, TradeMsg, BookMsg, FundingMsg, LiquidationMsg } from "@/hooks/useChartStream";
 import clsx from "clsx";
+
+// Load chart only on client — lightweight-charts is browser-only
+const CandleChart = dynamic(() => import("@/components/charts/CandleChart"), {
+  ssr: false,
+  loading: () => (
+    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <span style={{ fontFamily: "monospace", fontSize: 11, color: "hsl(120 18% 40%)" }}>
+        loading chart…
+      </span>
+    </div>
+  ),
+});
 
 const MAX_TRADES = 40;
 const MAX_LIQUIDATIONS = 30;
@@ -56,7 +68,6 @@ export default function ChartsPage() {
         <CoinSelector selected={coin} onChange={setCoin} />
         <div className="flex items-center gap-3">
           <TimeframeSelector selected={timeframe} onChange={setTimeframe} />
-          {/* Connection indicator */}
           <div className="flex items-center gap-1.5">
             <div
               className={clsx(
@@ -75,16 +86,14 @@ export default function ChartsPage() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Chart area */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
-          <div className="flex-1 min-h-0 relative">
-            <div className="absolute inset-0 p-2">
-              <CandleChart
-                coin={coin}
-                timeframe={timeframe}
-                latestCandle={latestCandle}
-              />
-            </div>
+          {/* Chart container — position:relative so CandleChart can use absolute inset */}
+          <div className="flex-1 min-h-0" style={{ position: "relative" }}>
+            <CandleChart
+              coin={coin}
+              timeframe={timeframe}
+              latestCandle={latestCandle}
+            />
           </div>
-          {/* Trades ticker */}
           <TradesPanel trades={trades} />
         </div>
 
