@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import {
+  createChart,
+  ColorType,
+  CrosshairMode,
+  type IChartApi,
+} from "lightweight-charts";
 import type { CandleMsg } from "@/hooks/useChartStream";
 import type { Timeframe } from "./TimeframeSelector";
 import type { Coin } from "./CoinSelector";
@@ -13,6 +19,7 @@ type Props = {
 
 function CandleChart({ coin, timeframe, latestCandle }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const seriesRef = useRef<any>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
@@ -20,48 +27,38 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
   useEffect(() => {
     let destroyed = false;
 
-    (async () => {
-      // Wait one frame so CSS flex/absolute layout is fully computed
-      await new Promise<void>((r) => { requestAnimationFrame(() => r()); });
+    // One rAF so flex/absolute layout is fully measured before we read dimensions
+    const rafId = requestAnimationFrame(() => {
       if (destroyed || !containerRef.current) return;
 
       const el = containerRef.current;
-      // offsetWidth/offsetHeight are reliable for absolutely-positioned elements
-      const w = el.offsetWidth || window.innerWidth;
-      const h = el.offsetHeight || Math.floor(window.innerHeight * 0.65);
+      const w = el.offsetWidth  || window.innerWidth;
+      const h = el.offsetHeight || Math.floor(window.innerHeight * 0.6);
 
-      const { createChart, ColorType, CrosshairMode } = await import(
-        "lightweight-charts"
-      );
-      if (destroyed || !containerRef.current) return;
+      console.log("[CandleChart] init", w, h);
 
       const chart = createChart(el, {
         width: w,
         height: h,
         layout: {
-          background: { type: ColorType.Solid, color: "hsl(150 14% 6%)" },
-          textColor: "hsl(120 18% 60%)",
+          // Slightly offset from page background so we can see chart borders
+          background: { type: ColorType.Solid, color: "hsl(150 14% 8%)" },
+          textColor: "hsl(120 18% 70%)",
           fontFamily: "JetBrains Mono, monospace",
           fontSize: 11,
         },
         grid: {
-          vertLines: { color: "hsl(150 10% 11%)" },
-          horzLines: { color: "hsl(150 10% 11%)" },
+          vertLines: { color: "hsl(150 10% 13%)" },
+          horzLines: { color: "hsl(150 10% 13%)" },
         },
         crosshair: {
           mode: CrosshairMode.Normal,
-          vertLine: {
-            color: "hsl(142 52% 60% / 0.4)",
-            labelBackgroundColor: "hsl(150 14% 8%)",
-          },
-          horzLine: {
-            color: "hsl(142 52% 60% / 0.4)",
-            labelBackgroundColor: "hsl(150 14% 8%)",
-          },
+          vertLine: { color: "hsl(142 52% 60% / 0.5)", labelBackgroundColor: "hsl(150 14% 10%)" },
+          horzLine: { color: "hsl(142 52% 60% / 0.5)", labelBackgroundColor: "hsl(150 14% 10%)" },
         },
-        rightPriceScale: { borderColor: "hsl(150 10% 16%)" },
+        rightPriceScale: { borderColor: "hsl(150 10% 20%)" },
         timeScale: {
-          borderColor: "hsl(150 10% 16%)",
+          borderColor: "hsl(150 10% 20%)",
           timeVisible: true,
           secondsVisible: false,
         },
@@ -70,55 +67,58 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
       });
 
       const series = chart.addCandlestickSeries({
-        upColor: "hsl(142 72% 46%)",
-        downColor: "hsl(0 78% 54%)",
-        borderUpColor: "hsl(142 72% 46%)",
-        borderDownColor: "hsl(0 78% 54%)",
-        wickUpColor: "hsl(142 72% 46%)",
-        wickDownColor: "hsl(0 78% 54%)",
+        upColor:        "hsl(142 72% 46%)",
+        downColor:      "hsl(0 78% 54%)",
+        borderUpColor:  "hsl(142 72% 46%)",
+        borderDownColor:"hsl(0 78% 54%)",
+        wickUpColor:    "hsl(142 72% 46%)",
+        wickDownColor:  "hsl(0 78% 54%)",
       });
 
+      chartRef.current  = chart;
       seriesRef.current = series;
 
-      // Keep chart sized to container
+      // Keep chart sized to container on window resize
       const ro = new ResizeObserver(() => {
-        if (!containerRef.current) return;
-        chart.applyOptions({
-          width: containerRef.current.offsetWidth,
+        if (!containerRef.current || !chartRef.current) return;
+        chartRef.current.applyOptions({
+          width:  containerRef.current.offsetWidth,
           height: containerRef.current.offsetHeight,
         });
       });
       ro.observe(el);
 
       // Fetch seed candles
-      const base = (
-        process.env.NEXT_PUBLIC_CHARTS_API_URL ?? "http://localhost:8080"
-      )
+      const base = (process.env.NEXT_PUBLIC_CHARTS_API_URL ?? "http://localhost:8080")
         .replace(/^wss:\/\//, "https://")
         .replace(/^ws:\/\//, "http://");
 
       fetch(`${base}/candles/${coin}?tf=${timeframe}&limit=200`)
         .then((r) => r.json())
         .then((data: CandleMsg[]) => {
-          if (!destroyed && Array.isArray(data) && data.length > 0) {
+          console.log("[CandleChart] seed data", data?.length ?? 0);
+          if (destroyed || !seriesRef.current) return;
+          if (Array.isArray(data) && data.length > 0) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            series.setData(data as any);
-            chart.timeScale().fitContent();
+            seriesRef.current.setData(data as any);
+            chartRef.current?.timeScale().fitContent();
           }
         })
-        .catch((err) => console.error("[CandleChart] fetch:", err));
+        .catch((err) => console.error("[CandleChart] fetch error:", err));
 
       cleanupRef.current = () => {
         ro.disconnect();
         chart.remove();
+        chartRef.current  = null;
         seriesRef.current = null;
+        cleanupRef.current = null;
       };
-    })();
+    });
 
     return () => {
       destroyed = true;
+      cancelAnimationFrame(rafId);
       cleanupRef.current?.();
-      cleanupRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coin, timeframe]);
@@ -127,17 +127,13 @@ function CandleChart({ coin, timeframe, latestCandle }: Props) {
   useEffect(() => {
     if (!seriesRef.current || !latestCandle) return;
     try {
-      seriesRef.current.update(latestCandle);
-    } catch { /* series may not be ready */ }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      seriesRef.current.update(latestCandle as any);
+    } catch { /* series not ready */ }
   }, [latestCandle]);
 
-  // Container is absolutely positioned — parent must be position:relative
-  return (
-    <div
-      ref={containerRef}
-      style={{ position: "absolute", inset: "8px" }}
-    />
-  );
+  // This div is absolutely positioned — parent must have position:relative
+  return <div ref={containerRef} style={{ position: "absolute", inset: "8px" }} />;
 }
 
 export default CandleChart;
