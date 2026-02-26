@@ -1,0 +1,88 @@
+name: Deploy Feed (Fly)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/feed/**"
+      - "packages/shared/**"
+      - "prisma/**"
+      - "Dockerfile.feed"
+      - "fly.feed.toml"
+      - ".github/workflows/deploy-feed-fly.yml"
+
+concurrency:
+  group: deploy-feed-fly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      APP_NAME: noon-feed-web
+      CONFIG_FILE: fly.feed.toml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be
+
+      - name: Ensure app exists
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl status -a "$APP_NAME" >/dev/null 2>&1 || flyctl apps create "$APP_NAME"
+
+      - name: Sync feed secrets
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          DASHBOARD_AUTH_SECRET: ${{ secrets.DASHBOARD_AUTH_SECRET }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          NODE_ENV: production
+        run: |
+          cat > /tmp/feed-secrets.env <<EOF
+          DATABASE_URL=${DATABASE_URL}
+          DIRECT_URL=${DIRECT_URL}
+          NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+          DASHBOARD_AUTH_SECRET=${DASHBOARD_AUTH_SECRET}
+          LOG_LEVEL=${LOG_LEVEL}
+          NODE_ENV=${NODE_ENV}
+          EOF
+          grep -E '^[A-Z0-9_]+=.+$' /tmp/feed-secrets.env | flyctl secrets import -a "$APP_NAME"
+
+      - name: Deploy feed
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          bash scripts/deploy-feed-fly.sh
+
+      - name: Smoke check feed
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          ok_home=0
+          for i in {1..12}; do
+            if curl --fail --silent --show-error "https://${APP_NAME}.fly.dev/" >/dev/null; then
+              ok_home=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ok_home" -eq 1
+
+          ok_whales=0
+          for i in {1..12}; do
+            if curl --fail --silent --show-error "https://${APP_NAME}.fly.dev/api/signals/whales" >/dev/null; then
+              ok_whales=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ok_whales" -eq 1

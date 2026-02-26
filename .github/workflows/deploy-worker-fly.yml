@@ -1,0 +1,113 @@
+name: Deploy Worker (Fly)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/worker/**"
+      - "packages/shared/**"
+      - "prisma/**"
+      - "Dockerfile.worker"
+      - "fly.worker.toml"
+      - ".github/workflows/deploy-worker-fly.yml"
+
+concurrency:
+  group: deploy-worker-fly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      APP_NAME: noon-feed-worker
+      CONFIG_FILE: fly.worker.toml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@fc53c09e1bc3be6f54706524e3b82c4f462f77be
+
+      - name: Ensure app exists
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl status -a "$APP_NAME" >/dev/null 2>&1 || flyctl apps create "$APP_NAME"
+
+      - name: Sync worker secrets
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SENPI_AUTH_TOKEN: ${{ secrets.SENPI_AUTH_TOKEN }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          DASHBOARD_AUTH_SECRET: ${{ secrets.DASHBOARD_AUTH_SECRET }}
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          FETCH_INTERVAL_MINUTES: ${{ vars.FETCH_INTERVAL_MINUTES }}
+          WORKER_CONCURRENCY: ${{ vars.WORKER_CONCURRENCY }}
+          SKIP_ENRICHMENT: ${{ vars.SKIP_ENRICHMENT }}
+          ENABLE_HIGH_IMPACT_POSTING: ${{ vars.ENABLE_HIGH_IMPACT_POSTING }}
+          AUTO_POST_TO_DISCORD: ${{ vars.AUTO_POST_TO_DISCORD }}
+          ENABLE_WHALE_SIGNALS: ${{ vars.ENABLE_WHALE_SIGNALS }}
+          WHALE_SIGNALS_INTERVAL_SECONDS: ${{ vars.WHALE_SIGNALS_INTERVAL_SECONDS }}
+          WHALE_RISK_PROFILE: ${{ vars.WHALE_RISK_PROFILE }}
+          LOG_LEVEL: ${{ vars.LOG_LEVEL }}
+          NODE_ENV: production
+        run: |
+          cat > /tmp/worker-secrets.env <<EOF
+          DATABASE_URL=${DATABASE_URL}
+          DIRECT_URL=${DIRECT_URL}
+          OPENAI_API_KEY=${OPENAI_API_KEY}
+          ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+          OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+          SENPI_AUTH_TOKEN=${SENPI_AUTH_TOKEN}
+          DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+          TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+          TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+          NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
+          DASHBOARD_AUTH_SECRET=${DASHBOARD_AUTH_SECRET}
+          LLM_PROVIDER=${LLM_PROVIDER}
+          LLM_MODEL=${LLM_MODEL}
+          FETCH_INTERVAL_MINUTES=${FETCH_INTERVAL_MINUTES}
+          WORKER_CONCURRENCY=${WORKER_CONCURRENCY}
+          SKIP_ENRICHMENT=${SKIP_ENRICHMENT}
+          ENABLE_HIGH_IMPACT_POSTING=${ENABLE_HIGH_IMPACT_POSTING}
+          AUTO_POST_TO_DISCORD=${AUTO_POST_TO_DISCORD}
+          ENABLE_WHALE_SIGNALS=${ENABLE_WHALE_SIGNALS}
+          WHALE_SIGNALS_INTERVAL_SECONDS=${WHALE_SIGNALS_INTERVAL_SECONDS}
+          WHALE_RISK_PROFILE=${WHALE_RISK_PROFILE}
+          LOG_LEVEL=${LOG_LEVEL}
+          NODE_ENV=${NODE_ENV}
+          EOF
+          grep -E '^[A-Z0-9_]+=.+$' /tmp/worker-secrets.env | flyctl secrets import -a "$APP_NAME"
+
+      - name: Deploy worker
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          bash scripts/deploy-worker-fly.sh
+
+      - name: Smoke check worker
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          flyctl machine list -a "$APP_NAME" | grep -q "started"
+          ok=0
+          for i in {1..12}; do
+            if flyctl logs -a "$APP_NAME" --no-tail | grep -Eq "Worker started, entering main loop|Stored whale snapshot|Running initial RSS backfill"; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          test "$ok" -eq 1
