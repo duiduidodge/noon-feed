@@ -24,7 +24,7 @@ jobs:
     env:
       APP_NAME: noon-feed-worker
       CONFIG_FILE: fly.worker.toml
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_WORKER || secrets.FLY_API_TOKEN }}
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_WORKER }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
