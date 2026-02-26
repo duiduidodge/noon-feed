@@ -1,0 +1,20 @@
+app = "noon-feed-worker"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[env]
+  NODE_ENV = "production"
+  LOG_LEVEL = "info"
+  REDIS_URL = "redis://127.0.0.1:6379"
+  ENABLE_OPPORTUNITY_SIGNALS = "false"
+  ENABLE_EMERGING_MOVERS_SIGNALS = "false"
+  ENABLE_WHALE_SIGNALS = "true"
+  WHALE_SIGNALS_INTERVAL_SECONDS = "1800"
+  WHALE_RISK_PROFILE = "moderate"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "1024mb"

@@ -1,0 +1,34 @@
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+# Runtime deps:
+# - redis-server: local queue backend inside the same Fly machine
+# - python3: support existing emerging-movers script if enabled
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends redis-server python3 ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install repo dependencies first for better layer caching
+COPY package.json package-lock.json ./
+COPY apps/worker/package.json apps/worker/package.json
+COPY packages/shared/package.json packages/shared/package.json
+COPY prisma/schema.prisma prisma/schema.prisma
+RUN npm ci
+
+# Install MCP runtime used by whale signals service
+RUN npm install -g mcporter mcp-remote
+
+# Copy source and build only required workspaces
+COPY . .
+RUN npm run db:generate \
+  && npm run build --workspace=@crypto-news/shared \
+  && npm run build --workspace=@crypto-news/worker
+
+COPY scripts/start-worker.sh /app/scripts/start-worker.sh
+RUN chmod +x /app/scripts/start-worker.sh
+
+ENV NODE_ENV=production
+ENV REDIS_URL=redis://127.0.0.1:6379
+
+CMD ["/app/scripts/start-worker.sh"]

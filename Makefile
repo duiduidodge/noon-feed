@@ -93,3 +93,20 @@ help:
 	@echo "  make db-seed      - Seed the database"
 	@echo "  make db-studio    - Open Prisma Studio"
 	@echo "  make setup        - Full setup (docker, install, migrate, seed)"
+	@echo "  make fly-worker-deploy - Deploy worker to Fly"
+	@echo "  make fly-worker-logs   - Tail Fly worker logs"
+	@echo "  make fly-feed-deploy   - Deploy feed app to Fly"
+	@echo "  make fly-feed-logs     - Tail Fly feed logs"
+
+# Fly.io worker
+fly-worker-deploy:
+	bash scripts/deploy-worker-fly.sh
+
+fly-worker-logs:
+	flyctl logs -a noon-feed-worker
+
+fly-feed-deploy:
+	bash scripts/deploy-feed-fly.sh
+
+fly-feed-logs:
+	flyctl logs -a noon-feed-web
