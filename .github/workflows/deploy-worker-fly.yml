@@ -109,7 +109,16 @@ jobs:
 
       - name: Smoke check worker
         run: |
-          flyctl machine list -a "$APP_NAME" | grep -q "started"
+          ok_machine=0
+          for i in {1..24}; do
+            if flyctl machine list -a "$APP_NAME" | grep -q "started"; then
+              ok_machine=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok_machine" -eq 1
+
           ok=0
           for i in {1..12}; do
             if flyctl logs -a "$APP_NAME" --no-tail | grep -Eq "Worker started, entering main loop|Stored whale snapshot|Running initial RSS backfill"; then
