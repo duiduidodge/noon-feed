@@ -22,7 +22,7 @@ echo "Config file:   ${CONFIG_FILE}"
 if [ "${CREATE_APP_IF_MISSING}" = "true" ]; then
   flyctl status -a "${APP_NAME}" >/dev/null 2>&1 || flyctl apps create "${APP_NAME}"
 fi
-flyctl deploy -a "${APP_NAME}" -c "${CONFIG_FILE}" --remote-only
+flyctl deploy -a "${APP_NAME}" -c "${CONFIG_FILE}" --remote-only --detach
 
 echo "Deployment complete. Current machines:"
 flyctl machine list -a "${APP_NAME}"
