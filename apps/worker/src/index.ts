@@ -10,6 +10,9 @@ import { DiscordWebhookService } from './services/discord-webhook.js';
 import { TelegramService, escapeHtml } from './services/telegram.js';
 import { evaluateBreakingNewsCandidate } from './services/breaking-news.js';
 import { EnrichmentMapper } from './services/enrichment-mapper.js';
+import { EmergingMoversSignalsService } from './services/emerging-movers-signals.js';
+import { OpportunitySignalsService } from './services/opportunity-signals.js';
+import { WhaleSignalsService } from './services/whale-signals.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
 import { processFetchAPINewsJob, type FetchAPINewsJobData } from './jobs/fetch-api-news.js';
 import { processFetchArticleJob, type FetchArticleJobData } from './jobs/fetch-article.js';
@@ -128,6 +131,18 @@ const articleQueue = new Queue('article-fetch', { connection: redisConnection })
 const enrichQueue = new Queue('enrich', { connection: redisConnection });
 const discordQueue = new Queue('discord-post', { connection: redisConnection });
 const summaryQueue = new Queue('summary', { connection: redisConnection });
+const emergingMoversSignalsService = new EmergingMoversSignalsService({
+  enabled: config.worker.enableEmergingMoversSignals,
+  command: config.worker.emergingMoversCommand,
+});
+const opportunitySignalsService = new OpportunitySignalsService({
+  enabled: config.worker.enableOpportunitySignals,
+  command: config.worker.opportunitySignalsCommand,
+});
+const whaleSignalsService = new WhaleSignalsService({
+  enabled: config.worker.enableWhaleSignals,
+  riskProfile: config.worker.whaleRiskProfile,
+});
 
 function isQueueUnavailableError(error: unknown): boolean {
   const message = (error as Error)?.message?.toLowerCase?.() || '';
@@ -882,6 +897,9 @@ async function main() {
   const intervalMs = config.worker.fetchIntervalMinutes * 60 * 1000;
   let lastRSSFetch = Date.now();
   let lastAPIFetch = Date.now();
+  let lastEmergingSignalsPoll = 0;
+  let lastOpportunitySignalsPoll = 0;
+  let lastWhaleSignalsPoll = 0;
   logger.info({ intervalMinutes: config.worker.fetchIntervalMinutes }, 'Worker started, entering main loop');
 
   while (true) {
@@ -901,6 +919,45 @@ async function main() {
         lastAPIFetch = Date.now();
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to schedule API news fetches');
+      }
+    }
+
+    if (
+      emergingMoversSignalsService.isEnabled() &&
+      Date.now() - lastEmergingSignalsPoll >= config.worker.emergingMoversIntervalSeconds * 1000
+    ) {
+      try {
+        await emergingMoversSignalsService.pollAndPersist(prisma);
+        lastEmergingSignalsPoll = Date.now();
+      } catch (error) {
+        logger.error({ error: (error as Error).message }, 'Failed to refresh emerging movers signals');
+        lastEmergingSignalsPoll = Date.now();
+      }
+    }
+
+    if (
+      opportunitySignalsService.isEnabled() &&
+      Date.now() - lastOpportunitySignalsPoll >= config.worker.opportunitySignalsIntervalSeconds * 1000
+    ) {
+      try {
+        await opportunitySignalsService.pollAndPersist(prisma);
+        lastOpportunitySignalsPoll = Date.now();
+      } catch (error) {
+        logger.error({ error: (error as Error).message }, 'Failed to refresh opportunity signals');
+        lastOpportunitySignalsPoll = Date.now();
+      }
+    }
+
+    if (
+      whaleSignalsService.isEnabled() &&
+      Date.now() - lastWhaleSignalsPoll >= config.worker.whaleSignalsIntervalSeconds * 1000
+    ) {
+      try {
+        await whaleSignalsService.pollAndPersist(prisma);
+        lastWhaleSignalsPoll = Date.now();
+      } catch (error) {
+        logger.error({ error: (error as Error).message }, 'Failed to refresh whale signals');
+        lastWhaleSignalsPoll = Date.now();
       }
     }
 

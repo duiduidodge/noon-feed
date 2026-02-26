@@ -18,6 +18,26 @@ function normalizeHeadlineKey(value: string): string {
     .trim();
 }
 
+function computeOpportunityBoost(params: {
+  title: string;
+  tags: string[];
+  opportunityAssets: Set<string>;
+}): number {
+  const { title, tags, opportunityAssets } = params;
+  if (opportunityAssets.size === 0) return 0;
+
+  const haystack = `${title} ${tags.join(' ')}`.toUpperCase();
+  let boost = 0;
+  for (const asset of opportunityAssets) {
+    const token = asset.toUpperCase();
+    const regex = new RegExp(`\\b${token}\\b`, 'i');
+    if (regex.test(haystack)) {
+      boost += 1;
+    }
+  }
+  return boost;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { prisma } = await import('@/lib/prisma');
@@ -76,6 +96,28 @@ export async function GET(request: NextRequest) {
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
 
+    let opportunityAssets = new Set<string>();
+    try {
+      const latestOpportunity = await prisma.opportunitySnapshot.findFirst({
+        orderBy: { createdAt: 'desc' },
+        include: {
+          opportunities: {
+            orderBy: [{ finalScore: 'desc' }, { scanStreak: 'desc' }],
+            take: 20,
+          },
+        },
+      });
+      if (latestOpportunity) {
+        opportunityAssets = new Set(
+          latestOpportunity.opportunities
+            .map((item) => item.asset)
+            .filter((asset): asset is string => typeof asset === 'string' && asset.trim() !== '')
+        );
+      }
+    } catch {
+      // Do not fail article feed if signals table is unavailable.
+    }
+
     const dedupedItems = [];
     const seenHeadlineKeys = new Set<string>();
     for (const article of articles) {
@@ -84,11 +126,31 @@ export async function GET(request: NextRequest) {
       if (seenHeadlineKeys.has(headlineKey)) continue;
       seenHeadlineKeys.add(headlineKey);
       dedupedItems.push(article);
-      if (dedupedItems.length >= limit + 1) break;
+      if (dedupedItems.length >= limit * 2 + 1) break;
     }
 
-    const hasMore = dedupedItems.length > limit;
-    const items = dedupedItems.slice(0, limit);
+    const rankedItems = dedupedItems.sort((a, b) => {
+      const aTags = toStringArray(a.enrichment?.tags);
+      const bTags = toStringArray(b.enrichment?.tags);
+      const aBoost = computeOpportunityBoost({
+        title: a.titleOriginal,
+        tags: aTags,
+        opportunityAssets,
+      });
+      const bBoost = computeOpportunityBoost({
+        title: b.titleOriginal,
+        tags: bTags,
+        opportunityAssets,
+      });
+      if (aBoost !== bBoost) return bBoost - aBoost;
+
+      const aTs = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+      const bTs = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      return bTs - aTs;
+    });
+
+    const hasMore = rankedItems.length > limit;
+    const items = rankedItems.slice(0, limit);
 
     const feedArticles = items.map((article) => ({
       id: article.id,

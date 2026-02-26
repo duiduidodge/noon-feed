@@ -165,6 +165,25 @@ export function buildConfig(): AppConfig {
       autoPostToDiscord: getEnvOptional('AUTO_POST_TO_DISCORD', 'false') === 'true',
       skipEnrichment: getEnvOptional('SKIP_ENRICHMENT', 'true') === 'true',
       enableHighImpactPosting: getEnvOptional('ENABLE_HIGH_IMPACT_POSTING', 'false') === 'true',
+      enableEmergingMoversSignals:
+        getEnvOptional('ENABLE_EMERGING_MOVERS_SIGNALS', 'false') === 'true',
+      emergingMoversCommand: getEnvOptional('EMERGING_MOVERS_COMMAND'),
+      emergingMoversIntervalSeconds: getEnvNumber(
+        'EMERGING_MOVERS_INTERVAL_SECONDS',
+        60
+      ),
+      enableOpportunitySignals:
+        getEnvOptional('ENABLE_OPPORTUNITY_SIGNALS', 'false') === 'true',
+      opportunitySignalsCommand: getEnvOptional('OPPORTUNITY_SIGNALS_COMMAND'),
+      opportunitySignalsIntervalSeconds: getEnvNumber(
+        'OPPORTUNITY_SIGNALS_INTERVAL_SECONDS',
+        300
+      ),
+      enableWhaleSignals: getEnvOptional('ENABLE_WHALE_SIGNALS', 'false') === 'true',
+      whaleSignalsIntervalSeconds: getEnvNumber('WHALE_SIGNALS_INTERVAL_SECONDS', 1800),
+      whaleRiskProfile: (
+        getEnvOptional('WHALE_RISK_PROFILE', 'moderate') || 'moderate'
+      ) as 'conservative' | 'moderate' | 'aggressive',
     },
     externalApis: {
       finnhub: {

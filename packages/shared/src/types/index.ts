@@ -188,6 +188,15 @@ export interface AppConfig {
     autoPostToDiscord: boolean;
     skipEnrichment: boolean;
     enableHighImpactPosting: boolean;
+    enableEmergingMoversSignals: boolean;
+    emergingMoversCommand?: string;
+    emergingMoversIntervalSeconds: number;
+    enableOpportunitySignals: boolean;
+    opportunitySignalsCommand?: string;
+    opportunitySignalsIntervalSeconds: number;
+    enableWhaleSignals: boolean;
+    whaleSignalsIntervalSeconds: number;
+    whaleRiskProfile: 'conservative' | 'moderate' | 'aggressive';
   };
   externalApis: {
     finnhub: {
