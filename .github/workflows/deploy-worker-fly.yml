@@ -24,6 +24,7 @@ jobs:
     env:
       APP_NAME: noon-feed-worker
       CONFIG_FILE: fly.worker.toml
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_WORKER || secrets.FLY_API_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,7 +34,6 @@ jobs:
 
       - name: Validate required secrets
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
@@ -47,7 +47,6 @@ jobs:
       - name: Sync worker secrets
         continue-on-error: true
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -105,14 +104,10 @@ jobs:
           fi
 
       - name: Deploy worker
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           bash scripts/deploy-worker-fly.sh
 
       - name: Smoke check worker
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           flyctl machine list -a "$APP_NAME" | grep -q "started"
           ok=0
