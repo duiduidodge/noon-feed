@@ -1,0 +1,1369 @@
+{
+  "scans": [
+    {
+      "time": "2026-02-26T04:16:50Z",
+      "markets": [
+        {
+          "token": "BTC",
+          "dex": "",
+          "rank": 1,
+          "direction": "long",
+          "contribution": 33.421377,
+          "traders": 411,
+          "price_chg_4h": 1.0708
+        },
+        {
+          "token": "ETH",
+          "dex": "",
+          "rank": 2,
+          "direction": "long",
+          "contribution": 19.786398,
+          "traders": 182,
+          "price_chg_4h": 0.4922
+        },
+        {
+          "token": "HYPE",
+          "dex": "",
+          "rank": 3,
+          "direction": "long",
+          "contribution": 18.274878,
+          "traders": 329,
+          "price_chg_4h": 1.5567
+        },
+        {
+          "token": "ZEC",
+          "dex": "",
+          "rank": 4,
+          "direction": "long",
+          "contribution": 5.286613,
+          "traders": 94,
+          "price_chg_4h": 4.0697
+        },
+        {
+          "token": "SILVER",
+          "dex": "xyz",
+          "rank": 5,
+          "direction": "long",
+          "contribution": 3.078738,
+          "traders": 79,
+          "price_chg_4h": 1.745
+        },
+        {
+          "token": "MON",
+          "dex": "",
+          "rank": 6,
+          "direction": "long",
+          "contribution": 2.939399,
+          "traders": 28,
+          "price_chg_4h": 3.5689
+        },
+        {
+          "token": "GOLD",
+          "dex": "xyz",
+          "rank": 7,
+          "direction": "long",
+          "contribution": 2.618894,
+          "traders": 65,
+          "price_chg_4h": 0.7248
+        },
+        {
+          "token": "LIT",
+          "dex": "",
+          "rank": 8,
+          "direction": "long",
+          "contribution": 2.615538,
+          "traders": 54,
+          "price_chg_4h": 2.529
+        },
+        {
+          "token": "SOL",
+          "dex": "",
+          "rank": 9,
+          "direction": "long",
+          "contribution": 1.765681,
+          "traders": 100,
+          "price_chg_4h": 0.3618
+        },
+        {
+          "token": "ETH",
+          "dex": "",
+          "rank": 10,
+          "direction": "short",
+          "contribution": 1.592293,
+          "traders": 52,
+          "price_chg_4h": 0.4922
+        },
+        {
+          "token": "BCH",
+          "dex": "",
+          "rank": 11,
+          "direction": "long",
+          "contribution": 1.350886,
+          "traders": 24,
+          "price_chg_4h": 1.8963
+        },
+        {
+          "token": "PAXG",
+          "dex": "",
+          "rank": 12,
+          "direction": "long",
+          "contribution": 1.207975,
+          "traders": 36,
+          "price_chg_4h": 0.683
+        },
+        {
+          "token": "FARTCOIN",
+          "dex": "",
+          "rank": 13,
+          "direction": "long",
+          "contribution": 1.199984,
+          "traders": 36,
+          "price_chg_4h": 2.3518
+        },
+        {
+          "token": "XRP",
+          "dex": "",
+          "rank": 14,
+          "direction": "long",
+          "contribution": 1.004392,
+          "traders": 42,
+          "price_chg_4h": 1.3096
+        },
+        {
+          "token": "MU",
+          "dex": "xyz",
+          "rank": 15,
+          "direction": "long",
+          "contribution": 0.851935,
+          "traders": 14,
+          "price_chg_4h": 0.6895
+        },
+        {
+          "token": "ZRO",
+          "dex": "",
+          "rank": 16,
+          "direction": "long",
+          "contribution": 0.847587,
+          "traders": 28,
+          "price_chg_4h": 1.036
+        },
+        {
+          "token": "TAO",
+          "dex": "",
+          "rank": 17,
+          "direction": "long",
+          "contribution": 0.794421,
+          "traders": 42,
+          "price_chg_4h": 2.948
+        },
+        {
+          "token": "STBL",
+          "dex": "",
+          "rank": 18,
+          "direction": "long",
+          "contribution": 0.623834,
+          "traders": 5,
+          "price_chg_4h": 7.8828
+        },
+        {
+          "token": "SNDK",
+          "dex": "xyz",
+          "rank": 19,
+          "direction": "long",
+          "contribution": 0.561028,
+          "traders": 16,
+          "price_chg_4h": 0.5936
+        },
+        {
+          "token": "CC",
+          "dex": "",
+          "rank": 20,
+          "direction": "long",
+          "contribution": 0.545813,
+          "traders": 21,
+          "price_chg_4h": 3.6286
+        },
+        {
+          "token": "VIRTUAL",
+          "dex": "",
+          "rank": 21,
+          "direction": "long",
+          "contribution": 0.476967,
+          "traders": 20,
+          "price_chg_4h": 1.4455
+        },
+        {
+          "token": "TON",
+          "dex": "",
+          "rank": 22,
+          "direction": "long",
+          "contribution": 0.419357,
+          "traders": 10,
+          "price_chg_4h": 2.1528
+        },
+        {
+          "token": "DOT",
+          "dex": "",
+          "rank": 23,
+          "direction": "short",
+          "contribution": 0.399505,
+          "traders": 18,
+          "price_chg_4h": -0.6883
+        },
+        {
+          "token": "XMR",
+          "dex": "",
+          "rank": 24,
+          "direction": "long",
+          "contribution": 0.369258,
+          "traders": 22,
+          "price_chg_4h": 0.6379
+        },
+        {
+          "token": "NVDA",
+          "dex": "xyz",
+          "rank": 25,
+          "direction": "long",
+          "contribution": 0.340335,
+          "traders": 19,
+          "price_chg_4h": 0.1126
+        },
+        {
+          "token": "GRIFFAIN",
+          "dex": "",
+          "rank": 26,
+          "direction": "long",
+          "contribution": 0.298783,
+          "traders": 2,
+          "price_chg_4h": 8.0369
+        },
+        {
+          "token": "CRCL",
+          "dex": "xyz",
+          "rank": 27,
+          "direction": "long",
+          "contribution": 0.285222,
+          "traders": 14,
+          "price_chg_4h": 2.4131
+        },
+        {
+          "token": "WLFI",
+          "dex": "",
+          "rank": 28,
+          "direction": "short",
+          "contribution": 0.255126,
+          "traders": 23,
+          "price_chg_4h": -0.8094
+        },
+        {
+          "token": "DOGE",
+          "dex": "",
+          "rank": 29,
+          "direction": "long",
+          "contribution": 0.241718,
+          "traders": 19,
+          "price_chg_4h": 0.7268
+        },
+        {
+          "token": "BERA",
+          "dex": "",
+          "rank": 30,
+          "direction": "long",
+          "contribution": 0.226904,
+          "traders": 12,
+          "price_chg_4h": 3.877
+        },
+        {
+          "token": "ENA",
+          "dex": "",
+          "rank": 31,
+          "direction": "long",
+          "contribution": 0.188959,
+          "traders": 25,
+          "price_chg_4h": 0.6424
+        },
+        {
+          "token": "AERO",
+          "dex": "",
+          "rank": 32,
+          "direction": "long",
+          "contribution": 0.158152,
+          "traders": 10,
+          "price_chg_4h": 2.6562
+        },
+        {
+          "token": "APT",
+          "dex": "",
+          "rank": 33,
+          "direction": "short",
+          "contribution": 0.15709,
+          "traders": 12,
+          "price_chg_4h": -2.2242
+        },
+        {
+          "token": "VVV",
+          "dex": "",
+          "rank": 34,
+          "direction": "long",
+          "contribution": 0.155567,
+          "traders": 20,
+          "price_chg_4h": 2.4978
+        },
+        {
+          "token": "MORPHO",
+          "dex": "",
+          "rank": 35,
+          "direction": "long",
+          "contribution": 0.147144,
+          "traders": 17,
+          "price_chg_4h": 1.1231
+        },
+        {
+          "token": "STABLE",
+          "dex": "",
+          "rank": 36,
+          "direction": "long",
+          "contribution": 0.142951,
+          "traders": 9,
+          "price_chg_4h": 3.2185
+        },
+        {
+          "token": "MSTR",
+          "dex": "xyz",
+          "rank": 37,
+          "direction": "long",
+          "contribution": 0.138353,
+          "traders": 9,
+          "price_chg_4h": 1.1944
+        },
+        {
+          "token": "XYZ100",
+          "dex": "xyz",
+          "rank": 38,
+          "direction": "short",
+          "contribution": 0.134008,
+          "traders": 14,
+          "price_chg_4h": -0.0791
+        },
+        {
+          "token": "ASTER",
+          "dex": "",
+          "rank": 39,
+          "direction": "short",
+          "contribution": 0.106598,
+          "traders": 24,
+          "price_chg_4h": -0.4534
+        },
+        {
+          "token": "ETHFI",
+          "dex": "",
+          "rank": 40,
+          "direction": "long",
+          "contribution": 0.10121,
+          "traders": 5,
+          "price_chg_4h": 1.3938
+        },
+        {
+          "token": "SMSN",
+          "dex": "xyz",
+          "rank": 41,
+          "direction": "long",
+          "contribution": 0.10022,
+          "traders": 10,
+          "price_chg_4h": 2.8569
+        },
+        {
+          "token": "FIL",
+          "dex": "",
+          "rank": 42,
+          "direction": "short",
+          "contribution": 0.100005,
+          "traders": 11,
+          "price_chg_4h": -3.6509
+        },
+        {
+          "token": "SYRUP",
+          "dex": "",
+          "rank": 43,
+          "direction": "long",
+          "contribution": 0.083603,
+          "traders": 8,
+          "price_chg_4h": 5.9125
+        },
+        {
+          "token": "CRV",
+          "dex": "",
+          "rank": 44,
+          "direction": "long",
+          "contribution": 0.0741,
+          "traders": 7,
+          "price_chg_4h": -0.6352
+        },
+        {
+          "token": "DASH",
+          "dex": "",
+          "rank": 45,
+          "direction": "long",
+          "contribution": 0.072602,
+          "traders": 6,
+          "price_chg_4h": 2.5288
+        },
+        {
+          "token": "SKY",
+          "dex": "",
+          "rank": 46,
+          "direction": "long",
+          "contribution": 0.07136,
+          "traders": 9,
+          "price_chg_4h": 2.6805
+        },
+        {
+          "token": "RESOLV",
+          "dex": "",
+          "rank": 47,
+          "direction": "short",
+          "contribution": 0.070283,
+          "traders": 5,
+          "price_chg_4h": -2.3278
+        },
+        {
+          "token": "NEAR",
+          "dex": "",
+          "rank": 48,
+          "direction": "short",
+          "contribution": 0.069553,
+          "traders": 10,
+          "price_chg_4h": -1.1162
+        },
+        {
+          "token": "PENDLE",
+          "dex": "",
+          "rank": 49,
+          "direction": "long",
+          "contribution": 0.060455,
+          "traders": 11,
+          "price_chg_4h": 1.3104
+        },
+        {
+          "token": "SAGA",
+          "dex": "",
+          "rank": 50,
+          "direction": "long",
+          "contribution": 0.058839,
+          "traders": 1,
+          "price_chg_4h": 1.8519
+        }
+      ]
+    },
+    {
+      "time": "2026-02-26T04:17:50Z",
+      "markets": [
+        {
+          "token": "BTC",
+          "dex": "",
+          "rank": 1,
+          "direction": "long",
+          "contribution": 36.48067,
+          "traders": 434,
+          "price_chg_4h": 0.6437
+        },
+        {
+          "token": "HYPE",
+          "dex": "",
+          "rank": 2,
+          "direction": "long",
+          "contribution": 24.708111,
+          "traders": 330,
+          "price_chg_4h": 1.1995
+        },
+        {
+          "token": "ZEC",
+          "dex": "",
+          "rank": 3,
+          "direction": "long",
+          "contribution": 7.466578,
+          "traders": 93,
+          "price_chg_4h": 3.3233
+        },
+        {
+          "token": "SILVER",
+          "dex": "xyz",
+          "rank": 4,
+          "direction": "long",
+          "contribution": 5.838868,
+          "traders": 76,
+          "price_chg_4h": 1.3271
+        },
+        {
+          "token": "ETH",
+          "dex": "",
+          "rank": 5,
+          "direction": "short",
+          "contribution": 4.090969,
+          "traders": 50,
+          "price_chg_4h": -0.1596
+        },
+        {
+          "token": "MON",
+          "dex": "",
+          "rank": 6,
+          "direction": "long",
+          "contribution": 4.081047,
+          "traders": 26,
+          "price_chg_4h": 2.821
+        },
+        {
+          "token": "LIT",
+          "dex": "",
+          "rank": 7,
+          "direction": "long",
+          "contribution": 3.2233,
+          "traders": 58,
+          "price_chg_4h": 1.7492
+        },
+        {
+          "token": "GOLD",
+          "dex": "xyz",
+          "rank": 8,
+          "direction": "long",
+          "contribution": 2.909199,
+          "traders": 63,
+          "price_chg_4h": 0.4543
+        },
+        {
+          "token": "NVDA",
+          "dex": "xyz",
+          "rank": 9,
+          "direction": "long",
+          "contribution": 2.291312,
+          "traders": 20,
+          "price_chg_4h": 0.4543
+        },
+        {
+          "token": "FARTCOIN",
+          "dex": "",
+          "rank": 10,
+          "direction": "long",
+          "contribution": 2.097945,
+          "traders": 37,
+          "price_chg_4h": 2.2725
+        },
+        {
+          "token": "BCH",
+          "dex": "",
+          "rank": 11,
+          "direction": "long",
+          "contribution": 1.758756,
+          "traders": 24,
+          "price_chg_4h": 1.3931
+        },
+        {
+          "token": "MU",
+          "dex": "xyz",
+          "rank": 12,
+          "direction": "long",
+          "contribution": 1.741524,
+          "traders": 15,
+          "price_chg_4h": 0.7993
+        },
+        {
+          "token": "ETH",
+          "dex": "",
+          "rank": 13,
+          "direction": "long",
+          "contribution": 1.363535,
+          "traders": 192,
+          "price_chg_4h": -0.1596
+        },
+        {
+          "token": "PAXG",
+          "dex": "",
+          "rank": 14,
+          "direction": "long",
+          "contribution": 1.261909,
+          "traders": 34,
+          "price_chg_4h": 0.4149
+        },
+        {
+          "token": "SNDK",
+          "dex": "xyz",
+          "rank": 15,
+          "direction": "long",
+          "contribution": 1.20893,
+          "traders": 17,
+          "price_chg_4h": 0.7255
+        },
+        {
+          "token": "ZRO",
+          "dex": "",
+          "rank": 16,
+          "direction": "long",
+          "contribution": 1.134031,
+          "traders": 26,
+          "price_chg_4h": 0.8008
+        },
+        {
+          "token": "TAO",
+          "dex": "",
+          "rank": 17,
+          "direction": "long",
+          "contribution": 1.082745,
+          "traders": 42,
+          "price_chg_4h": 2.2313
+        },
+        {
+          "token": "STBL",
+          "dex": "",
+          "rank": 18,
+          "direction": "long",
+          "contribution": 0.949124,
+          "traders": 5,
+          "price_chg_4h": 6.7727
+        },
+        {
+          "token": "XRP",
+          "dex": "",
+          "rank": 19,
+          "direction": "long",
+          "contribution": 0.946155,
+          "traders": 46,
+          "price_chg_4h": 0.4302
+        },
+        {
+          "token": "CC",
+          "dex": "",
+          "rank": 20,
+          "direction": "long",
+          "contribution": 0.759815,
+          "traders": 17,
+          "price_chg_4h": 3.1204
+        },
+        {
+          "token": "TON",
+          "dex": "",
+          "rank": 21,
+          "direction": "long",
+          "contribution": 0.664617,
+          "traders": 9,
+          "price_chg_4h": 1.9472
+        },
+        {
+          "token": "XMR",
+          "dex": "",
+          "rank": 22,
+          "direction": "long",
+          "contribution": 0.500961,
+          "traders": 20,
+          "price_chg_4h": 0.517
+        },
+        {
+          "token": "DOT",
+          "dex": "",
+          "rank": 23,
+          "direction": "short",
+          "contribution": 0.467665,
+          "traders": 16,
+          "price_chg_4h": 0.1106
+        },
+        {
+          "token": "WLFI",
+          "dex": "",
+          "rank": 24,
+          "direction": "short",
+          "contribution": 0.454444,
+          "traders": 25,
+          "price_chg_4h": -0.7661
+        },
+        {
+          "token": "SOL",
+          "dex": "",
+          "rank": 25,
+          "direction": "short",
+          "contribution": 0.453697,
+          "traders": 27,
+          "price_chg_4h": -0.5355
+        },
+        {
+          "token": "VVV",
+          "dex": "",
+          "rank": 26,
+          "direction": "long",
+          "contribution": 0.452113,
+          "traders": 21,
+          "price_chg_4h": 3.7946
+        },
+        {
+          "token": "STABLE",
+          "dex": "",
+          "rank": 27,
+          "direction": "long",
+          "contribution": 0.422794,
+          "traders": 11,
+          "price_chg_4h": 3.6682
+        },
+        {
+          "token": "BERA",
+          "dex": "",
+          "rank": 28,
+          "direction": "long",
+          "contribution": 0.420402,
+          "traders": 12,
+          "price_chg_4h": 3.6253
+        },
+        {
+          "token": "CRCL",
+          "dex": "xyz",
+          "rank": 29,
+          "direction": "long",
+          "contribution": 0.391628,
+          "traders": 13,
+          "price_chg_4h": 1.8943
+        },
+        {
+          "token": "XYZ100",
+          "dex": "xyz",
+          "rank": 30,
+          "direction": "short",
+          "contribution": 0.381219,
+          "traders": 13,
+          "price_chg_4h": -0.1305
+        },
+        {
+          "token": "VIRTUAL",
+          "dex": "",
+          "rank": 31,
+          "direction": "long",
+          "contribution": 0.274406,
+          "traders": 19,
+          "price_chg_4h": 0.4776
+        },
+        {
+          "token": "APT",
+          "dex": "",
+          "rank": 32,
+          "direction": "short",
+          "contribution": 0.268444,
+          "traders": 13,
+          "price_chg_4h": -2.1964
+        },
+        {
+          "token": "ADA",
+          "dex": "",
+          "rank": 33,
+          "direction": "short",
+          "contribution": 0.264252,
+          "traders": 21,
+          "price_chg_4h": -1.2199
+        },
+        {
+          "token": "AERO",
+          "dex": "",
+          "rank": 34,
+          "direction": "long",
+          "contribution": 0.23384,
+          "traders": 9,
+          "price_chg_4h": 2.3235
+        },
+        {
+          "token": "DASH",
+          "dex": "",
+          "rank": 35,
+          "direction": "long",
+          "contribution": 0.215301,
+          "traders": 8,
+          "price_chg_4h": 2.3182
+        },
+        {
+          "token": "PUMP",
+          "dex": "",
+          "rank": 36,
+          "direction": "short",
+          "contribution": 0.212226,
+          "traders": 14,
+          "price_chg_4h": -0.6911
+        },
+        {
+          "token": "AVAX",
+          "dex": "",
+          "rank": 37,
+          "direction": "short",
+          "contribution": 0.199698,
+          "traders": 20,
+          "price_chg_4h": -1.2525
+        },
+        {
+          "token": "ENA",
+          "dex": "",
+          "rank": 38,
+          "direction": "long",
+          "contribution": 0.1707,
+          "traders": 28,
+          "price_chg_4h": 0.3247
+        },
+        {
+          "token": "FIL",
+          "dex": "",
+          "rank": 39,
+          "direction": "short",
+          "contribution": 0.163418,
+          "traders": 10,
+          "price_chg_4h": -3.6827
+        },
+        {
+          "token": "LINK",
+          "dex": "",
+          "rank": 40,
+          "direction": "short",
+          "contribution": 0.148077,
+          "traders": 18,
+          "price_chg_4h": -0.9046
+        },
+        {
+          "token": "MSTR",
+          "dex": "xyz",
+          "rank": 41,
+          "direction": "long",
+          "contribution": 0.147328,
+          "traders": 9,
+          "price_chg_4h": 0.7256
+        },
+        {
+          "token": "RESOLV",
+          "dex": "",
+          "rank": 42,
+          "direction": "short",
+          "contribution": 0.131884,
+          "traders": 5,
+          "price_chg_4h": -2.2636
+        },
+        {
+          "token": "ASTER",
+          "dex": "",
+          "rank": 43,
+          "direction": "short",
+          "contribution": 0.12255,
+          "traders": 21,
+          "price_chg_4h": -0.3511
+        },
+        {
+          "token": "CRV",
+          "dex": "",
+          "rank": 44,
+          "direction": "long",
+          "contribution": 0.119139,
+          "traders": 9,
+          "price_chg_4h": -0.6302
+        },
+        {
+          "token": "AAVE",
+          "dex": "",
+          "rank": 45,
+          "direction": "short",
+          "contribution": 0.115618,
+          "traders": 14,
+          "price_chg_4h": -0.8847
+        },
+        {
+          "token": "AZTEC",
+          "dex": "",
+          "rank": 46,
+          "direction": "short",
+          "contribution": 0.114103,
+          "traders": 4,
+          "price_chg_4h": -2.3776
+        },
+        {
+          "token": "ETHFI",
+          "dex": "",
+          "rank": 47,
+          "direction": "long",
+          "contribution": 0.111811,
+          "traders": 5,
+          "price_chg_4h": 0.8781
+        },
+        {
+          "token": "OP",
+          "dex": "",
+          "rank": 48,
+          "direction": "long",
+          "contribution": 0.110607,
+          "traders": 5,
+          "price_chg_4h": 1.8408
+        },
+        {
+          "token": "GRIFFAIN",
+          "dex": "",
+          "rank": 49,
+          "direction": "long",
+          "contribution": 0.110203,
+          "traders": 2,
+          "price_chg_4h": 1.6082
+        },
+        {
+          "token": "SMSN",
+          "dex": "xyz",
+          "rank": 50,
+          "direction": "long",
+          "contribution": 0.104305,
+          "traders": 8,
+          "price_chg_4h": 1.7941
+        }
+      ]
+    },
+    {
+      "time": "2026-02-26T04:52:19Z",
+      "markets": [
+        {
+          "token": "ETH",
+          "dex": "",
+          "rank": 1,
+          "direction": "long",
+          "contribution": 39.832983,
+          "traders": 285,
+          "price_chg_4h": 0.7765
+        },
+        {
+          "token": "BTC",
+          "dex": "",
+          "rank": 2,
+          "direction": "long",
+          "contribution": 24.473623,
+          "traders": 450,
+          "price_chg_4h": 0.5141
+        },
+        {
+          "token": "ZEC",
+          "dex": "",
+          "rank": 3,
+          "direction": "long",
+          "contribution": 8.248077,
+          "traders": 121,
+          "price_chg_4h": 4.4007
+        },
+        {
+          "token": "MON",
+          "dex": "",
+          "rank": 4,
+          "direction": "long",
+          "contribution": 3.290076,
+          "traders": 36,
+          "price_chg_4h": 2.8188
+        },
+        {
+          "token": "SILVER",
+          "dex": "xyz",
+          "rank": 5,
+          "direction": "short",
+          "contribution": 3.138269,
+          "traders": 39,
+          "price_chg_4h": -0.7142
+        },
+        {
+          "token": "FARTCOIN",
+          "dex": "",
+          "rank": 6,
+          "direction": "long",
+          "contribution": 2.207013,
+          "traders": 47,
+          "price_chg_4h": 2.7904
+        },
+        {
+          "token": "BCH",
+          "dex": "",
+          "rank": 7,
+          "direction": "long",
+          "contribution": 2.022685,
+          "traders": 29,
+          "price_chg_4h": 2.0561
+        },
+        {
+          "token": "SOL",
+          "dex": "",
+          "rank": 8,
+          "direction": "long",
+          "contribution": 1.985926,
+          "traders": 131,
+          "price_chg_4h": 0.2598
+        },
+        {
+          "token": "XRP",
+          "dex": "",
+          "rank": 9,
+          "direction": "long",
+          "contribution": 1.981549,
+          "traders": 63,
+          "price_chg_4h": 1.3969
+        },
+        {
+          "token": "LIT",
+          "dex": "",
+          "rank": 10,
+          "direction": "long",
+          "contribution": 1.59969,
+          "traders": 50,
+          "price_chg_4h": 1.177
+        },
+        {
+          "token": "PUMP",
+          "dex": "",
+          "rank": 11,
+          "direction": "short",
+          "contribution": 1.006551,
+          "traders": 23,
+          "price_chg_4h": -2.199
+        },
+        {
+          "token": "TON",
+          "dex": "",
+          "rank": 12,
+          "direction": "long",
+          "contribution": 0.924108,
+          "traders": 14,
+          "price_chg_4h": 3.3287
+        },
+        {
+          "token": "HYPE",
+          "dex": "",
+          "rank": 13,
+          "direction": "long",
+          "contribution": 0.885918,
+          "traders": 173,
+          "price_chg_4h": 0.0814
+        },
+        {
+          "token": "ZRO",
+          "dex": "",
+          "rank": 14,
+          "direction": "long",
+          "contribution": 0.874426,
+          "traders": 22,
+          "price_chg_4h": 0.7976
+        },
+        {
+          "token": "VIRTUAL",
+          "dex": "",
+          "rank": 15,
+          "direction": "long",
+          "contribution": 0.814801,
+          "traders": 24,
+          "price_chg_4h": 1.819
+        },
+        {
+          "token": "ETH",
+          "dex": "",
+          "rank": 16,
+          "direction": "short",
+          "contribution": 0.782637,
+          "traders": 35,
+          "price_chg_4h": 0.7765
+        },
+        {
+          "token": "STBL",
+          "dex": "",
+          "rank": 17,
+          "direction": "long",
+          "contribution": 0.748851,
+          "traders": 8,
+          "price_chg_4h": 6.2865
+        },
+        {
+          "token": "ASTER",
+          "dex": "",
+          "rank": 18,
+          "direction": "long",
+          "contribution": 0.659948,
+          "traders": 29,
+          "price_chg_4h": 0.3517
+        },
+        {
+          "token": "LINK",
+          "dex": "",
+          "rank": 19,
+          "direction": "long",
+          "contribution": 0.62826,
+          "traders": 37,
+          "price_chg_4h": 0.7917
+        },
+        {
+          "token": "TAO",
+          "dex": "",
+          "rank": 20,
+          "direction": "long",
+          "contribution": 0.610905,
+          "traders": 45,
+          "price_chg_4h": 1.5645
+        },
+        {
+          "token": "ENA",
+          "dex": "",
+          "rank": 21,
+          "direction": "long",
+          "contribution": 0.563228,
+          "traders": 34,
+          "price_chg_4h": 1.3335
+        },
+        {
+          "token": "SILVER",
+          "dex": "xyz",
+          "rank": 22,
+          "direction": "long",
+          "contribution": 0.529195,
+          "traders": 22,
+          "price_chg_4h": -0.7142
+        },
+        {
+          "token": "XMR",
+          "dex": "",
+          "rank": 23,
+          "direction": "long",
+          "contribution": 0.519714,
+          "traders": 22,
+          "price_chg_4h": 0.6858
+        },
+        {
+          "token": "CRCL",
+          "dex": "xyz",
+          "rank": 24,
+          "direction": "long",
+          "contribution": 0.491942,
+          "traders": 17,
+          "price_chg_4h": 2.7997
+        },
+        {
+          "token": "WLFI",
+          "dex": "",
+          "rank": 25,
+          "direction": "short",
+          "contribution": 0.468432,
+          "traders": 28,
+          "price_chg_4h": -1.317
+        },
+        {
+          "token": "VVV",
+          "dex": "",
+          "rank": 26,
+          "direction": "long",
+          "contribution": 0.40001,
+          "traders": 25,
+          "price_chg_4h": 3.0684
+        },
+        {
+          "token": "CC",
+          "dex": "",
+          "rank": 27,
+          "direction": "long",
+          "contribution": 0.399666,
+          "traders": 19,
+          "price_chg_4h": 2.3401
+        },
+        {
+          "token": "DOGE",
+          "dex": "",
+          "rank": 28,
+          "direction": "long",
+          "contribution": 0.36156,
+          "traders": 36,
+          "price_chg_4h": 0.7367
+        },
+        {
+          "token": "GRIFFAIN",
+          "dex": "",
+          "rank": 29,
+          "direction": "long",
+          "contribution": 0.360963,
+          "traders": 4,
+          "price_chg_4h": 6.4705
+        },
+        {
+          "token": "NVDA",
+          "dex": "xyz",
+          "rank": 30,
+          "direction": "short",
+          "contribution": 0.348018,
+          "traders": 26,
+          "price_chg_4h": -0.1886
+        },
+        {
+          "token": "STABLE",
+          "dex": "",
+          "rank": 31,
+          "direction": "long",
+          "contribution": 0.267914,
+          "traders": 10,
+          "price_chg_4h": 2.7116
+        },
+        {
+          "token": "AERO",
+          "dex": "",
+          "rank": 32,
+          "direction": "long",
+          "contribution": 0.252327,
+          "traders": 12,
+          "price_chg_4h": 3.019
+        },
+        {
+          "token": "SNDK",
+          "dex": "xyz",
+          "rank": 33,
+          "direction": "short",
+          "contribution": 0.231508,
+          "traders": 15,
+          "price_chg_4h": -0.3094
+        },
+        {
+          "token": "UNI",
+          "dex": "",
+          "rank": 34,
+          "direction": "long",
+          "contribution": 0.219553,
+          "traders": 28,
+          "price_chg_4h": 0.8103
+        },
+        {
+          "token": "DASH",
+          "dex": "",
+          "rank": 35,
+          "direction": "long",
+          "contribution": 0.209446,
+          "traders": 16,
+          "price_chg_4h": 2.2889
+        },
+        {
+          "token": "DOT",
+          "dex": "",
+          "rank": 36,
+          "direction": "short",
+          "contribution": 0.204684,
+          "traders": 13,
+          "price_chg_4h": -1.3538
+        },
+        {
+          "token": "SPX",
+          "dex": "",
+          "rank": 37,
+          "direction": "long",
+          "contribution": 0.196185,
+          "traders": 17,
+          "price_chg_4h": 2.7972
+        },
+        {
+          "token": "ETHFI",
+          "dex": "",
+          "rank": 38,
+          "direction": "long",
+          "contribution": 0.187145,
+          "traders": 8,
+          "price_chg_4h": 1.7841
+        },
+        {
+          "token": "MORPHO",
+          "dex": "",
+          "rank": 39,
+          "direction": "long",
+          "contribution": 0.150189,
+          "traders": 15,
+          "price_chg_4h": 1.0564
+        },
+        {
+          "token": "HBAR",
+          "dex": "",
+          "rank": 40,
+          "direction": "long",
+          "contribution": 0.14856,
+          "traders": 10,
+          "price_chg_4h": 1.0495
+        },
+        {
+          "token": "BERA",
+          "dex": "",
+          "rank": 41,
+          "direction": "long",
+          "contribution": 0.145682,
+          "traders": 14,
+          "price_chg_4h": 1.7218
+        },
+        {
+          "token": "SUI",
+          "dex": "",
+          "rank": 42,
+          "direction": "long",
+          "contribution": 0.141016,
+          "traders": 30,
+          "price_chg_4h": 0.5891
+        },
+        {
+          "token": "URNM",
+          "dex": "xyz",
+          "rank": 43,
+          "direction": "short",
+          "contribution": 0.130111,
+          "traders": 8,
+          "price_chg_4h": -1.6072
+        },
+        {
+          "token": "ADA",
+          "dex": "",
+          "rank": 44,
+          "direction": "long",
+          "contribution": 0.11145,
+          "traders": 17,
+          "price_chg_4h": 0.7464
+        },
+        {
+          "token": "MSTR",
+          "dex": "xyz",
+          "rank": 45,
+          "direction": "long",
+          "contribution": 0.105003,
+          "traders": 11,
+          "price_chg_4h": 0.6014
+        },
+        {
+          "token": "AZTEC",
+          "dex": "",
+          "rank": 46,
+          "direction": "short",
+          "contribution": 0.103993,
+          "traders": 8,
+          "price_chg_4h": -3.0953
+        },
+        {
+          "token": "XYZ100",
+          "dex": "xyz",
+          "rank": 47,
+          "direction": "short",
+          "contribution": 0.094141,
+          "traders": 16,
+          "price_chg_4h": -0.0396
+        },
+        {
+          "token": "COPPER",
+          "dex": "xyz",
+          "rank": 48,
+          "direction": "short",
+          "contribution": 0.094141,
+          "traders": 10,
+          "price_chg_4h": -0.1572
+        },
+        {
+          "token": "PENDLE",
+          "dex": "",
+          "rank": 49,
+          "direction": "long",
+          "contribution": 0.094022,
+          "traders": 19,
+          "price_chg_4h": 1.7838
+        },
+        {
+          "token": "BABA",
+          "dex": "xyz",
+          "rank": 50,
+          "direction": "short",
+          "contribution": 0.093742,
+          "traders": 9,
+          "price_chg_4h": -1.8369
+        }
+      ]
+    }
+  ]
+}

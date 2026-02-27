@@ -1,12 +1,9 @@
 import { NewsFeed } from '@/components/news-feed';
 import { BiDailySummary } from '@/components/bi-daily-summary';
 import { PricesColumn } from '@/components/prices-column';
-import { OpportunitySignalsPanel } from '@/components/opportunity-signals-panel';
 import { PanelShell } from '@/components/panel-shell';
 import { MarketChatterPanel } from '@/components/market-chatter-panel';
-import { EmergingMoversPanel } from '@/components/emerging-movers-panel';
-import { WhaleIndexPanel } from '@/components/whale-index-panel';
-import { TradeSetupsPanel } from '@/components/trade-setups-panel';
+import { SignalPulseStrip } from '@/components/signal-pulse-strip';
 import type { FeedArticle } from '@/components/news-card';
 
 export const dynamic = 'force-dynamic';
@@ -84,13 +81,10 @@ export default async function FeedPage() {
         {/* 3-Column Layout */}
         <div className="flex flex-col gap-unit-3 lg:grid lg:h-[calc(100dvh-86px)] lg:grid-cols-[280px_1fr_280px] lg:gap-unit-4">
 
-          {/* LEFT COLUMN: Market Data */}
+          {/* LEFT COLUMN: Signals Strip + Market Data */}
           <div id="section-markets" role="region" aria-label="Market data and signals" className="order-2 lg:order-none flex flex-col gap-unit-3 lg:overflow-hidden">
             <div className="shrink-0">
-              <TradeSetupsPanel />
-            </div>
-            <div className="shrink-0">
-              <OpportunitySignalsPanel />
+              <SignalPulseStrip />
             </div>
             <PanelShell variant="secondary" className="flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 overflow-y-auto custom-scrollbar p-unit-3">
@@ -114,13 +108,7 @@ export default async function FeedPage() {
           </div>
 
           {/* RIGHT COLUMN: Chatter */}
-          <div id="section-posts" role="region" aria-label="Social signals and market chatter" className="order-3 lg:order-none flex flex-col gap-unit-3 lg:overflow-hidden">
-            <div className="shrink-0">
-              <EmergingMoversPanel />
-            </div>
-            <div className="shrink-0">
-              <WhaleIndexPanel />
-            </div>
+          <div id="section-posts" role="region" aria-label="Market chatter" className="order-3 lg:order-none flex flex-col gap-unit-3 lg:overflow-hidden">
             <div className="flex-1 min-h-[300px] overflow-hidden">
               <MarketChatterPanel className="h-full" />
             </div>

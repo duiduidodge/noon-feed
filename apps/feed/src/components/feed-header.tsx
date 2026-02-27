@@ -13,7 +13,7 @@ const NAV_ITEMS = [
   { label: 'Latest Intel', sectionId: 'section-latest-intel', path: '/' },
   { label: 'Briefing', sectionId: 'section-briefing', path: '/briefing' },
   { label: 'Posts', sectionId: 'section-posts', path: '/posts' },
-  { label: 'Alpha', sectionId: null, path: null },
+  { label: 'Signals', sectionId: null, path: '/signals' },
   { label: 'Markets', sectionId: 'section-markets', path: '/markets' },
   { label: 'Charts', sectionId: null, path: '/charts' },
 ];
@@ -33,6 +33,8 @@ export function FeedHeader() {
       setActiveTab('Briefing');
     } else if (pathname.includes('/posts')) {
       setActiveTab('Posts');
+    } else if (pathname.includes('/signals')) {
+      setActiveTab('Signals');
     } else if (pathname.includes('/markets')) {
       setActiveTab('Markets');
     } else if (pathname.includes('/charts')) {
