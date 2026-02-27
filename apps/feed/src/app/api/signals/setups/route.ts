@@ -15,6 +15,14 @@ function toToken(value: string | null | undefined): string {
   return value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 }
 
+function parseEmergingSignal(signal: string | null | undefined): { asset: string; direction: string } {
+  const parts = (signal || '').trim().split(/\s+/).filter(Boolean);
+  const asset = toToken(parts[0] || '');
+  const rawDirection = (parts[1] || '').toUpperCase();
+  const direction = rawDirection === 'SHORT' ? 'SHORT' : 'LONG';
+  return { asset, direction };
+}
+
 export async function GET() {
   try {
     const { prisma } = await import('@/lib/prisma');
@@ -59,12 +67,13 @@ export async function GET() {
       { immediate: boolean; deep: boolean; direction: string; rank: number | null; traders: number | null; reasonCount: number }
     >();
     for (const alert of emergingSnapshot?.alerts || []) {
-      const token = toToken(alert.signal);
+      const parsed = parseEmergingSignal(alert.signal);
+      const token = parsed.asset;
       if (!token) continue;
       const current = emergingByToken.get(token) || {
         immediate: false,
         deep: false,
-        direction: alert.direction || 'LONG',
+        direction: (alert.direction || parsed.direction || 'LONG').toUpperCase(),
         rank: alert.currentRank,
         traders: alert.traders,
         reasonCount: 0,
@@ -72,7 +81,7 @@ export async function GET() {
       emergingByToken.set(token, {
         immediate: current.immediate || alert.isImmediate,
         deep: current.deep || alert.isDeepClimber,
-        direction: current.direction || alert.direction || 'LONG',
+        direction: current.direction || (alert.direction || parsed.direction || 'LONG').toUpperCase(),
         rank: current.rank ?? alert.currentRank,
         traders: current.traders ?? alert.traders,
         reasonCount: Math.max(current.reasonCount, alert.reasonCount || 0),
