@@ -6,6 +6,7 @@ import { PanelShell } from '@/components/panel-shell';
 import { MarketChatterPanel } from '@/components/market-chatter-panel';
 import { EmergingMoversPanel } from '@/components/emerging-movers-panel';
 import { WhaleIndexPanel } from '@/components/whale-index-panel';
+import { TradeSetupsPanel } from '@/components/trade-setups-panel';
 import type { FeedArticle } from '@/components/news-card';
 
 export const dynamic = 'force-dynamic';
@@ -85,6 +86,9 @@ export default async function FeedPage() {
 
           {/* LEFT COLUMN: Market Data */}
           <div id="section-markets" className="order-2 lg:order-none lg:col-span-3 flex flex-col gap-unit-3 lg:overflow-hidden">
+            <div className="shrink-0">
+              <TradeSetupsPanel />
+            </div>
             <div className="shrink-0">
               <OpportunitySignalsPanel />
             </div>
