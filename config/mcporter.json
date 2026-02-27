@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "senpi": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://mcp.prod.senpi.ai/mcp",
+        "--header",
+        "Authorization: Bearer ${SENPI_AUTH_TOKEN}"
+      ]
+    }
+  },
+  "imports": []
+}

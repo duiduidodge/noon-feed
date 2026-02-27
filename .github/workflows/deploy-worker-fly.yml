@@ -8,6 +8,8 @@ on:
       - "apps/worker/**"
       - "packages/shared/**"
       - "prisma/**"
+      - "config/**"
+      - "scripts/start-worker.sh"
       - "Dockerfile.worker"
       - "fly.worker.toml"
       - ".github/workflows/deploy-worker-fly.yml"
