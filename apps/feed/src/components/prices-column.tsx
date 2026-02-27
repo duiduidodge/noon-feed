@@ -83,7 +83,7 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
     >
       <svg
         viewBox="0 0 128 72"
-        className="w-full max-w-[150px] overflow-visible"
+        className="w-full max-w-[130px] overflow-visible"
         aria-hidden="true"
       >
         <defs>
@@ -216,7 +216,7 @@ export function PricesColumn() {
       </div>
 
       {/* ── Mood Gauge Container ── */}
-      <div className="relative flex justify-center py-4 min-h-[140px] rounded-2xl border border-border/40 bg-surface/30 backdrop-blur-md shadow-inner transition-all duration-normal hover:bg-surface/40 hover:border-primary/30 overflow-visible">
+      <div className="relative flex justify-center py-3 min-h-[120px] rounded-2xl border border-border/40 bg-surface/30 backdrop-blur-md shadow-inner transition-all duration-normal hover:bg-surface/40 hover:border-primary/30 overflow-visible">
         <div
           className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/10 to-transparent"
           aria-hidden="true"
@@ -283,7 +283,7 @@ export function PricesColumn() {
       <button
         type="button"
         onClick={() => setShowExtendedMobile((prev) => !prev)}
-        className="md:hidden inline-flex h-10 items-center justify-center gap-2 rounded-full border border-border/55 bg-card/70 px-4 font-mono-data text-caption font-semibold uppercase tracking-[0.18em] text-foreground/85 transition-colors duration-fast hover:border-primary/40 hover:text-primary focus-ring"
+        className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border/55 bg-card/70 px-4 font-mono-data text-caption font-semibold uppercase tracking-[0.18em] text-foreground/85 transition-colors duration-fast hover:border-primary/40 hover:text-primary focus-ring"
         aria-expanded={showExtendedMobile}
         aria-controls="extended-signals"
       >
@@ -292,10 +292,10 @@ export function PricesColumn() {
         ) : (
           <ChevronDown className="h-3.5 w-3.5" />
         )}
-        {showExtendedMobile ? 'Hide Extended Signals' : 'Show Extended Signals'}
+        {showExtendedMobile ? 'Hide Alpha Signals' : 'Show Alpha Signals'}
       </button>
 
-      <div id="extended-signals" className={clsx(showExtendedMobile ? 'block' : 'hidden md:block')}>
+      <div id="extended-signals" className={clsx(showExtendedMobile ? 'block' : 'hidden')}>
         <div
           className="h-px bg-gradient-to-r from-transparent via-border/35 to-transparent shrink-0 my-2"
           aria-hidden="true"
@@ -431,7 +431,7 @@ function CoinRow({
   return (
     <div
       className={clsx(
-        'group relative grid grid-cols-[32px_76px_1fr_auto] items-center gap-2.5 px-2 py-4 cursor-default',
+        'group relative grid grid-cols-[32px_76px_1fr_auto] items-center gap-2 px-2 py-2.5 cursor-default',
         'border-b border-border/15 last:border-0',
         'transition-colors duration-fast',
         isPositive ? 'hover:bg-bullish/[0.04]' : 'hover:bg-bearish/[0.04]'
@@ -486,7 +486,7 @@ function CoinRow({
       </div>
 
       {/* Gradient sparkline */}
-      <div className="min-w-0 h-9 opacity-80 group-hover:opacity-100 transition-opacity duration-normal">
+      <div className="min-w-0 h-7 opacity-80 group-hover:opacity-100 transition-opacity duration-normal">
         {sparklineSvg}
       </div>
 
@@ -515,7 +515,7 @@ function CoinRow({
 // ─── Metric card (used in the 3-column grid) ───
 function MetricCard({ label, value, change }: { label: string; value: string; change?: number }) {
   return (
-    <div className="relative flex flex-col p-unit-2 overflow-hidden group hover:bg-surface/30 transition-all duration-normal">
+    <div className="relative flex flex-col px-2 py-1.5 overflow-hidden group hover:bg-surface/30 transition-all duration-normal">
       <div
         className="absolute inset-x-0 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-primary/25 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
         aria-hidden="true"

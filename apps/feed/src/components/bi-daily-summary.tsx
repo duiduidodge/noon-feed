@@ -316,7 +316,7 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
           }}
         />
 
-        <div style={{ padding: '20px' }} className="relative">
+        <div style={{ padding: '16px' }} className="relative">
 
           {/* ══ HEADER ══ */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -332,7 +332,7 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
                     ? 'border-orange-400/30 bg-orange-400/10 text-orange-400/80'
                     : 'border-sky-400/30 bg-sky-400/10 text-sky-400/80'
                 )}
-                style={{ width: '32px', height: '32px' }}
+                style={{ width: '28px', height: '28px' }}
                 aria-hidden="true"
               >
                 {isMorning
@@ -347,7 +347,7 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
                   <h3
                     className="font-display group-hover:text-primary transition-colors duration-200"
                     style={{
-                      fontSize: '18px',
+                      fontSize: '16px',
                       fontWeight: 800,
                       letterSpacing: '0.06em',
                       textTransform: 'uppercase',
@@ -412,7 +412,7 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
           <div style={{ height: '1px', background: 'hsl(var(--border) / 0.25)', marginBottom: '10px' }} />
 
           {/* ══ BODY — 3fr editorial bullets | 2fr data sidebar ══ */}
-          <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '22px', alignItems: 'stretch' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '16px', alignItems: 'stretch' }}>
 
             {/* ── LEFT COLUMN: Numbered editorial bullets ── */}
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -465,7 +465,7 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
             {/* ── RIGHT COLUMN: F&G score + tickers ── */}
             <div style={{
               borderLeft: `1px solid ${isMorning ? 'hsl(38 92% 62% / 0.18)' : 'hsl(199 89% 60% / 0.18)'}`,
-              paddingLeft: '22px',
+              paddingLeft: '16px',
             }}>
 
               {/* FEAR & GREED — typographic score, not a gauge */}
@@ -481,7 +481,7 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '9px' }}>
                   <span
                     className={clsx('font-mono-data tabular-nums', fgTextColor)}
-                    style={{ fontSize: '32px', fontWeight: 900, lineHeight: 1, letterSpacing: '-0.04em' }}
+                    style={{ fontSize: '28px', fontWeight: 900, lineHeight: 1, letterSpacing: '-0.04em' }}
                   >
                     {fgIndex}
                   </span>

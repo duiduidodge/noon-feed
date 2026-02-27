@@ -62,14 +62,14 @@ export function LowImpactFeed({ standalone = false, limit = 12 }: LowImpactFeedP
                     </p>
                 </div>
             ) : (
-                <div className="flex flex-col gap-1.5 p-1" role="feed" aria-label="Market chatter articles">
+                <div className="flex flex-col gap-1 p-1" role="feed" aria-label="Market chatter articles">
                     {visibleArticles.map((article) => (
                         <a
                             key={article.id}
                             href={article.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="group relative flex gap-unit-2 rounded-lg border border-border/35 bg-card/45 px-unit-3 py-unit-2 transition-all duration-fast hover:bg-surface/65 hover:border-border/65 focus-ring"
+                            className="group relative flex gap-unit-2 rounded-lg border border-border/35 bg-card/45 px-2.5 py-1.5 transition-all duration-fast hover:bg-surface/65 hover:border-border/65 focus-ring"
                         >
                             {/* Source Avatar */}
                             <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full bg-surface border border-border/50 flex items-center justify-center">

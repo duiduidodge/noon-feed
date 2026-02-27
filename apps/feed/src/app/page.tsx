@@ -82,10 +82,10 @@ export default async function FeedPage() {
       <main className="mx-auto flex h-full w-full max-w-[1640px] flex-col px-3 pb-unit-3 pt-unit-2 md:px-unit-4 md:pb-unit-4 lg:px-unit-4">
 
         {/* 3-Column Layout */}
-        <div className="flex flex-col gap-unit-3 lg:grid lg:h-[calc(100dvh-104px)] lg:grid-cols-12 lg:gap-unit-4">
+        <div className="flex flex-col gap-unit-3 lg:grid lg:h-[calc(100dvh-86px)] lg:grid-cols-[280px_1fr_280px] lg:gap-unit-4">
 
           {/* LEFT COLUMN: Market Data */}
-          <div id="section-markets" className="order-2 lg:order-none lg:col-span-3 flex flex-col gap-unit-3 lg:overflow-hidden">
+          <div id="section-markets" role="region" aria-label="Market data and signals" className="order-2 lg:order-none flex flex-col gap-unit-3 lg:overflow-hidden">
             <div className="shrink-0">
               <TradeSetupsPanel />
             </div>
@@ -100,7 +100,7 @@ export default async function FeedPage() {
           </div>
 
           {/* CENTER COLUMN: Main Feed */}
-          <div className="order-1 lg:order-none lg:col-span-6 flex flex-col gap-unit-3 lg:overflow-hidden">
+          <div role="region" aria-label="News feed and briefing" className="order-1 lg:order-none flex flex-col gap-unit-3 lg:overflow-hidden">
 
             {/* Briefing (Compact) */}
             <PanelShell id="section-briefing" className="order-2 lg:order-1 shrink-0 bg-transparent border-0 p-0 shadow-none overflow-visible !bg-none">
@@ -114,7 +114,7 @@ export default async function FeedPage() {
           </div>
 
           {/* RIGHT COLUMN: Chatter */}
-          <div id="section-posts" className="order-3 lg:order-none lg:col-span-3 flex flex-col gap-unit-3 lg:overflow-hidden">
+          <div id="section-posts" role="region" aria-label="Social signals and market chatter" className="order-3 lg:order-none flex flex-col gap-unit-3 lg:overflow-hidden">
             <div className="shrink-0">
               <EmergingMoversPanel />
             </div>

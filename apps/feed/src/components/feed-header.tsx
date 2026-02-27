@@ -88,7 +88,7 @@ export function FeedHeader() {
     <header className="sticky top-0 z-50">
       {/* Main navigation bar */}
       <div className="bg-background/90 backdrop-blur-xl border-b border-border/45 transition-all duration-normal relative z-50">
-        <div className="mx-auto flex h-16 md:h-[72px] max-w-[1640px] items-center justify-between px-3 md:px-unit-4 lg:px-unit-6">
+        <div className="mx-auto flex h-14 max-w-[1640px] items-center justify-between px-3 md:px-unit-4 lg:px-unit-6">
           {/* Logo */}
           <div
             className="flex items-center cursor-pointer opacity-90 hover:opacity-100 transition-opacity duration-fast"
@@ -102,7 +102,7 @@ export function FeedHeader() {
               alt="noon — Crypto Intelligence"
               width={160}
               height={46}
-              className="h-8 md:h-9 w-auto logo-light select-none"
+              className="h-7 md:h-8 w-auto logo-light select-none"
               priority
             />
           </div>
@@ -125,7 +125,7 @@ export function FeedHeader() {
                   aria-selected={isActive}
                   aria-disabled={isDisabled}
                   className={`
-                    relative py-2 text-body font-medium tracking-tight transition-colors duration-fast
+                    relative py-2 text-small font-medium tracking-tight transition-colors duration-fast
                     ${isActive
                       ? 'text-foreground font-semibold'
                       : 'text-muted-foreground hover:text-foreground/85'
@@ -146,7 +146,7 @@ export function FeedHeader() {
                   {isActive && (
                     <motion.span
                       layoutId="nav-active-indicator"
-                      className="absolute -bottom-[22px] left-0 right-0 h-[2px] bg-primary rounded-t-full"
+                      className="absolute -bottom-[18px] left-0 right-0 h-[2px] bg-primary rounded-t-full"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
@@ -235,7 +235,7 @@ export function FeedHeader() {
       </div>
 
       {/* Market ticker strip (Desktop) */}
-      <div className="ticker-pause relative hidden h-[36px] items-center overflow-hidden border-b border-border/30 bg-background/70 backdrop-blur-md md:flex" role="marquee" aria-label="Market prices ticker">
+      <div className="ticker-pause relative hidden h-[30px] items-center overflow-hidden border-b border-border/30 bg-background/70 backdrop-blur-md md:flex" role="marquee" aria-label="Market prices ticker">
         <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-background via-background/80 to-transparent z-10" aria-hidden="true" />
         <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background via-background/80 to-transparent z-10" aria-hidden="true" />
         <MarketTicker />

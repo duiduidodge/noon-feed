@@ -100,7 +100,7 @@ export function NewsFeed({ initialArticles }: NewsFeedProps) {
         </div>
       </div>
 
-      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar scroll-smooth" role="feed" aria-label="News articles">
+      <div ref={scrollContainerRef} className="min-h-0 flex-1 overflow-y-auto custom-scrollbar scroll-smooth" role="feed" aria-label="News articles" aria-live="polite">
         {isLoading ? (
           <div className="divide-y divide-border/15">
             {Array.from({ length: 8 }).map((_, i) => (

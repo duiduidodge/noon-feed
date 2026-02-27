@@ -22,7 +22,7 @@ export function MarketChatterPanel({ className, id }: MarketChatterPanelProps) {
       )}
     >
       {/* Header bar */}
-      <div className="flex items-center gap-2 border-b border-border/30 bg-surface/18 px-unit-3 py-unit-3 shrink-0">
+      <div className="flex items-center gap-2 border-b border-border/30 bg-surface/18 px-2.5 py-2 shrink-0">
         <div className="flex items-center gap-1.5">
           <div className="relative">
             <Radio className="w-3.5 h-3.5 text-muted-foreground/60" aria-hidden="true" />
@@ -40,7 +40,7 @@ export function MarketChatterPanel({ className, id }: MarketChatterPanelProps) {
 
       {/* Scrollable body */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-        <div className="px-unit-3 py-unit-3">
+        <div className="px-2.5 py-2">
           <LowImpactFeed standalone limit={14} />
         </div>
       </div>
