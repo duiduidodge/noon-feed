@@ -9,6 +9,7 @@ on:
       - "packages/shared/**"
       - "prisma/**"
       - "config/**"
+      - "skills/emerging-movers/**"
       - "scripts/start-worker.sh"
       - "Dockerfile.worker"
       - "fly.worker.toml"

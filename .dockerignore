@@ -19,7 +19,6 @@ coverage
 .env.*
 
 artifacts
-skills
 cryptofeed-charts
 
 apps/dashboard
