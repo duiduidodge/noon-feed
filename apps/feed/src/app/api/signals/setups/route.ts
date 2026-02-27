@@ -49,14 +49,33 @@ export async function GET() {
       }),
     ]);
 
-    const emergingByToken = new Map<string, { immediate: boolean; deep: boolean }>();
+    const whaleTopScore = whaleSnapshot?.traders?.[0]?.score
+      ? Number(whaleSnapshot.traders[0].score)
+      : null;
+    const whaleBackdropBonus = whaleTopScore != null && whaleTopScore >= 80 ? 4 : 0;
+
+    const emergingByToken = new Map<
+      string,
+      { immediate: boolean; deep: boolean; direction: string; rank: number | null; traders: number | null; reasonCount: number }
+    >();
     for (const alert of emergingSnapshot?.alerts || []) {
       const token = toToken(alert.signal);
       if (!token) continue;
-      const current = emergingByToken.get(token) || { immediate: false, deep: false };
+      const current = emergingByToken.get(token) || {
+        immediate: false,
+        deep: false,
+        direction: alert.direction || 'LONG',
+        rank: alert.currentRank,
+        traders: alert.traders,
+        reasonCount: 0,
+      };
       emergingByToken.set(token, {
         immediate: current.immediate || alert.isImmediate,
         deep: current.deep || alert.isDeepClimber,
+        direction: current.direction || alert.direction || 'LONG',
+        rank: current.rank ?? alert.currentRank,
+        traders: current.traders ?? alert.traders,
+        reasonCount: Math.max(current.reasonCount, alert.reasonCount || 0),
       });
     }
 
@@ -69,7 +88,7 @@ export async function GET() {
       const scoreBase = Math.min(85, Math.max(45, Math.round((item.finalScore || 0) / 3)));
       const emerging = emergingByToken.get(token);
       const emergingBonus = emerging ? (emerging.immediate ? 10 : emerging.deep ? 6 : 3) : 0;
-      const confidence = Math.min(99, scoreBase + trendBonus + emergingBonus);
+      const confidence = Math.min(99, scoreBase + trendBonus + emergingBonus + whaleBackdropBonus);
 
       const thesisBits = [
         `score ${item.finalScore ?? '-'}`,
@@ -87,6 +106,32 @@ export async function GET() {
       });
     }
 
+    if (setups.length === 0) {
+      for (const [token, emerging] of emergingByToken.entries()) {
+        const base = emerging.immediate ? 78 : emerging.deep ? 72 : 66;
+        const confidence = Math.min(
+          96,
+          base + Math.min(10, emerging.reasonCount || 0) + whaleBackdropBonus
+        );
+        const thesis = [
+          emerging.immediate ? 'immediate mover' : emerging.deep ? 'deep climber' : 'emerging activity',
+          emerging.rank != null ? `rank #${emerging.rank}` : null,
+          emerging.traders != null ? `${emerging.traders} traders` : null,
+          (emerging.reasonCount || 0) > 0 ? `${emerging.reasonCount} signals` : null,
+        ]
+          .filter(Boolean)
+          .join(' • ');
+
+        setups.push({
+          id: `emerging-${token}`,
+          asset: token,
+          direction: (emerging.direction || 'LONG').toUpperCase(),
+          confidence,
+          thesis,
+        });
+      }
+    }
+
     const ranked = setups.sort((a, b) => b.confidence - a.confidence).slice(0, 6);
 
     return NextResponse.json(
@@ -97,9 +142,7 @@ export async function GET() {
           emerging: emergingSnapshot?.signalTime?.toISOString?.() || null,
           whale: whaleSnapshot?.scanTime?.toISOString?.() || null,
         },
-        whaleTopScore: whaleSnapshot?.traders?.[0]?.score
-          ? Number(whaleSnapshot.traders[0].score)
-          : null,
+        whaleTopScore,
         setups: ranked,
       },
       {
