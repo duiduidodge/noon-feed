@@ -117,7 +117,7 @@ export function WhaleSection({ snapshot, traders }: Props) {
                     'group border-b border-border/10 transition-colors hover:bg-surface/25 cursor-pointer',
                     idx % 2 === 0 ? 'bg-surface/6' : 'bg-transparent'
                   )}
-                  onClick={() => window.open(`https://hyperdash.info/trader/${trader.walletAddress}`, '_blank', 'noopener,noreferrer')}
+                  onClick={() => window.open(`https://hyperdash.com/address/${trader.walletAddress}`, '_blank', 'noopener,noreferrer')}
                 >
                   {/* Index */}
                   <td className="px-2.5 py-1.5 font-mono-data text-[8px] tabular-nums text-muted-foreground/30">
