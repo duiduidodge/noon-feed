@@ -67,6 +67,18 @@ function toNullableJsonInput(
   return value as Prisma.InputJsonValue;
 }
 
+export interface EmergingAlertResult {
+  signal: string;
+  direction: string | null;
+  currentRank: number | null;
+  contribution: number | null;
+  contribVelocity: number | null;
+  priceChg4h: number | null;
+  reasons: string[];
+  isImmediate: boolean;
+  isDeepClimber: boolean;
+}
+
 export class EmergingMoversSignalsService {
   private readonly enabled: boolean;
   private readonly command?: string;
@@ -80,12 +92,12 @@ export class EmergingMoversSignalsService {
     return this.enabled;
   }
 
-  async pollAndPersist(prisma: PrismaClient): Promise<void> {
-    if (!this.enabled) return;
+  async pollAndPersist(prisma: PrismaClient): Promise<EmergingAlertResult[]> {
+    if (!this.enabled) return [];
 
     if (!this.command) {
       logger.warn('ENABLE_EMERGING_MOVERS_SIGNALS=true but EMERGING_MOVERS_COMMAND is empty');
-      return;
+      return [];
     }
 
     const startedAt = Date.now();
@@ -171,5 +183,17 @@ export class EmergingMoversSignalsService {
       },
       'Stored emerging movers snapshot'
     );
+
+    return alerts.map((alert) => ({
+      signal: alert.signal || 'UNKNOWN',
+      direction: alert.direction || null,
+      currentRank: alert.currentRank ?? null,
+      contribution: toNumber(alert.contribution),
+      contribVelocity: toNumber(alert.contribVelocity),
+      priceChg4h: toNumber(alert.priceChg4h),
+      reasons: toStringArray(alert.reasons),
+      isImmediate: Boolean(alert.isImmediate),
+      isDeepClimber: Boolean(alert.isDeepClimber),
+    }));
   }
 }

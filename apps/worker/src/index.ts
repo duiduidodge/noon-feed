@@ -13,6 +13,11 @@ import { EnrichmentMapper } from './services/enrichment-mapper.js';
 import { EmergingMoversSignalsService } from './services/emerging-movers-signals.js';
 import { OpportunitySignalsService } from './services/opportunity-signals.js';
 import { WhaleSignalsService } from './services/whale-signals.js';
+import {
+  postOpportunitySignals,
+  postEmergingMoversAlerts,
+  postWhaleSnapshot,
+} from './services/discord-signals-poster.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
 import { processFetchAPINewsJob, type FetchAPINewsJobData } from './jobs/fetch-api-news.js';
 import { processFetchArticleJob, type FetchArticleJobData } from './jobs/fetch-article.js';
@@ -143,6 +148,25 @@ const whaleSignalsService = new WhaleSignalsService({
   enabled: config.worker.enableWhaleSignals,
   riskProfile: config.worker.whaleRiskProfile,
 });
+
+// Webhook URL for trading signals — separate channel or falls back to main webhook
+function getSignalsWebhookUrl(): string | null {
+  return process.env.DISCORD_SIGNALS_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL || null;
+}
+
+// Dedup: track recently-posted emerging mover alerts to avoid re-posting within 15 min
+const recentlyPostedEmergingSignals = new Map<string, number>();
+const EMERGING_DEDUP_MS = 15 * 60 * 1000;
+
+function isEmergingSignalFresh(signal: string, direction: string | null): boolean {
+  const key = `${signal}-${direction ?? 'null'}`;
+  const lastPosted = recentlyPostedEmergingSignals.get(key);
+  if (!lastPosted || Date.now() - lastPosted > EMERGING_DEDUP_MS) {
+    recentlyPostedEmergingSignals.set(key, Date.now());
+    return true;
+  }
+  return false;
+}
 
 function isQueueUnavailableError(error: unknown): boolean {
   const message = (error as Error)?.message?.toLowerCase?.() || '';
@@ -927,8 +951,21 @@ async function main() {
       Date.now() - lastEmergingSignalsPoll >= config.worker.emergingMoversIntervalSeconds * 1000
     ) {
       try {
-        await emergingMoversSignalsService.pollAndPersist(prisma);
+        const emAlerts = await emergingMoversSignalsService.pollAndPersist(prisma);
         lastEmergingSignalsPoll = Date.now();
+
+        // Post IMMEDIATE alerts that haven't been posted recently
+        const signalsWebhook = getSignalsWebhookUrl();
+        if (signalsWebhook && emAlerts.length > 0) {
+          const freshAlerts = emAlerts.filter(
+            a => (a.isImmediate || a.isDeepClimber) && isEmergingSignalFresh(a.signal, a.direction)
+          );
+          if (freshAlerts.length > 0) {
+            postEmergingMoversAlerts(signalsWebhook, freshAlerts).catch((err) =>
+              logger.error({ error: (err as Error).message }, 'Failed to post emerging movers to Discord')
+            );
+          }
+        }
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to refresh emerging movers signals');
         lastEmergingSignalsPoll = Date.now();
@@ -940,8 +977,15 @@ async function main() {
       Date.now() - lastOpportunitySignalsPoll >= config.worker.opportunitySignalsIntervalSeconds * 1000
     ) {
       try {
-        await opportunitySignalsService.pollAndPersist(prisma);
+        const { opportunities, btcContext } = await opportunitySignalsService.pollAndPersist(prisma);
         lastOpportunitySignalsPoll = Date.now();
+
+        const signalsWebhook = getSignalsWebhookUrl();
+        if (signalsWebhook && opportunities.length > 0) {
+          postOpportunitySignals(signalsWebhook, opportunities, btcContext).catch((err) =>
+            logger.error({ error: (err as Error).message }, 'Failed to post opportunity signals to Discord')
+          );
+        }
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to refresh opportunity signals');
         lastOpportunitySignalsPoll = Date.now();
@@ -953,8 +997,15 @@ async function main() {
       Date.now() - lastWhaleSignalsPoll >= config.worker.whaleSignalsIntervalSeconds * 1000
     ) {
       try {
-        await whaleSignalsService.pollAndPersist(prisma);
+        const whaleTraders = await whaleSignalsService.pollAndPersist(prisma);
         lastWhaleSignalsPoll = Date.now();
+
+        const signalsWebhook = getSignalsWebhookUrl();
+        if (signalsWebhook && whaleTraders.length > 0) {
+          postWhaleSnapshot(signalsWebhook, whaleTraders).catch((err) =>
+            logger.error({ error: (err as Error).message }, 'Failed to post whale snapshot to Discord')
+          );
+        }
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to refresh whale signals');
         lastWhaleSignalsPoll = Date.now();

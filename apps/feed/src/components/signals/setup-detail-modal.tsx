@@ -237,6 +237,46 @@ function MiniStat({ label, children }: { label: string; children: React.ReactNod
   );
 }
 
+// ─── TradingView Chart Embed ──────────────────────────────────────────────────
+
+function ChartEmbed({ asset }: { asset: string }) {
+  // Use Binance perp symbol; TradingView falls back gracefully if not found
+  const symbol = `BINANCE:${asset}USDT.P`;
+  const params = new URLSearchParams({
+    hideideas: '1',
+    symbol,
+    interval: '240',
+    hidesidetoolbar: '1',
+    hidetoptoolbar: '1',
+    symboledit: '0',
+    saveimage: '0',
+    toolbarsaveimage: '0',
+    theme: 'dark',
+    style: '1',
+    timezone: 'exchange',
+    locale: 'en',
+    hide_legend: '1',
+    backgroundColor: 'rgba(0,0,0,0)',
+    gridColor: 'rgba(255,255,255,0.04)',
+  });
+
+  return (
+    <div className="flex-1 min-h-0 rounded-lg overflow-hidden border border-border/20 bg-black/30">
+      <iframe
+        key={asset}
+        src={`https://www.tradingview.com/widgetembed/?${params.toString()}`}
+        width="100%"
+        height="100%"
+        frameBorder="0"
+        scrolling="no"
+        title={`${asset} 4H chart`}
+        className="block w-full h-full"
+        allow="fullscreen"
+      />
+    </div>
+  );
+}
+
 // ─── Main Modal ───────────────────────────────────────────────────────────────
 
 export function SetupDetailModal({ setup, onClose }: Props) {
@@ -281,6 +321,8 @@ export function SetupDetailModal({ setup, onClose }: Props) {
   const DirectionIcon = isLong ? TrendingUp : TrendingDown;
   const hasPillars = pillarScores && Object.values(pillarScores).some((v) => v !== undefined);
   const hasSignalReadings = opp && (trend4h !== undefined || rsiInfo || volInfo || sm || fundInfo);
+  // Show chart in right column when there's no opportunity data to fill it
+  const showChart = !hasPillars && !hasSignalReadings;
 
   return (
     <div
@@ -376,7 +418,7 @@ export function SetupDetailModal({ setup, onClose }: Props) {
         </div>
 
         {/* ── Body: 2-column layout ── */}
-        <div className="grid grid-cols-2 gap-0 divide-x divide-border/15">
+        <div className={cn('grid grid-cols-2 gap-0 divide-x divide-border/15', showChart && 'min-h-[320px]')}>
 
           {/* ── LEFT column ── */}
           <div className="px-4 py-3 space-y-4">
@@ -527,7 +569,17 @@ export function SetupDetailModal({ setup, onClose }: Props) {
           </div>
 
           {/* ── RIGHT column ── */}
-          <div className="px-4 py-3 space-y-4">
+          <div className={cn('px-4 py-3', showChart ? 'flex flex-col gap-2' : 'space-y-4')}>
+
+            {/* Chart when no opportunity data */}
+            {showChart && (
+              <>
+                <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40 shrink-0">
+                  Price Chart · 4H
+                </span>
+                <ChartEmbed asset={setup.asset} />
+              </>
+            )}
 
             {/* 4-Pillar Scores */}
             {hasPillars && (

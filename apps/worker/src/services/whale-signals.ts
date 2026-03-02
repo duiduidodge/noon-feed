@@ -155,6 +155,16 @@ function computeWhaleScore(params: {
   );
 }
 
+export interface WhaleTraderResult {
+  walletAddress: string;
+  score: number;
+  rank: number | null;
+  winRate: number | null;
+  consistency: string | null;
+  holdTimeHours: number | null;
+  allocationPct: number | null;
+}
+
 export class WhaleSignalsService {
   private readonly enabled: boolean;
   private readonly riskProfile: RiskProfile;
@@ -168,8 +178,8 @@ export class WhaleSignalsService {
     return this.enabled;
   }
 
-  async pollAndPersist(prisma: PrismaClient): Promise<void> {
-    if (!this.enabled) return;
+  async pollAndPersist(prisma: PrismaClient): Promise<WhaleTraderResult[]> {
+    if (!this.enabled) return [];
 
     const startedAt = Date.now();
     const command = 'mcporter call senpi.discovery_get_top_traders limit=50';
@@ -266,5 +276,15 @@ export class WhaleSignalsService {
       },
       'Stored whale snapshot'
     );
+
+    return selected.map((item) => ({
+      walletAddress: item.walletAddress,
+      score: item.score,
+      rank: item.rank,
+      winRate: item.winRate,
+      consistency: item.consistency,
+      holdTimeHours: item.holdTimeHours,
+      allocationPct: totalScore > 0 ? Number(((item.score / totalScore) * 100).toFixed(2)) : null,
+    }));
   }
 }

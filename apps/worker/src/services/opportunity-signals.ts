@@ -1,46 +1,8 @@
-import { exec as execCb } from 'node:child_process';
-import { promisify } from 'node:util';
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { createLogger } from '@crypto-news/shared';
+import { runOpportunityScan, type OpportunityResult, type OpportunityScanResult } from './opportunity-scanner.js';
 
 const logger = createLogger('worker:signals:opportunities');
-const exec = promisify(execCb);
-
-interface RawOpportunity {
-  asset?: string;
-  direction?: string;
-  leverage?: number;
-  finalScore?: number;
-  scoreDelta?: number;
-  scanStreak?: number;
-  hourlyTrend?: string;
-  trendAligned?: boolean;
-  pillarScores?: unknown;
-  smartMoney?: unknown;
-  technicals?: unknown;
-  funding?: unknown;
-  risks?: unknown;
-}
-
-interface RawOpportunityPayload {
-  scanTime?: string;
-  assetsScanned?: number;
-  passedStage1?: number;
-  passedStage2?: number;
-  deepDived?: number;
-  disqualified?: number;
-  btcContext?: unknown;
-  opportunities?: RawOpportunity[];
-}
-
-function extractJsonObject(text: string): string {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error('No JSON object found in command output');
-  }
-  return text.slice(start, end + 1);
-}
 
 function toNullableJsonInput(
   value: unknown
@@ -52,43 +14,24 @@ function toNullableJsonInput(
 
 export class OpportunitySignalsService {
   private readonly enabled: boolean;
-  private readonly command?: string;
 
   constructor(opts: { enabled: boolean; command?: string }) {
     this.enabled = opts.enabled;
-    this.command = opts.command?.trim();
   }
 
   isEnabled(): boolean {
     return this.enabled;
   }
 
-  async pollAndPersist(prisma: PrismaClient): Promise<void> {
-    if (!this.enabled) return;
-
-    if (!this.command) {
-      logger.warn('ENABLE_OPPORTUNITY_SIGNALS=true but OPPORTUNITY_SIGNALS_COMMAND is empty');
-      return;
-    }
+  async pollAndPersist(prisma: PrismaClient): Promise<{ opportunities: OpportunityResult[]; btcContext: OpportunityScanResult['btcContext'] | null }> {
+    if (!this.enabled) return { opportunities: [], btcContext: null };
 
     const startedAt = Date.now();
 
-    const { stdout, stderr } = await exec(this.command, {
-      timeout: 90_000,
-      maxBuffer: 3 * 1024 * 1024,
-      shell: '/bin/bash',
-      env: process.env,
-    });
+    const payload = await runOpportunityScan();
 
-    const combinedOutput = `${stdout || ''}\n${stderr || ''}`.trim();
-    if (!combinedOutput) {
-      throw new Error('Opportunity scanner command returned empty output');
-    }
-
-    const payload = JSON.parse(extractJsonObject(combinedOutput)) as RawOpportunityPayload;
-    const scanTime = payload.scanTime ? new Date(payload.scanTime) : new Date();
-
-    if (Number.isNaN(scanTime.getTime())) {
+    const scanTime = new Date(payload.scanTime);
+    if (isNaN(scanTime.getTime())) {
       throw new Error(`Invalid scan timestamp: ${payload.scanTime}`);
     }
 
@@ -106,7 +49,7 @@ export class OpportunitySignalsService {
           deepDived: payload.deepDived ?? null,
           disqualified: payload.disqualified ?? 0,
           btcContext: toNullableJsonInput(payload.btcContext),
-          rawPayload: payload as Prisma.InputJsonValue,
+          rawPayload: payload as unknown as Prisma.InputJsonValue,
         },
       });
 
@@ -114,7 +57,7 @@ export class OpportunitySignalsService {
         await tx.opportunitySignal.createMany({
           data: opportunities.map((item) => ({
             snapshotId: snapshot.id,
-            asset: item.asset || 'UNKNOWN',
+            asset: item.asset,
             direction: item.direction ?? null,
             leverage: item.leverage ?? null,
             finalScore: item.finalScore ?? null,
@@ -145,11 +88,10 @@ export class OpportunitySignalsService {
     });
 
     logger.info(
-      {
-        opportunities: opportunities.length,
-        elapsedMs: Date.now() - startedAt,
-      },
+      { opportunities: opportunities.length, elapsedMs: Date.now() - startedAt },
       'Stored opportunity snapshot'
     );
+
+    return { opportunities, btcContext: payload.btcContext ?? null };
   }
 }
