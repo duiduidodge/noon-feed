@@ -4,6 +4,7 @@ import { PricesColumn } from '@/components/prices-column';
 import { PanelShell } from '@/components/panel-shell';
 import { MarketChatterPanel } from '@/components/market-chatter-panel';
 import { SignalPulseStrip } from '@/components/signal-pulse-strip';
+import { TradeSetupsPanel } from '@/components/trade-setups-panel';
 import type { FeedArticle } from '@/components/news-card';
 
 export const dynamic = 'force-dynamic';
@@ -85,6 +86,9 @@ export default async function FeedPage() {
           <div id="section-markets" role="region" aria-label="Market data and signals" className="order-2 lg:order-none flex flex-col gap-unit-3 lg:overflow-hidden">
             <div className="shrink-0">
               <SignalPulseStrip />
+            </div>
+            <div className="shrink-0">
+              <TradeSetupsPanel />
             </div>
             <PanelShell variant="secondary" className="flex-1 overflow-hidden flex flex-col">
               <div className="flex-1 overflow-y-auto custom-scrollbar p-unit-3">

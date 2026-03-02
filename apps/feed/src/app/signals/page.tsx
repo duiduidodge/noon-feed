@@ -5,6 +5,7 @@ import { SignalPulseHeader } from '@/components/signals/signal-pulse-header';
 import { OpportunitySection } from '@/components/signals/opportunity-section';
 import { EmergingSection } from '@/components/signals/emerging-section';
 import { WhaleSection } from '@/components/signals/whale-section';
+import { TradeSetupsPanel } from '@/components/trade-setups-panel';
 
 async function fetchDeepSignals() {
   const res = await fetch('/api/signals/deep');
@@ -69,6 +70,9 @@ export default function SignalsPage() {
               whaleCount={whl?.traders?.length ?? 0}
               hasImmediate={emg?.snapshot?.hasImmediate ?? false}
             />
+
+            {/* Trade Setups */}
+            <TradeSetupsPanel />
 
             {/* Section dividers with generous spacing */}
             <div className="space-y-8">
