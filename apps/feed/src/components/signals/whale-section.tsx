@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Waves } from 'lucide-react';
+import { Waves, ExternalLink } from 'lucide-react';
 
 interface WhaleTrader {
   id: string;
@@ -114,9 +114,10 @@ export function WhaleSection({ snapshot, traders }: Props) {
                 <tr
                   key={trader.id}
                   className={cn(
-                    'border-b border-border/10 transition-colors hover:bg-surface/25',
+                    'group border-b border-border/10 transition-colors hover:bg-surface/25 cursor-pointer',
                     idx % 2 === 0 ? 'bg-surface/6' : 'bg-transparent'
                   )}
+                  onClick={() => window.open(`https://hyperdash.info/trader/${trader.walletAddress}`, '_blank', 'noopener,noreferrer')}
                 >
                   {/* Index */}
                   <td className="px-2.5 py-1.5 font-mono-data text-[8px] tabular-nums text-muted-foreground/30">
@@ -124,8 +125,11 @@ export function WhaleSection({ snapshot, traders }: Props) {
                   </td>
 
                   {/* Wallet */}
-                  <td className="px-2.5 py-1.5 font-mono-data text-[10px] font-bold text-foreground/75 tracking-tight whitespace-nowrap">
-                    {shortWallet(trader.walletAddress)}
+                  <td className="px-2.5 py-1.5 font-mono-data text-[10px] font-bold text-foreground/75 tracking-tight whitespace-nowrap group-hover:text-primary/80 transition-colors">
+                    <span className="flex items-center gap-1">
+                      {shortWallet(trader.walletAddress)}
+                      <ExternalLink className="h-2.5 w-2.5 text-muted-foreground/30 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </span>
                   </td>
 
                   {/* Score */}
