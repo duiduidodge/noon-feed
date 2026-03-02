@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { Radio, ArrowUpRight } from 'lucide-react';
+import { Radio, ExternalLink } from 'lucide-react';
 import { RankSparkline } from './rank-sparkline';
 
 interface EmergingAlert {
@@ -39,69 +39,57 @@ interface Props {
 
 export function EmergingSection({ snapshot, alerts }: Props) {
   return (
-    <section>
-      {/* Section header */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="relative">
-          <Radio className="w-4 h-4 text-amber-400/80" aria-hidden="true" />
+    <div className="flex flex-col h-full min-h-0">
+      {/* Column header */}
+      <div className="shrink-0 flex items-center gap-2 border-b border-border/25 bg-surface/15 px-3 py-2">
+        <div className="relative shrink-0">
+          <Radio className="w-3 h-3 text-amber-400/70" aria-hidden="true" />
           {snapshot?.hasImmediate && (
-            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-bearish animate-pulse" />
+            <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-bearish animate-pulse" />
           )}
         </div>
-        <h2 className="font-mono-data text-[13px] font-bold uppercase tracking-[0.14em] text-foreground/85">
+        <span className="font-mono-data text-[9px] font-bold uppercase tracking-[0.2em] text-foreground/75">
           Emerging Movers
-        </h2>
-        <div className="flex-1 h-px bg-gradient-to-r from-amber-400/30 to-transparent" aria-hidden="true" />
-        <span className="font-mono-data text-[11px] font-bold tabular-nums text-amber-400/80">
+        </span>
+        <div className="flex-1 h-px bg-gradient-to-r from-amber-400/20 to-transparent" aria-hidden="true" />
+        <span className="font-mono-data text-[8px] font-bold tabular-nums text-amber-400/70 shrink-0">
           {alerts.length} alerts
         </span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4">
-        {/* Snapshot sidebar */}
-        <div className="rounded-xl border border-border/30 bg-surface/15 p-3 space-y-3">
-          <h3 className="font-mono-data text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/60">
-            Scan Status
-          </h3>
-          {snapshot ? (
-            <div className="space-y-2">
-              <StatusRow label="Markets" value={String(snapshot.totalMarkets ?? '—')} />
-              <StatusRow label="History" value={`${snapshot.scansInHistory ?? '—'} scans`} />
-              <div className="flex gap-2 pt-1">
-                <StatusDot active={snapshot.hasImmediate} label="IMM" color="bg-bearish" />
-                <StatusDot active={snapshot.hasEmergingMover} label="EMG" color="bg-amber-400" />
-                <StatusDot active={snapshot.hasDeepClimber} label="DEEP" color="bg-primary" />
-              </div>
-            </div>
-          ) : (
-            <p className="font-mono-data text-micro text-muted-foreground/40">No scan data</p>
-          )}
+      {/* Snapshot status strip */}
+      {snapshot && (
+        <div className="shrink-0 flex items-center gap-3 border-b border-border/15 bg-surface/8 px-3 py-1.5">
+          <div className="flex items-center gap-1">
+            <span className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/40">Markets</span>
+            <span className="font-mono-data text-[9px] font-bold text-foreground/65 tabular-nums">{snapshot.totalMarkets ?? '—'}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/40">History</span>
+            <span className="font-mono-data text-[9px] font-bold text-foreground/65 tabular-nums">{snapshot.scansInHistory ?? '—'}</span>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <StatusDot active={snapshot.hasImmediate} label="IMM" color="bg-bearish" />
+            <StatusDot active={snapshot.hasEmergingMover} label="EMG" color="bg-amber-400" />
+            <StatusDot active={snapshot.hasDeepClimber} label="DEEP" color="bg-primary" />
+          </div>
         </div>
+      )}
 
-        {/* Alert cards */}
-        <div className="space-y-2.5">
-          {alerts.length === 0 ? (
-            <div className="rounded-xl border border-border/25 bg-surface/10 px-4 py-8 text-center">
-              <p className="font-mono-data text-caption text-muted-foreground/50 uppercase tracking-wider">
-                No emerging mover alerts
-              </p>
-            </div>
-          ) : (
-            alerts.map((alert) => (
-              <EmergingCard key={alert.id} alert={alert} />
-            ))
-          )}
-        </div>
+      {/* Alert rows — scrollable */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1.5">
+        {alerts.length === 0 ? (
+          <div className="flex items-center justify-center h-full min-h-[120px]">
+            <p className="font-mono-data text-[9px] text-muted-foreground/40 uppercase tracking-wider">
+              No emerging mover alerts
+            </p>
+          </div>
+        ) : (
+          alerts.map((alert) => (
+            <EmergingRow key={alert.id} alert={alert} />
+          ))
+        )}
       </div>
-    </section>
-  );
-}
-
-function StatusRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="font-mono-data text-[10px] text-muted-foreground/65 uppercase tracking-wider">{label}</span>
-      <span className="font-mono-data text-[12px] font-bold tabular-nums text-foreground/75">{value}</span>
     </div>
   );
 }
@@ -109,124 +97,137 @@ function StatusRow({ label, value }: { label: string; value: string }) {
 function StatusDot({ active, label, color }: { active: boolean; label: string; color: string }) {
   return (
     <div className="flex items-center gap-1">
-      <span className={cn('h-2 w-2 rounded-full', active ? color : 'bg-muted-foreground/20')} />
-      <span className={cn('font-mono-data text-[8px] uppercase tracking-wider', active ? 'text-foreground/70' : 'text-muted-foreground/30')}>
+      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', active ? color : 'bg-muted-foreground/20')} />
+      <span className={cn('font-mono-data text-[7px] uppercase tracking-wider', active ? 'text-foreground/60' : 'text-muted-foreground/30')}>
         {label}
       </span>
     </div>
   );
 }
 
-function EmergingCard({ alert }: { alert: EmergingAlert }) {
+function EmergingRow({ alert }: { alert: EmergingAlert }) {
+  const vel = alert.contribVelocity ?? 0;
+  const chg = alert.priceChg4h ?? 0;
+
   return (
     <a
       href="https://app.hyperliquid.xyz/trade"
       target="_blank"
       rel="noopener noreferrer"
-      className="group block rounded-xl border border-border/35 bg-card/50 backdrop-blur-sm overflow-hidden transition-all duration-200 hover:border-primary/40 hover:bg-surface/40"
+      className={cn(
+        'group flex flex-col gap-1.5 rounded-lg border px-2.5 py-2 transition-all duration-200',
+        alert.isImmediate
+          ? 'border-bearish/25 bg-bearish/5 hover:border-bearish/40'
+          : 'border-border/30 bg-card/40 hover:border-primary/30 hover:bg-surface/40'
+      )}
     >
-      {/* Header row */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/20">
-        <div className="flex items-center gap-2.5">
-          <span className="font-mono-data text-[14px] font-bold text-foreground/90 tracking-tight">
-            {alert.signal}
+      {/* Row 1: Signal name + type badges + link */}
+      <div className="flex items-center gap-1.5 min-w-0">
+        {/* Signal name */}
+        <span className="font-mono-data text-[12px] font-bold text-foreground/90 tracking-tight shrink-0">
+          {alert.signal}
+        </span>
+
+        {/* Type badges */}
+        {alert.isImmediate && (
+          <span className="shrink-0 rounded border border-bearish/40 bg-bearish/10 px-1 py-px font-mono-data text-[7px] font-bold uppercase tracking-wider text-bearish">
+            IMM
           </span>
-          {alert.isImmediate && (
-            <span className="rounded border border-bearish/45 bg-bearish/12 px-1.5 py-0.5 font-mono-data text-[9px] font-bold uppercase tracking-wider text-bearish">
-              Immediate
-            </span>
-          )}
-          {alert.isDeepClimber && (
-            <span className="rounded border border-primary/35 bg-primary/10 px-1.5 py-0.5 font-mono-data text-[9px] font-bold uppercase tracking-wider text-primary">
-              Deep Climber
-            </span>
-          )}
-          {alert.erratic && (
-            <span className="rounded border border-orange-400/30 bg-orange-400/8 px-1.5 py-0.5 font-mono-data text-[9px] font-bold uppercase tracking-wider text-orange-400/80">
-              Erratic
-            </span>
-          )}
-          {alert.lowVelocity && (
-            <span className="rounded border border-muted-foreground/25 bg-surface/30 px-1.5 py-0.5 font-mono-data text-[9px] uppercase tracking-wider text-muted-foreground/60">
-              Low Vel
-            </span>
-          )}
-        </div>
-        <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/30 group-hover:text-primary transition-colors" />
+        )}
+        {alert.isDeepClimber && (
+          <span className="shrink-0 rounded border border-primary/35 bg-primary/8 px-1 py-px font-mono-data text-[7px] font-bold uppercase tracking-wider text-primary">
+            DEEP
+          </span>
+        )}
+        {alert.erratic && (
+          <span className="shrink-0 rounded border border-orange-400/30 bg-orange-400/8 px-1 py-px font-mono-data text-[7px] font-bold uppercase tracking-wider text-orange-400/75">
+            ERT
+          </span>
+        )}
+        {alert.lowVelocity && (
+          <span className="shrink-0 rounded border border-muted-foreground/20 bg-surface/20 px-1 py-px font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/50">
+            LV
+          </span>
+        )}
+
+        <ExternalLink className="ml-auto h-2.5 w-2.5 shrink-0 text-muted-foreground/25 group-hover:text-primary/60 transition-colors" />
       </div>
 
-      {/* Detail body */}
-      <div className="px-4 py-3">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
-          {/* Rank + sparkline */}
-          <div>
-            <div className="font-mono-data text-[8px] uppercase tracking-wider text-muted-foreground/50 mb-1">Rank</div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono-data text-[14px] font-bold tabular-nums text-foreground/85">
-                #{alert.currentRank ?? '—'}
-              </span>
-              <RankSparkline data={alert.rankHistory} inverted />
-            </div>
-          </div>
-
-          {/* Contribution */}
-          <div>
-            <div className="font-mono-data text-[8px] uppercase tracking-wider text-muted-foreground/50 mb-1">SM Profit %</div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono-data text-[14px] font-bold tabular-nums text-foreground/85">
-                {alert.contribution?.toFixed(1) ?? '—'}%
-              </span>
-              <RankSparkline data={alert.contribHistory} inverted={false} />
-            </div>
-          </div>
-
-          {/* Velocity */}
-          <div>
-            <div className="font-mono-data text-[8px] uppercase tracking-wider text-muted-foreground/50 mb-1">Velocity</div>
-            <span className={cn('font-mono-data text-[14px] font-bold tabular-nums',
-              (alert.contribVelocity ?? 0) >= 0.05 ? 'text-bullish' : 'text-foreground/70'
-            )}>
-              {alert.contribVelocity?.toFixed(3) ?? '—'}
-            </span>
-          </div>
-
-          {/* 4h Price Change */}
-          <div>
-            <div className="font-mono-data text-[8px] uppercase tracking-wider text-muted-foreground/50 mb-1">4h Chg</div>
-            <span className={cn('font-mono-data text-[14px] font-bold tabular-nums',
-              (alert.priceChg4h ?? 0) >= 0 ? 'text-bullish' : 'text-bearish'
-            )}>
-              {alert.priceChg4h !== null ? `${alert.priceChg4h >= 0 ? '+' : ''}${alert.priceChg4h.toFixed(1)}%` : '—'}
-            </span>
-          </div>
+      {/* Row 2: Stats inline */}
+      <div className="flex items-center gap-3">
+        {/* Rank + sparkline */}
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono-data text-[8px] text-muted-foreground/40 uppercase">Rank</span>
+          <span className="font-mono-data text-[11px] font-bold tabular-nums text-foreground/80">
+            #{alert.currentRank ?? '—'}
+          </span>
+          <RankSparkline data={alert.rankHistory} inverted />
         </div>
 
-        {/* Traders + Signals count */}
-        <div className="flex items-center gap-4 mb-3">
-          <div className="flex items-center gap-1">
-            <span className="font-mono-data text-[8px] text-muted-foreground/45 uppercase">Traders</span>
-            <span className="font-mono-data text-[11px] font-bold text-foreground/70 tabular-nums">{alert.traders ?? '—'}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="font-mono-data text-[8px] text-muted-foreground/45 uppercase">Signals</span>
-            <span className="font-mono-data text-[11px] font-bold text-foreground/70 tabular-nums">{alert.reasonCount}</span>
-          </div>
+        <div className="h-3 w-px bg-border/20" aria-hidden="true" />
+
+        {/* SM% + sparkline */}
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono-data text-[8px] text-muted-foreground/40 uppercase">SM%</span>
+          <span className="font-mono-data text-[11px] font-bold tabular-nums text-foreground/80">
+            {alert.contribution?.toFixed(1) ?? '—'}%
+          </span>
+          <RankSparkline data={alert.contribHistory} inverted={false} />
         </div>
 
-        {/* Full reasons list */}
-        {alert.reasons.length > 0 && (
-          <div>
-            <div className="font-mono-data text-[8px] uppercase tracking-wider text-muted-foreground/50 mb-1.5">Reasons</div>
-            <div className="flex flex-wrap gap-1">
-              {alert.reasons.map((reason, i) => (
-                <span key={i} className="rounded border border-border/30 bg-surface/25 px-1.5 py-0.5 font-mono-data text-[8px] text-muted-foreground/75">
-                  {reason}
-                </span>
-              ))}
+        <div className="h-3 w-px bg-border/20" aria-hidden="true" />
+
+        {/* Velocity */}
+        <div className="flex items-center gap-1">
+          <span className="font-mono-data text-[8px] text-muted-foreground/40 uppercase">Vel</span>
+          <span className={cn(
+            'font-mono-data text-[10px] font-bold tabular-nums',
+            vel >= 0.05 ? 'text-bullish' : 'text-foreground/60'
+          )}>
+            {alert.contribVelocity?.toFixed(3) ?? '—'}
+          </span>
+        </div>
+
+        <div className="h-3 w-px bg-border/20" aria-hidden="true" />
+
+        {/* 4h change */}
+        <div className="flex items-center gap-1">
+          <span className="font-mono-data text-[8px] text-muted-foreground/40 uppercase">4h</span>
+          <span className={cn(
+            'font-mono-data text-[10px] font-bold tabular-nums',
+            chg >= 0 ? 'text-bullish' : 'text-bearish'
+          )}>
+            {alert.priceChg4h !== null ? `${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%` : '—'}
+          </span>
+        </div>
+
+        {/* Traders */}
+        {alert.traders !== null && (
+          <>
+            <div className="h-3 w-px bg-border/20" aria-hidden="true" />
+            <div className="flex items-center gap-1">
+              <span className="font-mono-data text-[8px] text-muted-foreground/40 uppercase">T</span>
+              <span className="font-mono-data text-[10px] font-bold tabular-nums text-foreground/60">{alert.traders}</span>
             </div>
-          </div>
+          </>
         )}
       </div>
+
+      {/* Row 3: Reason tags (compact) */}
+      {alert.reasons.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {alert.reasons.slice(0, 4).map((reason, i) => (
+            <span key={i} className="rounded border border-border/20 bg-surface/20 px-1 py-px font-mono-data text-[7px] text-muted-foreground/60">
+              {reason}
+            </span>
+          ))}
+          {alert.reasons.length > 4 && (
+            <span className="font-mono-data text-[7px] text-muted-foreground/35">
+              +{alert.reasons.length - 4}
+            </span>
+          )}
+        </div>
+      )}
     </a>
   );
 }

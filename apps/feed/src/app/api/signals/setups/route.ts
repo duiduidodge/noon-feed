@@ -2,12 +2,9 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-interface SetupItem {
-  id: string;
-  asset: string;
-  direction: string;
-  confidence: number;
-  thesis: string;
+function toNum(v: { toNumber(): number } | number | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  return typeof v === 'number' ? v : v.toNumber();
 }
 
 function toToken(value: string | null | undefined): string {
@@ -21,6 +18,14 @@ function parseEmergingSignal(signal: string | null | undefined): { asset: string
   const rawDirection = (parts[1] || '').toUpperCase();
   const direction = rawDirection === 'SHORT' ? 'SHORT' : 'LONG';
   return { asset, direction };
+}
+
+function safeStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? (value as string[]) : [];
+}
+
+function safeNumberArray(value: unknown): number[] | null {
+  return Array.isArray(value) ? (value as number[]) : null;
 }
 
 export async function GET() {
@@ -62,14 +67,20 @@ export async function GET() {
       : null;
     const whaleBackdropBonus = whaleTopScore != null && whaleTopScore >= 80 ? 4 : 0;
 
+    // Summary map for scoring
     const emergingByToken = new Map<
       string,
       { immediate: boolean; deep: boolean; direction: string; rank: number | null; traders: number | null; reasonCount: number }
     >();
+    // Full alert map for enrichment (prefer immediate over deep climber)
+    type AlertPrismaRow = NonNullable<typeof emergingSnapshot>['alerts'][number];
+    const emergingFullMap = new Map<string, AlertPrismaRow>();
+
     for (const alert of emergingSnapshot?.alerts || []) {
       const parsed = parseEmergingSignal(alert.signal);
       const token = parsed.asset;
       if (!token) continue;
+
       const current = emergingByToken.get(token) || {
         immediate: false,
         deep: false,
@@ -86,9 +97,16 @@ export async function GET() {
         traders: current.traders ?? alert.traders,
         reasonCount: Math.max(current.reasonCount, alert.reasonCount || 0),
       });
+
+      // Keep the most important alert per token
+      const existing = emergingFullMap.get(token);
+      if (!existing || (!existing.isImmediate && alert.isImmediate)) {
+        emergingFullMap.set(token, alert);
+      }
     }
 
-    const setups: SetupItem[] = [];
+    const setups: ReturnType<typeof buildSetup>[] = [];
+
     for (const item of opportunitySnapshot?.opportunities || []) {
       const token = toToken(item.asset);
       if (!token) continue;
@@ -106,15 +124,31 @@ export async function GET() {
         emerging?.immediate ? 'immediate mover' : emerging?.deep ? 'deep climber' : null,
       ].filter(Boolean);
 
-      setups.push({
+      setups.push(buildSetup({
         id: item.id,
         asset: token,
         direction: (item.direction || 'LONG').toUpperCase(),
         confidence,
         thesis: thesisBits.join(' • '),
-      });
+        scoreBreakdown: { base: scoreBase, trendBonus, emergingBonus, whaleBonus: whaleBackdropBonus },
+        opportunity: {
+          finalScore: item.finalScore ?? 0,
+          scanStreak: item.scanStreak,
+          hourlyTrend: item.hourlyTrend,
+          trendAligned: item.trendAligned,
+          leverage: item.leverage,
+          pillarScores: item.pillarScores as Record<string, number> | null,
+          smartMoney: item.smartMoney as Record<string, unknown> | null,
+          technicals: item.technicals as Record<string, unknown> | null,
+          funding: item.funding as Record<string, unknown> | null,
+          risks: safeStringArray(item.risks),
+        },
+        emergingAlert: emergingFullMap.get(token) ?? null,
+        whaleTopScore,
+      }));
     }
 
+    // Fallback: emerging-only setups
     if (setups.length === 0) {
       for (const [token, emerging] of emergingByToken.entries()) {
         const base = emerging.immediate ? 78 : emerging.deep ? 72 : 66;
@@ -131,13 +165,22 @@ export async function GET() {
           .filter(Boolean)
           .join(' • ');
 
-        setups.push({
+        setups.push(buildSetup({
           id: `emerging-${token}`,
           asset: token,
           direction: (emerging.direction || 'LONG').toUpperCase(),
           confidence,
           thesis,
-        });
+          scoreBreakdown: {
+            base,
+            trendBonus: 0,
+            emergingBonus: Math.min(10, emerging.reasonCount || 0),
+            whaleBonus: whaleBackdropBonus,
+          },
+          opportunity: null,
+          emergingAlert: emergingFullMap.get(token) ?? null,
+          whaleTopScore,
+        }));
       }
     }
 
@@ -162,4 +205,75 @@ export async function GET() {
     console.error('Failed to build trade setups:', error);
     return NextResponse.json({ error: 'Failed to build trade setups' }, { status: 500 });
   }
+}
+
+type AlertRow = {
+  currentRank: number | null;
+  contribution: { toNumber(): number } | number | null;
+  contribVelocity: { toNumber(): number } | number | null;
+  priceChg4h: { toNumber(): number } | number | null;
+  traders: number | null;
+  reasons: unknown;
+  isImmediate: boolean;
+  isDeepClimber: boolean;
+  erratic: boolean;
+  lowVelocity: boolean;
+  rankHistory: unknown;
+  contribHistory: unknown;
+  reasonCount: number;
+  signal: string | null;
+  direction: string | null;
+};
+
+function buildSetup(params: {
+  id: string;
+  asset: string;
+  direction: string;
+  confidence: number;
+  thesis: string;
+  scoreBreakdown: { base: number; trendBonus: number; emergingBonus: number; whaleBonus: number };
+  opportunity: {
+    finalScore: number;
+    scanStreak: number | null;
+    hourlyTrend: string | null;
+    trendAligned: boolean;
+    leverage: number | null;
+    pillarScores: Record<string, number> | null;
+    smartMoney: Record<string, unknown> | null;
+    technicals: Record<string, unknown> | null;
+    funding: Record<string, unknown> | null;
+    risks: string[];
+  } | null;
+  emergingAlert: AlertRow | null;
+  whaleTopScore: number | null;
+}) {
+  const { id, asset, direction, confidence, thesis, scoreBreakdown, opportunity, emergingAlert, whaleTopScore } = params;
+
+  return {
+    id,
+    asset,
+    direction,
+    confidence,
+    thesis,
+    scoreBreakdown,
+    opportunity,
+    emerging: emergingAlert
+      ? {
+          currentRank: emergingAlert.currentRank,
+          contribution: toNum(emergingAlert.contribution),
+          contribVelocity: toNum(emergingAlert.contribVelocity),
+          priceChg4h: toNum(emergingAlert.priceChg4h),
+          traders: emergingAlert.traders,
+          reasons: safeStringArray(emergingAlert.reasons),
+          isImmediate: emergingAlert.isImmediate,
+          isDeepClimber: emergingAlert.isDeepClimber,
+          erratic: emergingAlert.erratic,
+          lowVelocity: emergingAlert.lowVelocity,
+          rankHistory: safeNumberArray(emergingAlert.rankHistory),
+          contribHistory: safeNumberArray(emergingAlert.contribHistory),
+          reasonCount: emergingAlert.reasonCount,
+        }
+      : null,
+    whaleTopScore,
+  };
 }
