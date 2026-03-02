@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { X, ExternalLink, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { X, ExternalLink, TrendingUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RankSparkline } from './rank-sparkline';
 
@@ -79,40 +79,40 @@ function rsiLabel(rsi: number, direction: string): { text: string; color: string
 
 function fundingLabel(rate: number, direction: string): { text: string; color: string } {
   if (direction === 'LONG') {
-    if (rate < -0.0002) return { text: 'Shorts heavily funding longs — strong carry advantage', color: 'text-bullish' };
+    if (rate < -0.0002) return { text: 'Shorts funding longs — strong carry', color: 'text-bullish' };
     if (rate < 0) return { text: 'Negative funding — longs earn carry', color: 'text-bullish' };
-    if (rate < 0.0003) return { text: 'Near-zero funding — negligible cost', color: 'text-yellow-400' };
+    if (rate < 0.0003) return { text: 'Near-zero — negligible cost', color: 'text-yellow-400' };
     if (rate < 0.001) return { text: 'Small cost to hold long', color: 'text-yellow-400' };
     return { text: 'High funding cost — carry risk for longs', color: 'text-bearish' };
   } else {
-    if (rate > 0.0002) return { text: 'Longs heavily funding shorts — strong carry advantage', color: 'text-bullish' };
+    if (rate > 0.0002) return { text: 'Longs funding shorts — strong carry', color: 'text-bullish' };
     if (rate > 0) return { text: 'Positive funding — shorts earn carry', color: 'text-bullish' };
-    if (rate > -0.0003) return { text: 'Near-zero funding — negligible cost', color: 'text-yellow-400' };
+    if (rate > -0.0003) return { text: 'Near-zero — negligible cost', color: 'text-yellow-400' };
     return { text: 'Negative funding — carry risk for shorts', color: 'text-bearish' };
   }
 }
 
 function volumeLabel(ratio: number): { text: string; color: string } {
-  if (ratio >= 3) return { text: `${ratio.toFixed(1)}× avg — strong breakout volume`, color: 'text-bullish' };
+  if (ratio >= 3) return { text: `${ratio.toFixed(1)}× avg — strong breakout`, color: 'text-bullish' };
   if (ratio >= 2) return { text: `${ratio.toFixed(1)}× avg — elevated activity`, color: 'text-bullish' };
   if (ratio >= 1.3) return { text: `${ratio.toFixed(1)}× avg — above normal`, color: 'text-yellow-400' };
-  if (ratio >= 0.7) return { text: `${ratio.toFixed(1)}× avg — normal volume`, color: 'text-muted-foreground/70' };
+  if (ratio >= 0.7) return { text: `${ratio.toFixed(1)}× avg — normal`, color: 'text-muted-foreground/70' };
   return { text: `${ratio.toFixed(1)}× avg — below average`, color: 'text-bearish' };
 }
 
 function smLabel(pnlPct: number | undefined, accel: number | undefined): string {
   if (pnlPct === undefined) return 'Smart money positioning unavailable';
-  if (pnlPct > 15) return `Smart money up ${pnlPct.toFixed(1)}% — highly profitable positioning`;
-  if (pnlPct > 5) return `Smart money up ${pnlPct.toFixed(1)}% — positive conviction`;
-  if (pnlPct > 0) return `Smart money slightly positive (${pnlPct.toFixed(1)}%)`;
-  if (pnlPct > -5) return `Smart money slightly underwater — watch closely`;
-  return `Smart money down ${Math.abs(pnlPct).toFixed(1)}% — contrarian signal`;
+  if (pnlPct > 15) return `SM +${pnlPct.toFixed(1)}% — highly profitable`;
+  if (pnlPct > 5) return `SM +${pnlPct.toFixed(1)}% — positive conviction`;
+  if (pnlPct > 0) return `SM +${pnlPct.toFixed(1)}% — slightly positive`;
+  if (pnlPct > -5) return `SM ${pnlPct.toFixed(1)}% — slightly underwater`;
+  return `SM ${Math.abs(pnlPct).toFixed(1)}% — contrarian signal`;
 }
 
 function trendLabel(trend: string | null | undefined): { text: string; color: string } {
-  if (trend === 'UP') return { text: 'Uptrend confirmed on 4h (price above EMA20 & EMA50)', color: 'text-bullish' };
-  if (trend === 'DOWN') return { text: 'Downtrend on 4h (price below both EMAs)', color: 'text-bearish' };
-  return { text: 'No clear trend on 4h — sideways market', color: 'text-muted-foreground/60' };
+  if (trend === 'UP') return { text: 'Uptrend on 4h (above EMA20 & EMA50)', color: 'text-bullish' };
+  if (trend === 'DOWN') return { text: 'Downtrend on 4h (below both EMAs)', color: 'text-bearish' };
+  return { text: 'Sideways — no clear 4h trend', color: 'text-muted-foreground/60' };
 }
 
 function velocityLabel(vel: number | null): { text: string; color: string } {
@@ -125,101 +125,114 @@ function velocityLabel(vel: number | null): { text: string; color: string } {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionDivider({ label, color = 'text-muted-foreground/50' }: { label: string; color?: string }) {
-  return (
-    <div className="flex items-center gap-3 mb-4">
-      <div className="h-px w-4 bg-border/30" />
-      <span className={cn('font-mono-data text-[10px] font-bold uppercase tracking-[0.22em]', color)}>
-        {label}
-      </span>
-      <div className="flex-1 h-px bg-border/20" />
-    </div>
-  );
-}
-
-// Confidence breakdown chip row
+// Compact 4-chip confidence breakdown
 function ConfidenceChips({ breakdown, total }: { breakdown: ScoreBreakdown; total: number }) {
   const chips = [
     { label: 'BASE', value: breakdown.base, color: 'text-primary', bg: 'bg-primary/10', border: 'border-primary/25' },
     { label: 'TREND', value: breakdown.trendBonus, color: 'text-cyan-400', bg: 'bg-cyan-400/10', border: 'border-cyan-400/25' },
-    { label: 'EMERGING', value: breakdown.emergingBonus, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/25' },
+    { label: 'EMG', value: breakdown.emergingBonus, color: 'text-amber-400', bg: 'bg-amber-400/10', border: 'border-amber-400/25' },
     { label: 'WHALE', value: breakdown.whaleBonus, color: 'text-violet-400', bg: 'bg-violet-400/10', border: 'border-violet-400/25' },
   ];
 
   return (
-    <div className="space-y-4">
-      {/* Score chips */}
-      <div className="grid grid-cols-4 gap-2">
+    <div className="space-y-2">
+      <div className="grid grid-cols-4 gap-1.5">
         {chips.map((chip) => (
           <div
             key={chip.label}
             className={cn(
-              'flex flex-col items-center gap-1 rounded-xl border py-3 px-2',
+              'flex flex-col items-center gap-0.5 rounded-lg border py-2 px-1',
               chip.bg, chip.border,
-              chip.value === 0 && 'opacity-35'
+              chip.value === 0 && 'opacity-30'
             )}
           >
-            <span className={cn('font-mono-data text-[10px] font-bold uppercase tracking-[0.15em]', chip.color)}>
+            <span className={cn('font-mono-data text-[7px] font-bold uppercase tracking-[0.1em]', chip.color)}>
               {chip.label}
             </span>
-            <span className={cn('font-mono-data text-[22px] font-bold tabular-nums leading-none', chip.color)}>
+            <span className={cn('font-mono-data text-[15px] font-bold tabular-nums leading-none', chip.color)}>
               {chip.value > 0 && chip.label !== 'BASE' ? `+${chip.value}` : chip.value}
             </span>
           </div>
         ))}
       </div>
-
-      {/* Summary bar */}
-      <div className="space-y-2">
-        <div className="flex h-1.5 rounded-full overflow-hidden bg-surface/40 border border-border/20">
-          <div className="bg-primary/70 transition-all duration-500" style={{ width: `${(breakdown.base / 99) * 100}%` }} />
-          <div className="bg-cyan-400/70 transition-all duration-500" style={{ width: `${(breakdown.trendBonus / 99) * 100}%` }} />
-          <div className="bg-amber-400/70 transition-all duration-500" style={{ width: `${(breakdown.emergingBonus / 99) * 100}%` }} />
-          <div className="bg-violet-400/70 transition-all duration-500" style={{ width: `${(breakdown.whaleBonus / 99) * 100}%` }} />
+      {/* Stacked progress bar */}
+      <div className="space-y-1">
+        <div className="flex h-1 rounded-full overflow-hidden bg-surface/40">
+          <div className="bg-primary/70 transition-all" style={{ width: `${(breakdown.base / 99) * 100}%` }} />
+          <div className="bg-cyan-400/70 transition-all" style={{ width: `${(breakdown.trendBonus / 99) * 100}%` }} />
+          <div className="bg-amber-400/70 transition-all" style={{ width: `${(breakdown.emergingBonus / 99) * 100}%` }} />
+          <div className="bg-violet-400/70 transition-all" style={{ width: `${(breakdown.whaleBonus / 99) * 100}%` }} />
         </div>
         <div className="flex items-center justify-between">
-          <span className="font-mono-data text-[11px] text-muted-foreground/50 uppercase tracking-wider">Total Score</span>
-          <span className="font-mono-data text-[16px] font-bold text-foreground/90 tabular-nums">{total} / 99</span>
+          <span className="font-mono-data text-[8px] text-muted-foreground/40 uppercase tracking-wider">Total</span>
+          <span className="font-mono-data text-[12px] font-bold text-foreground/85 tabular-nums">{total} / 99</span>
         </div>
       </div>
     </div>
   );
 }
 
-// Inline pillar score row (replaces PillarBar)
-function PillarRow({
-  label,
-  score,
-  color,
-  barColor,
-  max = 100,
-}: {
-  label: string;
-  score: number;
-  color: string;
-  barColor: string;
-  max?: number;
+// Compact pillar bar
+function PillarRow({ label, score, color, barColor, max = 100 }: {
+  label: string; score: number; color: string; barColor: string; max?: number;
 }) {
-  const pct = Math.min(100, Math.max(0, (score / max) * 100));
-  const filled = Math.round(pct / 10);
+  const filled = Math.round(Math.min(100, Math.max(0, (score / max) * 100)) / 10);
   const empty = 10 - filled;
-
   return (
-    <div className="flex items-center gap-3">
-      <span className={cn('font-mono-data text-[11px] font-bold uppercase tracking-wider w-32 shrink-0', color)}>
+    <div className="flex items-center gap-2">
+      <span className={cn('font-mono-data text-[9px] font-bold uppercase tracking-wider w-22 shrink-0', color)}>
         {label}
       </span>
-      <div className="flex-1 flex items-center gap-0.5">
+      <div className="flex-1 flex items-center gap-px">
         {Array.from({ length: filled }).map((_, i) => (
-          <div key={`f-${i}`} className={cn('h-2 flex-1 rounded-sm', barColor)} />
+          <div key={`f-${i}`} className={cn('h-1.5 flex-1 rounded-sm', barColor)} />
         ))}
         {Array.from({ length: empty }).map((_, i) => (
-          <div key={`e-${i}`} className="h-2 flex-1 rounded-sm bg-surface/50 border border-border/20" />
+          <div key={`e-${i}`} className="h-1.5 flex-1 rounded-sm bg-surface/50 border border-border/20" />
         ))}
       </div>
-      <span className="font-mono-data text-[16px] font-bold tabular-nums text-foreground/85 w-8 text-right">
+      <span className="font-mono-data text-[12px] font-bold tabular-nums text-foreground/80 w-7 text-right shrink-0">
         {score}
       </span>
+    </div>
+  );
+}
+
+// Single-line signal reading: label | value | description
+function ReadingLine({ label, value, valueClass, description }: {
+  label: string; value: string; valueClass?: string; description: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 py-1.5 border-b border-border/10 last:border-0">
+      <span className="font-mono-data text-[8px] uppercase tracking-wider text-muted-foreground/40 w-[68px] shrink-0">
+        {label}
+      </span>
+      <span className={cn('font-mono-data text-[11px] font-bold tabular-nums w-14 shrink-0', valueClass || 'text-foreground/80')}>
+        {value}
+      </span>
+      <span className="font-mono-data text-[9px] text-muted-foreground/55 leading-tight min-w-0 truncate">
+        {description}
+      </span>
+    </div>
+  );
+}
+
+// Compact note row
+function ReadingNote({ icon, text }: { icon: string; text: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span className="shrink-0 text-[9px]">{icon}</span>
+      <p className="font-mono-data text-[9px] text-muted-foreground/55 leading-tight">{text}</p>
+    </div>
+  );
+}
+
+// Small stat tile
+function MiniStat({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border/20 bg-surface/15 px-2 py-1.5">
+      <div className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/40 mb-0.5">{label}</div>
+      {children}
     </div>
   );
 }
@@ -234,16 +247,12 @@ export function SetupDetailModal({ setup, onClose }: Props) {
   const funding = opp?.funding as Record<string, unknown> | null ?? null;
   const sm = opp?.smartMoney as Record<string, unknown> | null ?? null;
 
-  // ESC to close
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
-    }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  // Prevent body scroll
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
@@ -260,62 +269,55 @@ export function SetupDetailModal({ setup, onClose }: Props) {
   const chg1h = tech?.chg1h as number | undefined;
   const chg4h = tech?.chg4h as number | undefined;
 
-  const hasTrend = trend4h !== undefined;
   const trendInfo = trendLabel(trend4h);
   const rsiInfo = rsi1h !== undefined ? rsiLabel(rsi1h, setup.direction) : null;
   const volInfo = volRatio !== undefined ? volumeLabel(volRatio) : null;
   const fundInfo = fundingRate !== undefined ? fundingLabel(fundingRate, setup.direction) : null;
 
-  const pillarScores = opp?.pillarScores as { smartMoney?: number; marketStructure?: number; technicals?: number; funding?: number } | null ?? null;
+  const pillarScores = opp?.pillarScores as {
+    smartMoney?: number; marketStructure?: number; technicals?: number; funding?: number;
+  } | null ?? null;
 
   const DirectionIcon = isLong ? TrendingUp : TrendingDown;
+  const hasPillars = pillarScores && Object.values(pillarScores).some((v) => v !== undefined);
+  const hasSignalReadings = opp && (trend4h !== undefined || rsiInfo || volInfo || sm || fundInfo);
 
   return (
-    /* Backdrop */
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/70 backdrop-blur-sm"
       onClick={onClose}
     >
-      {/* Modal card */}
       <div
-        className="relative w-full max-w-2xl rounded-2xl border border-border/40 bg-card shadow-modal overflow-hidden animate-fade-up"
+        className="relative w-full max-w-[760px] rounded-xl border border-border/40 bg-card shadow-modal overflow-hidden animate-fade-up"
         onClick={(e) => e.stopPropagation()}
       >
 
         {/* ── Header ── */}
         <div className={cn(
-          'flex items-center gap-4 px-6 py-4 border-b border-border/25',
+          'flex items-center gap-3 px-4 py-3 border-b border-border/25',
           isLong ? 'bg-bullish/5' : 'bg-bearish/5'
         )}>
-          {/* Direction accent bar */}
-          <div className={cn('w-1 self-stretch rounded-full', isLong ? 'bg-bullish' : 'bg-bearish')} />
+          <div className={cn('w-0.5 self-stretch rounded-full shrink-0', isLong ? 'bg-bullish' : 'bg-bearish')} />
 
-          {/* Asset name */}
-          <div className="flex flex-col gap-0.5">
-            <span className="font-mono-data text-3xl font-bold text-foreground/95 tracking-tight leading-none">
-              {setup.asset}
-            </span>
-            <span className="font-mono-data text-[11px] text-muted-foreground/50 uppercase tracking-wider">
-              Perpetual Future
-            </span>
-          </div>
+          {/* Asset */}
+          <span className="font-mono-data text-[22px] font-bold text-foreground/95 tracking-tight leading-none">
+            {setup.asset}
+          </span>
 
-          {/* Direction badge */}
+          {/* Direction */}
           <span className={cn(
-            'flex items-center gap-1.5 rounded-lg border px-3 py-1 font-mono-data text-sm font-bold uppercase tracking-wider',
-            isLong
-              ? 'border-bullish/45 bg-bullish/12 text-bullish'
-              : 'border-bearish/45 bg-bearish/12 text-bearish'
+            'flex items-center gap-1 rounded border px-2 py-0.5 font-mono-data text-[10px] font-bold uppercase tracking-wider shrink-0',
+            isLong ? 'border-bullish/45 bg-bullish/12 text-bullish' : 'border-bearish/45 bg-bearish/12 text-bearish'
           )}>
-            <DirectionIcon className="h-3.5 w-3.5" />
+            <DirectionIcon className="h-3 w-3" />
             {setup.direction}
           </span>
 
           {/* Confidence */}
-          <div className="flex flex-col items-center gap-0.5">
-            <span className="font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground/45">Score</span>
+          <div className="flex flex-col items-center shrink-0">
+            <span className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/40">Score</span>
             <span className={cn(
-              'font-mono-data text-2xl font-bold tabular-nums leading-none',
+              'font-mono-data text-[18px] font-bold tabular-nums leading-none',
               setup.confidence >= 80 ? 'text-bullish' : 'text-primary'
             )}>
               {setup.confidence}
@@ -324,494 +326,333 @@ export function SetupDetailModal({ setup, onClose }: Props) {
 
           {/* Leverage */}
           {opp?.leverage && (
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground/45">Lev</span>
-              <span className="font-mono-data text-sm font-bold text-muted-foreground/70">
-                {opp.leverage}×
-              </span>
+            <div className="flex flex-col items-center shrink-0">
+              <span className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/40">Lev</span>
+              <span className="font-mono-data text-[13px] font-bold text-muted-foreground/65">{opp.leverage}×</span>
             </div>
           )}
 
-          {/* Close button */}
+          {/* Quick meta pills */}
+          <div className="flex items-center gap-1.5 ml-1 flex-wrap">
+            {opp?.scanStreak != null && (
+              <span className="rounded border border-border/25 bg-surface/20 px-1.5 py-px font-mono-data text-[8px] text-muted-foreground/55">
+                streak ×{opp.scanStreak}
+              </span>
+            )}
+            {opp?.hourlyTrend && (
+              <span className={cn(
+                'rounded border px-1.5 py-px font-mono-data text-[8px] font-bold',
+                opp.hourlyTrend === 'UP' ? 'border-bullish/30 bg-bullish/8 text-bullish' : 'border-bearish/30 bg-bearish/8 text-bearish'
+              )}>
+                {opp.hourlyTrend}
+              </span>
+            )}
+            {chg1h !== undefined && (
+              <span className={cn('font-mono-data text-[9px] font-bold tabular-nums', chg1h >= 0 ? 'text-bullish' : 'text-bearish')}>
+                1h {chg1h >= 0 ? '+' : ''}{chg1h.toFixed(1)}%
+              </span>
+            )}
+            {chg4h !== undefined && (
+              <span className={cn('font-mono-data text-[9px] font-bold tabular-nums', chg4h >= 0 ? 'text-bullish' : 'text-bearish')}>
+                4h {chg4h >= 0 ? '+' : ''}{chg4h.toFixed(1)}%
+              </span>
+            )}
+          </div>
+
+          {/* Close */}
           <button
             onClick={onClose}
-            className="ml-auto rounded-lg border border-border/30 bg-surface/20 p-2 text-muted-foreground/50 hover:border-border/60 hover:text-foreground/80 transition-colors"
+            className="ml-auto shrink-0 rounded border border-border/30 bg-surface/15 p-1.5 text-muted-foreground/50 hover:border-border/60 hover:text-foreground/80 transition-colors"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
-        {/* ── Scrollable body ── */}
-        <div className="overflow-y-auto custom-scrollbar max-h-[85vh] px-6 py-5 space-y-6">
-
-          {/* Thesis */}
-          <p className="font-mono-data text-[13px] text-muted-foreground/75 leading-relaxed border-l-2 border-primary/30 pl-4">
+        {/* ── Thesis ── */}
+        <div className="px-4 py-2 border-b border-border/15 bg-surface/8">
+          <p className="font-mono-data text-[10px] text-muted-foreground/65 leading-relaxed border-l-2 border-primary/25 pl-3 truncate">
             {setup.thesis}
           </p>
+        </div>
 
-          {/* ── Confidence Breakdown ── */}
-          {setup.scoreBreakdown && (
-            <div>
-              <SectionDivider label="Confidence Breakdown" color="text-primary/80" />
-              <ConfidenceChips breakdown={setup.scoreBreakdown} total={setup.confidence} />
+        {/* ── Body: 2-column layout ── */}
+        <div className="grid grid-cols-2 gap-0 divide-x divide-border/15">
 
-              {/* Reading notes */}
-              {(setup.scoreBreakdown.trendBonus > 0 ||
-                setup.scoreBreakdown.emergingBonus > 0 ||
-                setup.scoreBreakdown.whaleBonus > 0) && (
-                <div className="mt-4 space-y-2">
-                  {setup.scoreBreakdown.trendBonus > 0 && (
-                    <ReadingRow icon="✓" text="4h trend aligns with direction — reduces false signal risk" />
-                  )}
-                  {setup.scoreBreakdown.emergingBonus >= 10 && (
-                    <ReadingRow icon="⚡" text="Immediate mover detected — active trader accumulation right now" />
-                  )}
-                  {setup.scoreBreakdown.emergingBonus === 6 && (
-                    <ReadingRow icon="↑" text="Deep climber confirmed — sustained ranking improvement" />
-                  )}
-                  {setup.scoreBreakdown.emergingBonus === 3 && (
-                    <ReadingRow icon="~" text="Some emerging activity — mild trader interest" />
-                  )}
-                  {setup.scoreBreakdown.whaleBonus > 0 && (
-                    <ReadingRow icon="🐋" text="Whale backdrop active — top wallet scoring ≥ 80" />
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          {/* ── LEFT column ── */}
+          <div className="px-4 py-3 space-y-4">
 
-          {/* ── Opportunity Scanner ── */}
-          {opp && (
-            <div>
-              <SectionDivider label="Opportunity Scanner" color="text-cyan-400/80" />
-              <div className="space-y-5">
-
-                {/* Quick stats row */}
-                <div className="grid grid-cols-4 gap-2">
-                  <QuickStat
-                    label="Scan Streak"
-                    value={`×${opp.scanStreak ?? 0}`}
-                    valueClass="text-foreground/85"
-                  />
-                  <QuickStat
-                    label="Hourly Trend"
-                    value={opp.hourlyTrend ?? '—'}
-                    valueClass={
-                      opp.hourlyTrend === 'UP' ? 'text-bullish'
-                      : opp.hourlyTrend === 'DOWN' ? 'text-bearish'
-                      : 'text-muted-foreground/60'
-                    }
-                  />
-                  {chg1h !== undefined && (
-                    <QuickStat
-                      label="1h Change"
-                      value={`${chg1h >= 0 ? '+' : ''}${chg1h.toFixed(1)}%`}
-                      valueClass={chg1h >= 0 ? 'text-bullish' : 'text-bearish'}
-                    />
-                  )}
-                  {chg4h !== undefined && (
-                    <QuickStat
-                      label="4h Change"
-                      value={`${chg4h >= 0 ? '+' : ''}${chg4h.toFixed(1)}%`}
-                      valueClass={chg4h >= 0 ? 'text-bullish' : 'text-bearish'}
-                    />
-                  )}
-                  {opp.trendAligned && (
-                    <QuickStat
-                      label="Alignment"
-                      value="Aligned"
-                      valueClass="text-bullish"
-                    />
-                  )}
-                </div>
-
-                {/* 4-Pillar scores */}
-                {pillarScores && (
-                  <div className="rounded-xl border border-border/25 bg-surface/20 px-4 py-4 space-y-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono-data text-[10px] uppercase tracking-[0.2em] text-muted-foreground/45">
-                        4-Pillar Score
-                      </span>
-                      <span className="font-mono-data text-[14px] font-bold text-foreground/80 tabular-nums">
-                        {opp.finalScore} total
-                      </span>
-                    </div>
-                    {pillarScores.smartMoney !== undefined && (
-                      <PillarRow
-                        label="Smart Money"
-                        score={pillarScores.smartMoney}
-                        color="text-cyan-400"
-                        barColor="bg-cyan-400/70"
-                      />
+            {/* Confidence Breakdown */}
+            {setup.scoreBreakdown && (
+              <div className="space-y-2">
+                <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
+                  Confidence Breakdown
+                </span>
+                <ConfidenceChips breakdown={setup.scoreBreakdown} total={setup.confidence} />
+                {(setup.scoreBreakdown.trendBonus > 0 ||
+                  setup.scoreBreakdown.emergingBonus > 0 ||
+                  setup.scoreBreakdown.whaleBonus > 0) && (
+                  <div className="space-y-1 pt-0.5">
+                    {setup.scoreBreakdown.trendBonus > 0 && (
+                      <ReadingNote icon="✓" text="4h trend aligned — reduces false signal risk" />
                     )}
-                    {pillarScores.marketStructure !== undefined && (
-                      <PillarRow
-                        label="Mkt Structure"
-                        score={pillarScores.marketStructure}
-                        color="text-primary"
-                        barColor="bg-primary/70"
-                      />
+                    {setup.scoreBreakdown.emergingBonus >= 10 && (
+                      <ReadingNote icon="⚡" text="Immediate mover — active accumulation right now" />
                     )}
-                    {pillarScores.technicals !== undefined && (
-                      <PillarRow
-                        label="Technicals"
-                        score={pillarScores.technicals}
-                        color="text-amber-400"
-                        barColor="bg-amber-400/70"
-                      />
+                    {setup.scoreBreakdown.emergingBonus === 6 && (
+                      <ReadingNote icon="↑" text="Deep climber — sustained ranking improvement" />
                     )}
-                    {pillarScores.funding !== undefined && (
-                      <PillarRow
-                        label="Funding"
-                        score={pillarScores.funding}
-                        color="text-violet-400"
-                        barColor="bg-violet-400/70"
-                      />
+                    {setup.scoreBreakdown.emergingBonus === 3 && (
+                      <ReadingNote icon="~" text="Some emerging activity — mild trader interest" />
+                    )}
+                    {setup.scoreBreakdown.whaleBonus > 0 && (
+                      <ReadingNote icon="🐋" text="Whale backdrop active (top score ≥ 80)" />
                     )}
                   </div>
                 )}
+              </div>
+            )}
 
-                {/* Signal readings */}
+            {/* Emerging Movers */}
+            {emg && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
+                    Emerging Movers
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {emg.isImmediate && (
+                      <span className="rounded border border-bearish/40 bg-bearish/10 px-1 py-px font-mono-data text-[6px] font-bold uppercase tracking-wider text-bearish">IMM</span>
+                    )}
+                    {emg.isDeepClimber && (
+                      <span className="rounded border border-primary/35 bg-primary/8 px-1 py-px font-mono-data text-[6px] font-bold uppercase tracking-wider text-primary">DEEP</span>
+                    )}
+                    {emg.erratic && (
+                      <span className="rounded border border-orange-400/35 bg-orange-400/8 px-1 py-px font-mono-data text-[6px] uppercase tracking-wider text-orange-400/80">ERT</span>
+                    )}
+                    {emg.lowVelocity && (
+                      <span className="rounded border border-muted-foreground/20 bg-surface/20 px-1 py-px font-mono-data text-[6px] uppercase tracking-wider text-muted-foreground/50">LV</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Stats grid */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {emg.currentRank !== null && (
+                    <MiniStat label="Rank">
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono-data text-[13px] font-bold text-foreground/85 tabular-nums leading-none">#{emg.currentRank}</span>
+                        <RankSparkline data={emg.rankHistory} inverted />
+                      </div>
+                    </MiniStat>
+                  )}
+                  {emg.contribution !== null && (
+                    <MiniStat label="SM%">
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono-data text-[13px] font-bold text-foreground/85 tabular-nums leading-none">{emg.contribution.toFixed(1)}%</span>
+                        <RankSparkline data={emg.contribHistory} inverted={false} />
+                      </div>
+                    </MiniStat>
+                  )}
+                  {emg.contribVelocity !== null && (
+                    <MiniStat label="Vel">
+                      <span className={cn('font-mono-data text-[13px] font-bold tabular-nums leading-none', velocityLabel(emg.contribVelocity).color)}>
+                        {emg.contribVelocity.toFixed(3)}
+                      </span>
+                    </MiniStat>
+                  )}
+                  {emg.priceChg4h !== null && (
+                    <MiniStat label="4h Price">
+                      <span className={cn('font-mono-data text-[13px] font-bold tabular-nums leading-none', emg.priceChg4h >= 0 ? 'text-bullish' : 'text-bearish')}>
+                        {emg.priceChg4h >= 0 ? '+' : ''}{emg.priceChg4h.toFixed(1)}%
+                      </span>
+                    </MiniStat>
+                  )}
+                  {emg.traders !== null && (
+                    <MiniStat label="Traders">
+                      <span className="font-mono-data text-[13px] font-bold tabular-nums text-foreground/80 leading-none">{emg.traders}</span>
+                    </MiniStat>
+                  )}
+                  {emg.reasonCount > 0 && (
+                    <MiniStat label="Signals">
+                      <span className="font-mono-data text-[13px] font-bold tabular-nums text-amber-400 leading-none">{emg.reasonCount}</span>
+                    </MiniStat>
+                  )}
+                </div>
+
+                {/* Reason tags */}
+                {emg.reasons.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {emg.reasons.slice(0, 6).map((r, i) => (
+                      <span key={i} className="rounded border border-amber-400/20 bg-amber-400/5 px-1.5 py-px font-mono-data text-[7px] text-amber-400/70">
+                        {r}
+                      </span>
+                    ))}
+                    {emg.reasons.length > 6 && (
+                      <span className="font-mono-data text-[7px] text-muted-foreground/35">+{emg.reasons.length - 6}</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Whale backdrop */}
+            {setup.whaleTopScore != null && (
+              <div className="flex items-center gap-2.5 rounded-lg border border-violet-400/20 bg-violet-400/5 px-3 py-2">
+                <span className="font-mono-data text-[8px] uppercase tracking-wider text-violet-400/55 shrink-0">Whale</span>
+                <span className={cn(
+                  'font-mono-data text-[14px] font-bold tabular-nums shrink-0',
+                  setup.whaleTopScore >= 80 ? 'text-bullish' : setup.whaleTopScore >= 60 ? 'text-yellow-400' : 'text-muted-foreground/55'
+                )}>
+                  {setup.whaleTopScore.toFixed(1)}
+                </span>
+                <span className="font-mono-data text-[9px] text-muted-foreground/50 leading-tight">
+                  {setup.whaleTopScore >= 80
+                    ? 'High-performing whale active'
+                    : setup.whaleTopScore >= 60
+                    ? 'Moderate whale activity'
+                    : 'Low whale activity'}
+                </span>
+              </div>
+            )}
+
+            {/* Price context fallback */}
+            {!opp && emg?.priceChg4h != null && (
+              <div className="flex items-center gap-2">
+                <span className="font-mono-data text-[8px] uppercase tracking-wider text-muted-foreground/40">4h Change</span>
+                <span className={cn('font-mono-data text-[14px] font-bold tabular-nums', emg.priceChg4h >= 0 ? 'text-bullish' : 'text-bearish')}>
+                  {emg.priceChg4h >= 0 ? '+' : ''}{emg.priceChg4h.toFixed(1)}%
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* ── RIGHT column ── */}
+          <div className="px-4 py-3 space-y-4">
+
+            {/* 4-Pillar Scores */}
+            {hasPillars && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
+                    4-Pillar Score
+                  </span>
+                  <span className="font-mono-data text-[11px] font-bold text-foreground/70 tabular-nums">
+                    {opp!.finalScore} total
+                  </span>
+                </div>
                 <div className="space-y-2">
-                  {hasTrend && (
-                    <SignalReading
-                      label="Market Structure"
+                  {pillarScores!.smartMoney !== undefined && (
+                    <PillarRow label="Smart Money" score={pillarScores!.smartMoney} color="text-cyan-400" barColor="bg-cyan-400/70" />
+                  )}
+                  {pillarScores!.marketStructure !== undefined && (
+                    <PillarRow label="Mkt Structure" score={pillarScores!.marketStructure} color="text-primary" barColor="bg-primary/70" />
+                  )}
+                  {pillarScores!.technicals !== undefined && (
+                    <PillarRow label="Technicals" score={pillarScores!.technicals} color="text-amber-400" barColor="bg-amber-400/70" />
+                  )}
+                  {pillarScores!.funding !== undefined && (
+                    <PillarRow label="Funding" score={pillarScores!.funding} color="text-violet-400" barColor="bg-violet-400/70" />
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Signal Readings */}
+            {hasSignalReadings && (
+              <div className="space-y-1">
+                <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
+                  Signal Readings
+                </span>
+                <div className="divide-y divide-border/10">
+                  {trend4h !== undefined && (
+                    <ReadingLine
+                      label="Structure"
                       value={trend4h ?? '—'}
                       valueClass={trendInfo.color}
                       description={trendInfo.text}
                     />
                   )}
                   {rsiInfo && rsi1h !== undefined && (
-                    <SignalReading
+                    <ReadingLine
                       label="RSI 1h"
                       value={rsi1h.toFixed(1)}
                       valueClass={rsiInfo.color}
                       description={rsiInfo.text}
                     />
                   )}
-                  {volInfo && (
-                    <SignalReading
+                  {volInfo && volRatio !== undefined && (
+                    <ReadingLine
                       label="Volume"
-                      value={`${volRatio!.toFixed(1)}×`}
+                      value={`${volRatio.toFixed(1)}×`}
                       valueClass={volInfo.color}
                       description={volInfo.text}
                     />
                   )}
                   {sm && (
-                    <SignalReading
+                    <ReadingLine
                       label="Smart Money"
-                      value={`SM ${((opp.pillarScores as Record<string, number> | null)?.smartMoney ?? 0)}`}
+                      value={`SM ${(pillarScores?.smartMoney ?? 0)}`}
                       valueClass="text-cyan-400"
                       description={smLabel(pnlPct, accel)}
-                      sub={accel !== undefined ? `Acceleration: ${accel.toFixed(2)}` : undefined}
                     />
                   )}
                   {fundInfo && fundingRate !== undefined && (
-                    <SignalReading
-                      label="Funding Rate"
+                    <ReadingLine
+                      label="Funding"
                       value={`${(fundingRate * 100).toFixed(4)}%`}
                       valueClass={favorable ? 'text-bullish' : fundingRate > 0.001 ? 'text-bearish' : 'text-yellow-400'}
-                      description={fundInfo.text}
-                      sub={annualized !== undefined ? `${annualized.toFixed(1)}% annualized` : undefined}
+                      description={`${fundInfo.text}${annualized !== undefined ? ` · ${annualized.toFixed(1)}% ann.` : ''}`}
                     />
                   )}
                 </div>
-
-                {/* Risks */}
-                {opp.risks.length > 0 && (
-                  <div className="flex items-center gap-2 flex-wrap pt-1">
-                    <span className="font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground/45">Risks</span>
-                    {opp.risks.map((r, i) => (
-                      <span key={i} className="rounded-md border border-bearish/30 bg-bearish/8 px-2.5 py-1 font-mono-data text-[11px] text-bearish/80">
-                        {r.replace(/_/g, ' ')}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* ── Emerging Movers ── */}
-          {emg && (
-            <div>
-              <SectionDivider label="Emerging Movers" color="text-amber-400/80" />
-              <div className="space-y-4">
-
-                {/* Type badges */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {emg.isImmediate && (
-                    <span className="rounded-lg border border-bearish/45 bg-bearish/10 px-3 py-1.5 font-mono-data text-xs font-bold uppercase tracking-wider text-bearish">
-                      Immediate
+            {/* Risks */}
+            {opp && opp.risks.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
+                  Risks
+                </span>
+                <div className="flex flex-wrap gap-1">
+                  {opp.risks.map((r, i) => (
+                    <span key={i} className="rounded border border-bearish/25 bg-bearish/6 px-2 py-px font-mono-data text-[9px] text-bearish/75">
+                      {r.replace(/_/g, ' ')}
                     </span>
-                  )}
-                  {emg.isDeepClimber && (
-                    <span className="rounded-lg border border-primary/40 bg-primary/8 px-3 py-1.5 font-mono-data text-xs font-bold uppercase tracking-wider text-primary">
-                      Deep Climber
-                    </span>
-                  )}
-                  {emg.erratic && (
-                    <span className="rounded-lg border border-orange-400/40 bg-orange-400/8 px-3 py-1.5 font-mono-data text-xs uppercase tracking-wider text-orange-400/85">
-                      Erratic
-                    </span>
-                  )}
-                  {emg.lowVelocity && (
-                    <span className="rounded-lg border border-muted-foreground/25 bg-surface/20 px-3 py-1.5 font-mono-data text-xs uppercase tracking-wider text-muted-foreground/55">
-                      Low Velocity
-                    </span>
-                  )}
+                  ))}
                 </div>
-
-                {/* Key stats */}
-                <div className="grid grid-cols-2 gap-3">
-                  {emg.currentRank !== null && (
-                    <div className="rounded-xl border border-border/25 bg-surface/20 px-4 py-3">
-                      <div className="font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/45 mb-1">
-                        Rank
-                      </div>
-                      <div className="flex items-end gap-3">
-                        <span className="font-mono-data text-2xl font-bold text-foreground/90 tabular-nums leading-none">
-                          #{emg.currentRank}
-                        </span>
-                        <div className="mb-0.5">
-                          <RankSparkline data={emg.rankHistory} inverted />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {emg.contribution !== null && (
-                    <div className="rounded-xl border border-border/25 bg-surface/20 px-4 py-3">
-                      <div className="font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/45 mb-1">
-                        SM Contribution
-                      </div>
-                      <div className="flex items-end gap-3">
-                        <span className="font-mono-data text-2xl font-bold text-foreground/90 tabular-nums leading-none">
-                          {emg.contribution.toFixed(1)}%
-                        </span>
-                        <div className="mb-0.5">
-                          <RankSparkline data={emg.contribHistory} inverted={false} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {emg.contribVelocity !== null && (
-                    <div className="rounded-xl border border-border/25 bg-surface/20 px-4 py-3">
-                      <div className="font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/45 mb-1">
-                        Velocity
-                      </div>
-                      <span className={cn(
-                        'font-mono-data text-xl font-bold tabular-nums leading-none',
-                        velocityLabel(emg.contribVelocity).color
-                      )}>
-                        {emg.contribVelocity.toFixed(3)}
-                      </span>
-                      <div className={cn('font-mono-data text-[11px] mt-1', velocityLabel(emg.contribVelocity).color)}>
-                        {velocityLabel(emg.contribVelocity).text}
-                      </div>
-                    </div>
-                  )}
-                  {emg.priceChg4h !== null && (
-                    <div className="rounded-xl border border-border/25 bg-surface/20 px-4 py-3">
-                      <div className="font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/45 mb-1">
-                        4h Price
-                      </div>
-                      <span className={cn(
-                        'font-mono-data text-xl font-bold tabular-nums leading-none',
-                        emg.priceChg4h >= 0 ? 'text-bullish' : 'text-bearish'
-                      )}>
-                        {emg.priceChg4h >= 0 ? '+' : ''}{emg.priceChg4h.toFixed(1)}%
-                      </span>
-                    </div>
-                  )}
-                  {emg.traders !== null && (
-                    <div className="rounded-xl border border-border/25 bg-surface/20 px-4 py-3">
-                      <div className="font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/45 mb-1">
-                        Active Traders
-                      </div>
-                      <span className="font-mono-data text-xl font-bold tabular-nums text-foreground/85 leading-none">
-                        {emg.traders}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Velocity momentum reading */}
-                {emg.contribVelocity !== null && (
-                  <SignalReading
-                    label="Momentum"
-                    value={velocityLabel(emg.contribVelocity).text.split(' — ')[0]}
-                    valueClass={velocityLabel(emg.contribVelocity).color}
-                    description={
-                      emg.isImmediate
-                        ? 'Active trader accumulation happening right now — highest priority signal'
-                        : emg.isDeepClimber
-                        ? 'Consistent rank improvement over multiple scans — sustained interest'
-                        : 'Gradual rank improvement — early-stage signal'
-                    }
-                  />
-                )}
-
-                {/* Reason tags */}
-                {emg.reasons.length > 0 && (
-                  <div>
-                    <div className="font-mono-data text-[10px] uppercase tracking-wider text-muted-foreground/45 mb-2.5">
-                      Signal Reasons
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {emg.reasons.map((r, i) => (
-                        <span
-                          key={i}
-                          className="rounded-lg border border-amber-400/25 bg-amber-400/7 px-3 py-1.5 font-mono-data text-xs text-amber-400/80"
-                        >
-                          {r}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-            </div>
-          )}
-
-          {/* ── Whale Backdrop ── */}
-          {setup.whaleTopScore !== null && setup.whaleTopScore !== undefined && (
-            <div>
-              <SectionDivider label="Whale Backdrop" color="text-violet-400/80" />
-              <SignalReading
-                label="Top Whale Score"
-                value={setup.whaleTopScore.toFixed(1)}
-                valueClass={
-                  setup.whaleTopScore >= 80 ? 'text-bullish'
-                  : setup.whaleTopScore >= 60 ? 'text-yellow-400'
-                  : 'text-muted-foreground/60'
-                }
-                description={
-                  setup.whaleTopScore >= 80
-                    ? 'High-performing whale active — strong market confidence signal'
-                    : setup.whaleTopScore >= 60
-                    ? 'Moderate whale activity — mild backdrop confirmation'
-                    : 'Low whale activity — no strong backdrop signal'
-                }
-              />
-            </div>
-          )}
-
-          {/* ── Price context fallback (no opportunity) ── */}
-          {!opp && emg?.priceChg4h !== null && emg?.priceChg4h !== undefined && (
-            <div>
-              <SectionDivider label="Price Context" />
-              <QuickStat
-                label="4h Change"
-                value={`${emg.priceChg4h >= 0 ? '+' : ''}${emg.priceChg4h.toFixed(1)}%`}
-                valueClass={emg.priceChg4h >= 0 ? 'text-bullish' : 'text-bearish'}
-              />
-            </div>
-          )}
-
+            )}
+          </div>
         </div>
 
         {/* ── Footer ── */}
-        <div className="flex items-center gap-3 border-t border-border/25 bg-surface/10 px-6 py-4">
+        <div className="flex items-center gap-3 border-t border-border/25 bg-surface/8 px-4 py-2.5">
           <a
             href="https://app.hyperliquid.xyz/trade"
             target="_blank"
             rel="noopener noreferrer"
             className={cn(
-              'flex items-center gap-2 rounded-lg border px-4 py-2 font-mono-data text-[12px] font-bold uppercase tracking-wider transition-colors',
+              'flex items-center gap-1.5 rounded-lg border px-3 py-1.5 font-mono-data text-[10px] font-bold uppercase tracking-wider transition-colors',
               isLong
                 ? 'border-bullish/40 bg-bullish/10 text-bullish hover:bg-bullish/20'
                 : 'border-bearish/40 bg-bearish/10 text-bearish hover:bg-bearish/20'
             )}
           >
             Trade on Hyperliquid
-            <ExternalLink className="h-3.5 w-3.5" />
+            <ExternalLink className="h-3 w-3" />
           </a>
-          <span className="ml-auto font-mono-data text-[10px] text-muted-foreground/35 uppercase tracking-wider">
+          <span className="ml-auto font-mono-data text-[8px] text-muted-foreground/30 uppercase tracking-wider">
             Not financial advice
           </span>
           <button
             onClick={onClose}
-            className="rounded-lg border border-border/30 bg-surface/15 px-4 py-2 font-mono-data text-[12px] text-muted-foreground/60 hover:text-foreground/80 hover:border-border/50 transition-colors"
+            className="rounded-lg border border-border/30 bg-surface/15 px-3 py-1.5 font-mono-data text-[10px] text-muted-foreground/55 hover:text-foreground/80 hover:border-border/50 transition-colors"
           >
             Close
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-// ─── Signal reading row (2-column layout) ─────────────────────────────────────
-
-function SignalReading({
-  label,
-  value,
-  valueClass,
-  description,
-  sub,
-}: {
-  label: string;
-  value: string;
-  valueClass?: string;
-  description: string;
-  sub?: string;
-}) {
-  return (
-    <div className="flex items-start gap-4 rounded-xl border border-border/20 bg-surface/15 px-4 py-3">
-      {/* Left: label + value */}
-      <div className="shrink-0 w-28">
-        <div className="font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/45 mb-1">
-          {label}
-        </div>
-        <div className={cn('font-mono-data text-[18px] font-bold tabular-nums leading-none', valueClass || 'text-foreground/85')}>
-          {value}
-        </div>
-        {sub && (
-          <div className="font-mono-data text-[10px] text-muted-foreground/40 mt-1.5 leading-snug">
-            {sub}
-          </div>
-        )}
-      </div>
-      {/* Right: explanation */}
-      <div className="flex-1 pt-0.5">
-        <p className="font-mono-data text-[13px] text-muted-foreground/70 leading-relaxed">
-          {description}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ─── Quick stat tile ──────────────────────────────────────────────────────────
-
-function QuickStat({
-  label,
-  value,
-  valueClass,
-}: {
-  label: string;
-  value: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-xl border border-border/20 bg-surface/20 px-4 py-3">
-      <span className="font-mono-data text-[11px] uppercase tracking-wider text-muted-foreground/45">
-        {label}
-      </span>
-      <span className={cn('font-mono-data text-[14px] font-bold tabular-nums', valueClass || 'text-foreground/80')}>
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// ─── Reading row (confidence notes) ──────────────────────────────────────────
-
-function ReadingRow({ icon, text }: { icon: string; text: string }) {
-  return (
-    <div className="flex items-start gap-2.5 rounded-lg bg-surface/15 px-3 py-2">
-      <span className="shrink-0 text-[13px] mt-0.5">{icon}</span>
-      <p className="font-mono-data text-[12px] text-muted-foreground/65 leading-relaxed">{text}</p>
     </div>
   );
 }
