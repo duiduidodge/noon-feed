@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Sparkles, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,8 @@ async function fetchSetups(): Promise<SetupResponse> {
 
 export function TradeSetupsPanel() {
   const [selected, setSelected] = useState<SetupDetailItem | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['trade-setups'],
@@ -88,12 +91,13 @@ export function TradeSetupsPanel() {
         )}
       </div>
 
-      {/* Detail modal */}
-      {selected && (
+      {/* Detail modal — rendered via portal to escape overflow/backdrop-filter stacking contexts */}
+      {mounted && selected && createPortal(
         <SetupDetailModal
           setup={selected}
           onClose={() => setSelected(null)}
-        />
+        />,
+        document.body
       )}
     </>
   );
