@@ -911,6 +911,8 @@ async function main() {
   let lastEmergingSignalsPoll = 0;
   let lastOpportunitySignalsPoll = 0;
   let lastWhaleSignalsPoll = 0;
+  let lastWhaleNotification = 0;
+  const WHALE_NOTIFICATION_INTERVAL_MS = 60 * 60 * 1000; // notify at most once per hour
   logger.info({ intervalMinutes: config.worker.fetchIntervalMinutes }, 'Worker started, entering main loop');
 
   while (true) {
@@ -977,19 +979,29 @@ async function main() {
         const whaleTraders = await whaleSignalsService.pollAndPersist(prisma);
         lastWhaleSignalsPoll = Date.now();
 
-        const signalsWebhook = getSignalsWebhookUrl();
-        if (signalsWebhook && whaleTraders.length > 0) {
-          postWhaleSnapshot(signalsWebhook, whaleTraders).catch((err) =>
-            logger.error({ error: (err as Error).message }, 'Failed to post whale snapshot to Discord')
-          );
-        }
+        const shouldNotify =
+          whaleTraders.length > 0 &&
+          Date.now() - lastWhaleNotification >= WHALE_NOTIFICATION_INTERVAL_MS;
 
-        const tgToken = process.env.TELEGRAM_BOT_TOKEN;
-        const tgChatId = process.env.TELEGRAM_CHAT_ID;
-        if (tgToken && tgChatId && whaleTraders.length > 0) {
-          postWhaleSnapshotToTelegram(tgToken, tgChatId, whaleTraders).catch((err) =>
-            logger.error({ error: (err as Error).message }, 'Failed to post whale snapshot to Telegram')
-          );
+        if (shouldNotify) {
+          lastWhaleNotification = Date.now();
+
+          const signalsWebhook = getSignalsWebhookUrl();
+          if (signalsWebhook) {
+            postWhaleSnapshot(signalsWebhook, whaleTraders).catch((err) =>
+              logger.error({ error: (err as Error).message }, 'Failed to post whale snapshot to Discord')
+            );
+          }
+
+          const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+          const tgChatId = process.env.TELEGRAM_CHAT_ID;
+          if (tgToken && tgChatId) {
+            postWhaleSnapshotToTelegram(tgToken, tgChatId, whaleTraders).catch((err) =>
+              logger.error({ error: (err as Error).message }, 'Failed to post whale snapshot to Telegram')
+            );
+          }
+
+          logger.info({ count: whaleTraders.length }, 'Whale notification sent (hourly gate)');
         }
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to refresh whale signals');
