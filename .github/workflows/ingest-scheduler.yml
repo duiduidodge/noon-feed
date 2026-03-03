@@ -1,8 +1,9 @@
 name: Ingest Scheduler
+# Scheduled ingest disabled — the Fly.io worker (noon-feed-worker) runs continuously
+# and handles all RSS/API fetching and article processing. Use workflow_dispatch to
+# run a one-shot ingest manually if needed (e.g. after a worker outage).
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 concurrency:

@@ -66,8 +66,9 @@ async function runSourceFetches(config: ReturnType<typeof buildConfig>) {
   }
 }
 
-// Leave a 4-minute buffer before the 25-minute GitHub Actions timeout
-const ARTICLE_FETCH_BUDGET_MS = 20 * 60 * 1000;
+// Leave a generous buffer — GitHub Actions overhead (checkout/install/build) takes ~5 min,
+// so cap article processing at 10 min to stay well under the 25-minute job timeout.
+const ARTICLE_FETCH_BUDGET_MS = 10 * 60 * 1000;
 
 async function processPendingArticles(config: ReturnType<typeof buildConfig>) {
   const articleFetcher = new ArticleFetcher({
