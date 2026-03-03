@@ -16,7 +16,6 @@ import { WhaleSignalsService } from './services/whale-signals.js';
 import {
   postOpportunitySignals,
   postWhaleSnapshot,
-  postOpportunitySignalsToTelegram,
   postWhaleSnapshotToTelegram,
 } from './services/discord-signals-poster.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
@@ -964,13 +963,6 @@ async function main() {
           );
         }
 
-        const tgToken = process.env.TELEGRAM_BOT_TOKEN;
-        const tgChatId = process.env.TELEGRAM_CHAT_ID;
-        if (tgToken && tgChatId && opportunities.length > 0) {
-          postOpportunitySignalsToTelegram(tgToken, tgChatId, opportunities, btcContext).catch((err) =>
-            logger.error({ error: (err as Error).message }, 'Failed to post opportunity signals to Telegram')
-          );
-        }
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to refresh opportunity signals');
         lastOpportunitySignalsPoll = Date.now();
