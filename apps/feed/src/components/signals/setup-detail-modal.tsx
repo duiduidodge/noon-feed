@@ -115,6 +115,12 @@ function trendLabel(trend: string | null | undefined): { text: string; color: st
   return { text: 'Sideways — no clear 4h trend', color: 'text-muted-foreground/60' };
 }
 
+function trend1hLabel(trend: string | null | undefined): { text: string; color: string } {
+  if (trend === 'UP') return { text: 'Uptrend on 1h (EMA9 > EMA21) — both TFs aligned', color: 'text-bullish' };
+  if (trend === 'DOWN') return { text: 'Downtrend on 1h (EMA9 < EMA21) — both TFs aligned', color: 'text-bearish' };
+  return { text: 'Sideways on 1h — no EMA trend confirmation', color: 'text-muted-foreground/60' };
+}
+
 function velocityLabel(vel: number | null): { text: string; color: string } {
   if (vel === null) return { text: '—', color: 'text-muted-foreground/50' };
   if (vel >= 0.5) return { text: 'Accelerating rapidly', color: 'text-bullish' };
@@ -301,6 +307,8 @@ export function SetupDetailModal({ setup, onClose }: Props) {
   const rsi1h = tech?.rsi1h as number | undefined;
   const volRatio = tech?.volRatio1h as number | undefined;
   const trend4h = tech?.trend4h as string | undefined;
+  const trend1h = tech?.trend1h as string | undefined;
+  const pivots = tech?.pivots as { pp?: number; s1?: number; r1?: number; s2?: number; r2?: number } | null | undefined;
   const fundingRate = funding?.rate as number | undefined;
   const annualized = funding?.annualized as number | undefined;
   const favorable = funding?.favorable as boolean | undefined;
@@ -310,6 +318,7 @@ export function SetupDetailModal({ setup, onClose }: Props) {
   const chg4h = tech?.chg4h as number | undefined;
 
   const trendInfo = trendLabel(trend4h);
+  const trend1hInfo = trend1hLabel(trend1h);
   const rsiInfo = rsi1h !== undefined ? rsiLabel(rsi1h, setup.direction) : null;
   const volInfo = volRatio !== undefined ? volumeLabel(volRatio) : null;
   const fundInfo = fundingRate !== undefined ? fundingLabel(fundingRate, setup.direction) : null;
@@ -320,7 +329,7 @@ export function SetupDetailModal({ setup, onClose }: Props) {
 
   const DirectionIcon = isLong ? TrendingUp : TrendingDown;
   const hasPillars = pillarScores && Object.values(pillarScores).some((v) => v !== undefined);
-  const hasSignalReadings = opp && (trend4h !== undefined || rsiInfo || volInfo || sm || fundInfo);
+  const hasSignalReadings = opp && (trend4h !== undefined || trend1h !== undefined || rsiInfo || volInfo || sm || fundInfo);
   // Show chart in right column when there's no opportunity data to fill it
   const showChart = !hasPillars && !hasSignalReadings;
 
@@ -384,7 +393,9 @@ export function SetupDetailModal({ setup, onClose }: Props) {
             {opp?.hourlyTrend && (
               <span className={cn(
                 'rounded border px-1.5 py-px font-mono-data text-[8px] font-bold',
-                opp.hourlyTrend === 'UP' ? 'border-bullish/30 bg-bullish/8 text-bullish' : 'border-bearish/30 bg-bearish/8 text-bearish'
+                opp.hourlyTrend === 'UP' ? 'border-bullish/30 bg-bullish/8 text-bullish' :
+                opp.hourlyTrend === 'DOWN' ? 'border-bearish/30 bg-bearish/8 text-bearish' :
+                'border-border/20 bg-surface/15 text-muted-foreground/50'
               )}>
                 {opp.hourlyTrend}
               </span>
@@ -618,10 +629,18 @@ export function SetupDetailModal({ setup, onClose }: Props) {
                 <div className="divide-y divide-border/10">
                   {trend4h !== undefined && (
                     <ReadingLine
-                      label="Structure"
+                      label="4H Trend"
                       value={trend4h ?? '—'}
                       valueClass={trendInfo.color}
                       description={trendInfo.text}
+                    />
+                  )}
+                  {trend1h !== undefined && (
+                    <ReadingLine
+                      label="1H Trend"
+                      value={trend1h ?? '—'}
+                      valueClass={trend1hInfo.color}
+                      description={trend1hInfo.text}
                     />
                   )}
                   {rsiInfo && rsi1h !== undefined && (
@@ -656,6 +675,31 @@ export function SetupDetailModal({ setup, onClose }: Props) {
                       description={`${fundInfo.text}${annualized !== undefined ? ` · ${annualized.toFixed(1)}% ann.` : ''}`}
                     />
                   )}
+                </div>
+              </div>
+            )}
+
+            {/* Pivot Points */}
+            {pivots && (pivots.pp || pivots.s1 || pivots.r1) && (
+              <div className="space-y-1.5">
+                <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
+                  Pivot Points · 4H
+                </span>
+                <div className="grid grid-cols-5 gap-1">
+                  {[
+                    { label: 'S2', val: pivots.s2, cls: 'text-bearish border-bearish/20 bg-bearish/5' },
+                    { label: 'S1', val: pivots.s1, cls: 'text-bearish/80 border-bearish/25 bg-bearish/8' },
+                    { label: 'PP', val: pivots.pp, cls: 'text-foreground/70 border-border/30 bg-surface/20' },
+                    { label: 'R1', val: pivots.r1, cls: 'text-bullish/80 border-bullish/25 bg-bullish/8' },
+                    { label: 'R2', val: pivots.r2, cls: 'text-bullish border-bullish/20 bg-bullish/5' },
+                  ].map(({ label, val, cls }) => (
+                    <div key={label} className={cn('rounded border px-1.5 py-1.5 text-center', cls)}>
+                      <div className="font-mono-data text-[6px] uppercase tracking-wider opacity-60 mb-0.5">{label}</div>
+                      <div className="font-mono-data text-[9px] font-bold tabular-nums leading-none">
+                        {val != null ? (val >= 1000 ? `$${val.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : val >= 1 ? `$${val.toFixed(2)}` : `$${val.toFixed(4)}`) : '—'}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

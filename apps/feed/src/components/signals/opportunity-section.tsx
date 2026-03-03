@@ -29,6 +29,7 @@ interface OpportunitySnapshot {
   passedStage2: number | null;
   deepDived: number | null;
   disqualified: number | null;
+  filteredByGates: number | null;
   btcContext: Record<string, unknown> | null;
 }
 
@@ -64,6 +65,12 @@ export function OpportunitySection({ snapshot, items }: Props) {
           <FunnelCell label="Deep" value={snapshot.deepDived} />
           <FunnelSep />
           <FunnelCell label="DQ" value={snapshot.disqualified} accent="text-bearish/60" />
+          {snapshot.filteredByGates != null && (
+            <>
+              <FunnelSep />
+              <FunnelCell label="Gated" value={snapshot.filteredByGates} accent="text-amber-400/60" />
+            </>
+          )}
         </div>
       )}
 

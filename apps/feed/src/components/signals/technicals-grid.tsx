@@ -2,12 +2,21 @@
 
 import { cn } from '@/lib/utils';
 
+interface PivotPoints {
+  pp?: number;
+  s1?: number;
+  r1?: number;
+  s2?: number;
+  r2?: number;
+}
+
 interface TechnicalsData {
   rsi1h?: number;
   rsi15m?: number;
   volRatio1h?: number;
   volRatio15m?: number;
   trend4h?: string;
+  trend1h?: string;
   trendStrength?: number;
   patterns15m?: string[];
   patterns1h?: string[];
@@ -19,6 +28,7 @@ interface TechnicalsData {
   support?: number;
   resistance?: number;
   atrPct?: number;
+  pivots?: PivotPoints | null;
 }
 
 function rsiColor(val: number): string {
@@ -78,6 +88,16 @@ export function TechnicalsGrid({ data }: { data: TechnicalsData | null }) {
           </div>
         </div>
 
+        {/* 1h Trend */}
+        <div className="rounded-lg border border-border/25 bg-surface/15 px-2 py-1.5">
+          <div className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/50 mb-0.5">1h Trend</div>
+          <div className={cn('font-mono-data text-[11px] font-bold uppercase',
+            data.trend1h === 'UP' ? 'text-bullish' : data.trend1h === 'DOWN' ? 'text-bearish' : 'text-muted-foreground/60'
+          )}>
+            {data.trend1h ?? '—'}
+          </div>
+        </div>
+
         {/* 4h Trend */}
         <div className="rounded-lg border border-border/25 bg-surface/15 px-2 py-1.5">
           <div className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/50 mb-0.5">4h Trend</div>
@@ -121,13 +141,38 @@ export function TechnicalsGrid({ data }: { data: TechnicalsData | null }) {
         ))}
       </div>
 
-      {/* S/R line */}
+      {/* S/R line (S1/R1 from pivot points) */}
       {(data.support || data.resistance) && (
         <div className="flex items-center gap-2 px-1">
-          <span className="font-mono-data text-[8px] text-muted-foreground/50 uppercase">S/R</span>
+          <span className="font-mono-data text-[8px] text-muted-foreground/50 uppercase">S1/R1</span>
           <span className="font-mono-data text-[10px] text-bearish/80 tabular-nums">{formatPrice(data.support)}</span>
           <span className="text-muted-foreground/30">—</span>
           <span className="font-mono-data text-[10px] text-bullish/80 tabular-nums">{formatPrice(data.resistance)}</span>
+        </div>
+      )}
+
+      {/* Pivot points */}
+      {data.pivots && (data.pivots.pp || data.pivots.s2 || data.pivots.r2) && (
+        <div className="flex items-center gap-2 px-1 flex-wrap">
+          <span className="font-mono-data text-[8px] text-muted-foreground/50 uppercase shrink-0">Pivots</span>
+          {data.pivots.s2 != null && (
+            <span className="flex items-center gap-0.5">
+              <span className="font-mono-data text-[7px] text-bearish/40 uppercase">S2</span>
+              <span className="font-mono-data text-[9px] text-bearish/60 tabular-nums">{formatPrice(data.pivots.s2)}</span>
+            </span>
+          )}
+          {data.pivots.pp != null && (
+            <span className="flex items-center gap-0.5">
+              <span className="font-mono-data text-[7px] text-muted-foreground/40 uppercase">PP</span>
+              <span className="font-mono-data text-[9px] text-foreground/55 tabular-nums">{formatPrice(data.pivots.pp)}</span>
+            </span>
+          )}
+          {data.pivots.r2 != null && (
+            <span className="flex items-center gap-0.5">
+              <span className="font-mono-data text-[7px] text-bullish/40 uppercase">R2</span>
+              <span className="font-mono-data text-[9px] text-bullish/60 tabular-nums">{formatPrice(data.pivots.r2)}</span>
+            </span>
+          )}
         </div>
       )}
 

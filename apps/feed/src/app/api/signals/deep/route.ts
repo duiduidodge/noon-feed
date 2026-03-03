@@ -50,17 +50,21 @@ export async function GET() {
       {
         opportunities: {
           snapshot: oppSnapshot
-            ? {
-                id: oppSnapshot.id,
-                scanTime: oppSnapshot.scanTime.toISOString(),
-                assetsScanned: oppSnapshot.assetsScanned,
-                passedStage1: oppSnapshot.passedStage1,
-                passedStage2: oppSnapshot.passedStage2,
-                deepDived: oppSnapshot.deepDived,
-                disqualified: oppSnapshot.disqualified,
-                btcContext: safeJson(oppSnapshot.btcContext),
-                createdAt: oppSnapshot.createdAt.toISOString(),
-              }
+            ? (() => {
+                const rawP = safeJson(oppSnapshot.rawPayload);
+                return {
+                  id: oppSnapshot.id,
+                  scanTime: oppSnapshot.scanTime.toISOString(),
+                  assetsScanned: oppSnapshot.assetsScanned,
+                  passedStage1: oppSnapshot.passedStage1,
+                  passedStage2: oppSnapshot.passedStage2,
+                  deepDived: oppSnapshot.deepDived,
+                  disqualified: oppSnapshot.disqualified,
+                  filteredByGates: typeof rawP?.filteredByGates === 'number' ? rawP.filteredByGates : null,
+                  btcContext: safeJson(oppSnapshot.btcContext),
+                  createdAt: oppSnapshot.createdAt.toISOString(),
+                };
+              })()
             : null,
           items: (oppSnapshot?.opportunities ?? []).map((item) => ({
             id: item.id,

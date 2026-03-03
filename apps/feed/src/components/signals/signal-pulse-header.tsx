@@ -5,6 +5,7 @@ import { Activity, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface BtcContext {
   trend?: string;
+  trend4h?: string;
   change1h?: number;
   change24h?: number;
   price?: number;
@@ -36,6 +37,7 @@ export function SignalPulseHeader({
   hasImmediate,
 }: PulseHeaderProps) {
   const btcTrend = btcContext?.trend;
+  const btcTrend4h = btcContext?.trend4h;
   const btcChg = btcContext?.change1h;
 
   return (
@@ -75,6 +77,7 @@ export function SignalPulseHeader({
         {btcContext && (
           <div className="flex items-center gap-1.5">
             <span className="font-mono-data text-[8px] uppercase tracking-wider text-muted-foreground/45">BTC</span>
+            {/* 1H trend */}
             <span className={cn(
               'font-mono-data text-[9px] font-bold uppercase tracking-wide',
               btcTrend === 'UP' || btcTrend === 'strong_up' ? 'text-bullish' :
@@ -83,6 +86,21 @@ export function SignalPulseHeader({
             )}>
               {btcTrend ?? '—'}
             </span>
+            {/* 4H trend indicator */}
+            {btcTrend4h && (
+              <>
+                <span className="font-mono-data text-[7px] text-muted-foreground/30">·</span>
+                <span className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/35">4H</span>
+                <span className={cn(
+                  'font-mono-data text-[8px] font-bold uppercase',
+                  btcTrend4h === 'UP' ? 'text-bullish/70' :
+                  btcTrend4h === 'DOWN' ? 'text-bearish/70' :
+                  'text-muted-foreground/40'
+                )}>
+                  {btcTrend4h}
+                </span>
+              </>
+            )}
             {btcChg !== undefined && btcChg !== null && (
               <span className={cn(
                 'font-mono-data text-[9px] font-semibold tabular-nums flex items-center gap-0.5',
