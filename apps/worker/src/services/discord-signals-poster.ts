@@ -1,10 +1,11 @@
 /**
- * Formats and posts trading signal embeds to Discord.
+ * Formats and posts trading signal embeds to Discord and Telegram.
  * Called after each signal scan completes.
  */
 
 import { createLogger } from '@crypto-news/shared';
 import type { OpportunityResult } from './opportunity-scanner.js';
+import { TelegramService, escapeHtml } from './telegram.js';
 
 const logger = createLogger('worker:discord-signals');
 
@@ -159,4 +160,82 @@ export async function postWhaleSnapshot(
 
   await sendWebhook(webhookUrl, { embeds: [embed] });
   logger.info({ count: traders.length }, 'Posted whale snapshot to Discord');
+}
+
+// ─── Telegram: Trade Setups ────────────────────────────────────────────────────
+
+export async function postOpportunitySignalsToTelegram(
+  botToken: string,
+  chatId: string,
+  opportunities: OpportunityResult[],
+  btcContext?: { price: number; trend: string; change1h: number; change24h: number } | null,
+): Promise<void> {
+  if (opportunities.length === 0) return;
+
+  const telegram = new TelegramService(botToken, chatId);
+
+  const signalLines = opportunities.map(o => {
+    const dir = o.direction === 'LONG' ? '🟢 LONG' : '🔴 SHORT';
+    const delta =
+      o.scoreDelta > 0.5 ? ` ↑${o.scoreDelta.toFixed(1)}` :
+      o.scoreDelta < -0.5 ? ` ↓${Math.abs(o.scoreDelta).toFixed(1)}` : '';
+    const streak = o.scanStreak > 1 ? ` 🔥×${o.scanStreak}` : '';
+    return `${dir} <b>${escapeHtml(o.asset)}</b> ×${o.leverage}  Score: <b>${o.finalScore.toFixed(1)}</b>${delta}${streak}`;
+  });
+
+  const pillarLines = opportunities.slice(0, 5).map(o => {
+    const p = o.pillarScores;
+    return `<b>${escapeHtml(o.asset)}</b>  SM <code>${p.smartMoney.toFixed(0)}</code>  Str <code>${p.marketStructure.toFixed(0)}</code>  Tech <code>${p.technicals.toFixed(0)}</code>  Fund <code>${p.funding.toFixed(0)}</code>`;
+  });
+
+  const btcLine = btcContext
+    ? `BTC $${btcContext.price.toLocaleString()}  ·  ${escapeHtml(btcContext.trend)}  ·  1H: ${btcContext.change1h >= 0 ? '+' : ''}${btcContext.change1h.toFixed(2)}%`
+    : '';
+
+  const message = [
+    `🎯 <b>Trade Setups · ${opportunities.length} signal${opportunities.length !== 1 ? 's' : ''}</b>`,
+    '━━━━━━━━━━',
+    ...signalLines,
+    btcLine ? `\n${btcLine}` : '',
+    '━━━━━━━━━━',
+    ...pillarLines,
+    '',
+    `<i>${new Date().toUTCString()}</i>`,
+  ].filter(Boolean).join('\n');
+
+  await telegram.sendHtmlMessage(message);
+  logger.info({ count: opportunities.length }, 'Posted opportunity signals to Telegram');
+}
+
+// ─── Telegram: Whale Snapshot ──────────────────────────────────────────────────
+
+export async function postWhaleSnapshotToTelegram(
+  botToken: string,
+  chatId: string,
+  traders: WhaleTraderResult[],
+): Promise<void> {
+  if (traders.length === 0) return;
+
+  const telegram = new TelegramService(botToken, chatId);
+
+  const lines = traders.map((t, i) => {
+    const addr = t.walletAddress.length > 10
+      ? `${t.walletAddress.slice(0, 6)}…${t.walletAddress.slice(-4)}`
+      : t.walletAddress;
+    const wr = t.winRate != null ? `  WR ${t.winRate.toFixed(0)}%` : '';
+    const alloc = t.allocationPct != null ? `  Alloc ${t.allocationPct.toFixed(1)}%` : '';
+    const cons = t.consistency ? `  ${escapeHtml(t.consistency)}` : '';
+    return `<b>${i + 1}.</b> <code>${escapeHtml(addr)}</code>  Score <b>${t.score.toFixed(0)}</b>${wr}${alloc}${cons}`;
+  });
+
+  const message = [
+    `🐋 <b>Whale Tracker · Top ${traders.length} Traders</b>`,
+    '━━━━━━━━━━',
+    ...lines,
+    '',
+    `<i>30d performance · ${new Date().toUTCString()}</i>`,
+  ].join('\n');
+
+  await telegram.sendHtmlMessage(message);
+  logger.info({ count: traders.length }, 'Posted whale snapshot to Telegram');
 }
