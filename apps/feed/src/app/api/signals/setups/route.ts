@@ -112,7 +112,8 @@ export async function GET() {
       if (!token) continue;
 
       const trendBonus = item.trendAligned ? 6 : 0;
-      const scoreBase = Math.min(85, Math.max(45, Math.round((item.finalScore || 0) / 3)));
+      // finalScore is sum of 4 pillars (each 0–100), so range is 0–400. Divide by 4 to normalize to 0–100.
+      const scoreBase = Math.min(85, Math.max(45, Math.round((item.finalScore || 0) / 4)));
       const emerging = emergingByToken.get(token);
       const emergingBonus = emerging ? (emerging.immediate ? 10 : emerging.deep ? 6 : 3) : 0;
       const confidence = Math.min(99, scoreBase + trendBonus + emergingBonus + whaleBackdropBonus);

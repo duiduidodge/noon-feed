@@ -5,9 +5,9 @@ import { Activity, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface BtcContext {
   trend?: string;
-  strength?: number;
-  chg1h?: number;
-  macroModifier?: number;
+  change1h?: number;
+  change24h?: number;
+  price?: number;
 }
 
 interface PulseHeaderProps {
@@ -36,7 +36,7 @@ export function SignalPulseHeader({
   hasImmediate,
 }: PulseHeaderProps) {
   const btcTrend = btcContext?.trend;
-  const btcChg = btcContext?.chg1h;
+  const btcChg = btcContext?.change1h;
 
   return (
     <div className="rounded-lg border border-border/30 bg-card/60 backdrop-blur-sm overflow-hidden">

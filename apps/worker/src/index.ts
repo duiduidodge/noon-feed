@@ -15,7 +15,6 @@ import { OpportunitySignalsService } from './services/opportunity-signals.js';
 import { WhaleSignalsService } from './services/whale-signals.js';
 import {
   postOpportunitySignals,
-  postEmergingMoversAlerts,
   postWhaleSnapshot,
 } from './services/discord-signals-poster.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
@@ -154,19 +153,6 @@ function getSignalsWebhookUrl(): string | null {
   return process.env.DISCORD_SIGNALS_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL || null;
 }
 
-// Dedup: track recently-posted emerging mover alerts to avoid re-posting within 15 min
-const recentlyPostedEmergingSignals = new Map<string, number>();
-const EMERGING_DEDUP_MS = 15 * 60 * 1000;
-
-function isEmergingSignalFresh(signal: string, direction: string | null): boolean {
-  const key = `${signal}-${direction ?? 'null'}`;
-  const lastPosted = recentlyPostedEmergingSignals.get(key);
-  if (!lastPosted || Date.now() - lastPosted > EMERGING_DEDUP_MS) {
-    recentlyPostedEmergingSignals.set(key, Date.now());
-    return true;
-  }
-  return false;
-}
 
 function isQueueUnavailableError(error: unknown): boolean {
   const message = (error as Error)?.message?.toLowerCase?.() || '';
@@ -954,18 +940,7 @@ async function main() {
         const emAlerts = await emergingMoversSignalsService.pollAndPersist(prisma);
         lastEmergingSignalsPoll = Date.now();
 
-        // Post IMMEDIATE alerts that haven't been posted recently
-        const signalsWebhook = getSignalsWebhookUrl();
-        if (signalsWebhook && emAlerts.length > 0) {
-          const freshAlerts = emAlerts.filter(
-            a => (a.isImmediate || a.isDeepClimber) && isEmergingSignalFresh(a.signal, a.direction)
-          );
-          if (freshAlerts.length > 0) {
-            postEmergingMoversAlerts(signalsWebhook, freshAlerts).catch((err) =>
-              logger.error({ error: (err as Error).message }, 'Failed to post emerging movers to Discord')
-            );
-          }
-        }
+        // Emerging movers saved to DB for feed UI only — no Discord notification
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to refresh emerging movers signals');
         lastEmergingSignalsPoll = Date.now();
