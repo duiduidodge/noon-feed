@@ -19,6 +19,11 @@ const TOP_OUTPUT = 6;
 const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT = 8;
 
+// Quality gates — signals must pass ALL of these to be emitted
+const MIN_SCORE = 270;               // Minimum absolute score (out of 400)
+const MIN_SCAN_STREAK = 2;           // Must appear in N consecutive scans
+const MAX_FUNDING_ANNUALIZED = 100;  // % — hard veto for extremely crowded longs
+
 const EXCLUDE_SYMBOLS = new Set([
   'USDCUSDT', 'BUSDUSDT', 'TUSDUSDT', 'USDTUSDT', 'DAIUSDT',
   'BTCDOMUSDT', 'DEFIUSDT', 'ALTUSDT',
@@ -62,6 +67,14 @@ interface ScanState {
   [symbol: string]: { finalScore: number; scanStreak: number };
 }
 
+interface PivotPoints {
+  pp: number;
+  s1: number;
+  r1: number;
+  s2: number;
+  r2: number;
+}
+
 export interface OpportunityResult {
   asset: string;
   direction: string;
@@ -75,9 +88,9 @@ export interface OpportunityResult {
   smartMoney: { traders: number; pnlPct: number; accel: number; direction: string };
   technicals: {
     rsi1h: number; rsi15m: number | null; volRatio1h: number; volRatio15m: number | null;
-    trend4h: string; trendStrength: number; patterns1h: string[]; patterns15m: string[];
+    trend4h: string; trend1h: string; trendStrength: number; patterns1h: string[]; patterns15m: string[];
     momentum15m: number | null; chg1h: number; chg4h: number; chg24h: number;
-    support: number | null; resistance: number | null; atrPct: number;
+    support: number | null; resistance: number | null; pivots: PivotPoints | null; atrPct: number;
   };
   funding: { rate: number; annualized: number; favorable: boolean };
   risks: string[];
@@ -90,7 +103,8 @@ export interface OpportunityScanResult {
   passedStage2: number;
   deepDived: number;
   disqualified: number;
-  btcContext: { price: number; trend: string; change1h: number; change24h: number };
+  filteredByGates: number;
+  btcContext: { price: number; trend: string; trend4h: string; change1h: number; change24h: number };
   opportunities: OpportunityResult[];
 }
 
@@ -195,14 +209,22 @@ function detectPatterns(
   return patterns;
 }
 
-function supportResistance(highs: number[], lows: number[], n = 20): [number | null, number | null] {
-  const rh = highs.slice(-n);
-  const rl = lows.slice(-n);
-  if (!rh.length || !rl.length) return [null, null];
-  return [
-    Math.round(Math.min(...rl) * 1_000_000) / 1_000_000,
-    Math.round(Math.max(...rh) * 1_000_000) / 1_000_000,
-  ];
+// Classic pivot points from the last COMPLETE candle (index n-2, not n-1 which may be in-progress)
+function calculatePivotPoints(highs: number[], lows: number[], closes: number[]): PivotPoints | null {
+  if (highs.length < 2) return null;
+  const i = highs.length - 2; // last complete candle
+  const high = highs[i];
+  const low = lows[i];
+  const close = closes[i];
+  const pp = (high + low + close) / 3;
+  const p = 1_000_000;
+  return {
+    pp: Math.round(pp * p) / p,
+    s1: Math.round(((2 * pp) - high) * p) / p,
+    r1: Math.round(((2 * pp) - low) * p) / p,
+    s2: Math.round((pp - (high - low)) * p) / p,
+    r2: Math.round((pp + (high - low)) * p) / p,
+  };
 }
 
 // ─── Binance API fetchers ─────────────────────────────────────────────────────
@@ -266,11 +288,13 @@ async function fetchFundingRate(symbol: string): Promise<number | null> {
 function scorePillars(
   direction: string, rsi1h: number | null, rsi15m: number | null,
   trend4h: string, volR: number | null, oiChg: number | null,
-  topLs: number | null, takerR: number | null, fundingRate: number | null
-): { sm: number; ms: number; tech: number; fund: number; risks: string[]; favorable: boolean; annualized: number } {
+  topLs: number | null, takerR: number | null, fundingRate: number | null,
+  chg1h: number // needed for OI/price divergence check
+): { sm: number; ms: number; tech: number; fund: number; risks: string[]; favorable: boolean; annualized: number; hardVeto: boolean } {
   const risks: string[] = [];
+  let hardVeto = false;
 
-  // Smart Money
+  // ── Smart Money ──────────────────────────────────────────────────────────────
   let sm = 50;
   if (topLs !== null) {
     const ratio = direction === 'LONG' ? topLs : (topLs > 0 ? 1 / topLs : 1);
@@ -286,18 +310,39 @@ function scorePillars(
     if (goodTaker) sm = Math.min(100, sm + 10);
   }
 
-  // Market Structure
+  // ── Market Structure (with OI/price divergence) ───────────────────────────
   let ms = 50;
   if (trend4h === 'UP') ms = direction === 'LONG' ? 68 : 35;
   else if (trend4h === 'DOWN') ms = direction === 'SHORT' ? 68 : 35;
+
   if (oiChg !== null) {
-    if (oiChg > 5) ms = Math.min(100, ms + 15);
-    else if (oiChg > 2) ms = Math.min(100, ms + 8);
-    else if (oiChg < -5) ms = Math.max(0, ms - 15);
+    if (oiChg > 5) {
+      const priceAligned =
+        (direction === 'LONG' && chg1h > 0) ||
+        (direction === 'SHORT' && chg1h < 0);
+      const priceDiverges =
+        (direction === 'LONG' && chg1h < 0) ||
+        (direction === 'SHORT' && chg1h > 0);
+
+      if (priceAligned) {
+        // OI rising + price moving with direction = confirmed accumulation
+        ms = Math.min(100, ms + 15);
+      } else if (priceDiverges) {
+        // OI rising but price moving against direction = distribution signal
+        ms = Math.max(0, ms - 20);
+        risks.push('oi_price_divergence');
+      } else {
+        ms = Math.min(100, ms + 5);
+      }
+    } else if (oiChg > 2) {
+      ms = Math.min(100, ms + 8);
+    } else if (oiChg < -5) {
+      ms = Math.max(0, ms - 15);
+    }
   }
   if (volR !== null && volR > 1.5) ms = Math.min(100, ms + 8);
 
-  // Technicals
+  // ── Technicals ────────────────────────────────────────────────────────────
   let tech = 50;
   if (rsi1h !== null) {
     if (direction === 'LONG') {
@@ -324,14 +369,19 @@ function scorePillars(
     else if (volR < 0.6) { tech = Math.max(0, tech - 15); risks.push('low_volume'); }
   }
 
-  // Funding
+  // ── Funding ───────────────────────────────────────────────────────────────
   let fund = 50;
   let favorable = false;
   let annualized = 0;
   if (fundingRate !== null) {
     annualized = Math.round(fundingRate * 3 * 365 * 100 * 100) / 100;
+
     if (direction === 'LONG') {
-      if (fundingRate < -0.0002) { fund = 90; favorable = true; }
+      // Hard veto: extremely crowded long — funding above threshold is unsustainable
+      if (annualized > MAX_FUNDING_ANNUALIZED) {
+        hardVeto = true;
+        risks.push('extreme_funding');
+      } else if (fundingRate < -0.0002) { fund = 90; favorable = true; }
       else if (fundingRate < 0) { fund = 75; favorable = true; }
       else if (fundingRate < 0.0002) fund = 55;
       else if (fundingRate < 0.001) fund = 40;
@@ -344,24 +394,37 @@ function scorePillars(
     }
   }
 
-  return { sm, ms, tech, fund, risks, favorable, annualized };
+  return { sm, ms, tech, fund, risks, favorable, annualized, hardVeto };
 }
 
+// Returns null if 1H and 4H trends conflict — asset should be skipped
 function chooseDirection(
-  rsi1h: number | null, trend4h: string,
+  rsi1h: number | null, trend4h: string, trend1h: string,
   topLs: number | null, takerR: number | null
-): 'LONG' | 'SHORT' {
+): 'LONG' | 'SHORT' | null {
+  // Timeframe agreement required: both non-FLAT trends must point the same way
+  if (trend4h !== 'FLAT' && trend1h !== 'FLAT' && trend4h !== trend1h) {
+    return null; // Conflicting 1H/4H trends — skip this asset
+  }
+
   let longV = 0, shortV = 0;
+  // 4H carries more weight (longer timeframe = more reliable)
   if (trend4h === 'UP') longV += 2;
   else if (trend4h === 'DOWN') shortV += 2;
+  // 1H adds confirmation
+  if (trend1h === 'UP') longV += 1;
+  else if (trend1h === 'DOWN') shortV += 1;
+  // RSI context
   if (rsi1h !== null) {
     if (rsi1h < 40) longV++;
     else if (rsi1h > 65) shortV++;
   }
+  // Smart money positioning
   if (topLs !== null) {
     if (topLs > 1.2) longV++;
     else if (topLs < 0.8) shortV++;
   }
+  // Taker pressure
   if (takerR !== null) {
     if (takerR > 1.1) longV++;
     else if (takerR < 0.9) shortV++;
@@ -402,7 +465,7 @@ async function analyzeAsset(
   try {
     const [klines1h, klines4h, klines15m] = await Promise.all([
       fetchKlines(symbol, '1h', 52),
-      fetchKlines(symbol, '4h', 30),
+      fetchKlines(symbol, '4h', 55), // 55 candles for EMA50 + pivot point from previous candle
       fetchKlines(symbol, '15m', 35),
     ]);
 
@@ -423,7 +486,7 @@ async function analyzeAsset(
     const volR15m = klines15m ? volumeRatio(klines15m.vols) : null;
     const atrPct = calculateAtrPct(h1h, l1h, c1h);
 
-    // 4h trend
+    // 4H trend: EMA20 vs EMA50
     let trend4h = 'FLAT';
     let trendStrength = 50;
     if (klines4h && klines4h.closes.length >= 20) {
@@ -440,29 +503,28 @@ async function analyzeAsset(
       }
     }
 
-    const hourlyTrend = c1h[c1h.length - 1] > c1h[c1h.length - 3] ? 'UP' : 'DOWN';
+    // 1H trend: EMA9 vs EMA21 (more reliable than 2-candle comparison)
+    let trend1h = 'FLAT';
+    if (c1h.length >= 21) {
+      const ema9 = calculateEma(c1h, 9);
+      const ema21 = calculateEma(c1h, 21);
+      const curr = c1h[c1h.length - 1];
+      if (curr > ema9 && ema9 > ema21) trend1h = 'UP';
+      else if (curr < ema9 && ema9 < ema21) trend1h = 'DOWN';
+    }
 
-    const momentum15m = klines15m && klines15m.closes.length >= 5 && klines15m.closes[klines15m.closes.length - 5] > 0
-      ? Math.round((klines15m.closes[klines15m.closes.length - 1] - klines15m.closes[klines15m.closes.length - 5])
-          / klines15m.closes[klines15m.closes.length - 5] * 100 * 100) / 100
-      : null;
-
+    // Compute chg1h before scorePillars (needed for OI divergence check)
     const chg1h = c1h.length > 1 && c1h[c1h.length - 2] > 0
       ? Math.round((c1h[c1h.length - 1] - c1h[c1h.length - 2]) / c1h[c1h.length - 2] * 100 * 100) / 100 : 0;
-    const chg4h = c1h.length > 5 && c1h[c1h.length - 5] > 0
-      ? Math.round((c1h[c1h.length - 1] - c1h[c1h.length - 5]) / c1h[c1h.length - 5] * 100 * 100) / 100 : 0;
-    const chg24h = Math.round(parseFloat(ticker.priceChangePercent ?? '0') * 100) / 100;
 
-    const [support, resistance] = supportResistance(h1h, l1h);
-    const patterns1h = detectPatterns(c1h, o1h, h1h, l1h);
-    const patterns15m = klines15m
-      ? detectPatterns(klines15m.closes, klines15m.opens, klines15m.highs, klines15m.lows)
-      : [];
+    // Direction: requires 1H and 4H agreement — returns null if conflicting
+    const direction = chooseDirection(rsi1h, trend4h, trend1h, topLs, takerR);
+    if (direction === null) return null; // Conflicting timeframes — skip
 
-    const direction = chooseDirection(rsi1h, trend4h, topLs, takerR);
-    const { sm, ms, tech, fund, risks, favorable, annualized } = scorePillars(
-      direction, rsi1h, rsi15m, trend4h, volR, oiChg, topLs, takerR, fundingRate
+    const { sm, ms, tech, fund, risks, favorable, annualized, hardVeto } = scorePillars(
+      direction, rsi1h, rsi15m, trend4h, volR, oiChg, topLs, takerR, fundingRate, chg1h
     );
+    if (hardVeto) return null; // Extreme funding rate — skip
 
     const trendAligned = (direction === 'LONG' && trend4h === 'UP')
                       || (direction === 'SHORT' && trend4h === 'DOWN');
@@ -472,6 +534,23 @@ async function analyzeAsset(
     const prev = prevState[symbol] ?? { finalScore, scanStreak: 0 };
     const scanStreak = prev.scanStreak + 1;
     const scoreDelta = finalScore - prev.finalScore;
+
+    // Pivot points from last complete 4H candle (replaces naive min/max S/R)
+    const pivots = klines4h ? calculatePivotPoints(klines4h.highs, klines4h.lows, klines4h.closes) : null;
+
+    const chg4h = c1h.length > 5 && c1h[c1h.length - 5] > 0
+      ? Math.round((c1h[c1h.length - 1] - c1h[c1h.length - 5]) / c1h[c1h.length - 5] * 100 * 100) / 100 : 0;
+    const chg24h = Math.round(parseFloat(ticker.priceChangePercent ?? '0') * 100) / 100;
+
+    const patterns1h = detectPatterns(c1h, o1h, h1h, l1h);
+    const patterns15m = klines15m
+      ? detectPatterns(klines15m.closes, klines15m.opens, klines15m.highs, klines15m.lows)
+      : [];
+
+    const momentum15m = klines15m && klines15m.closes.length >= 5 && klines15m.closes[klines15m.closes.length - 5] > 0
+      ? Math.round((klines15m.closes[klines15m.closes.length - 1] - klines15m.closes[klines15m.closes.length - 5])
+          / klines15m.closes[klines15m.closes.length - 5] * 100 * 100) / 100
+      : null;
 
     const smTraders = Math.max(sm, 1) * 10;
     const smPnl = topLs !== null ? Math.round((topLs - 1) * 12 * 10) / 10 : 0;
@@ -484,14 +563,18 @@ async function analyzeAsset(
       finalScore,
       scoreDelta,
       scanStreak,
-      hourlyTrend,
+      hourlyTrend: trend1h, // EMA9/EMA21 based — replaces naive 2-candle comparison
       trendAligned,
       pillarScores: { smartMoney: sm, marketStructure: ms, technicals: tech, funding: fund },
       smartMoney: { traders: smTraders, pnlPct: smPnl, accel: smAccel, direction },
       technicals: {
         rsi1h, rsi15m, volRatio1h: volR, volRatio15m: volR15m,
-        trend4h, trendStrength, patterns1h, patterns15m,
-        momentum15m, chg1h, chg4h, chg24h, support, resistance, atrPct,
+        trend4h, trend1h, trendStrength, patterns1h, patterns15m,
+        momentum15m, chg1h, chg4h, chg24h,
+        support: pivots?.s1 ?? null,    // S1 from pivot points
+        resistance: pivots?.r1 ?? null, // R1 from pivot points
+        pivots,
+        atrPct,
       },
       funding: {
         rate: fundingRate !== null ? Math.round(fundingRate * 1_000_000) / 1_000_000 : 0,
@@ -542,7 +625,7 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
   const assetsScanned = allTickers.length;
 
   // Stage 1: volume + symbol filter
-  let stage1 = allTickers
+  const stage1 = allTickers
     .filter((t) => {
       const sym = t.symbol;
       if (!sym.endsWith('USDT')) return false;
@@ -581,7 +664,7 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
   const passedStage2 = stage2.length;
   const deepTargets = stage2.slice(0, DEEP_LIMIT);
 
-  // Deep dive
+  // Deep dive — analyzeAsset already filters out conflicting trends and funding vetoes
   const deepResults = (await runConcurrent(
     deepTargets,
     (item) => analyzeAsset(item.sym, item.ticker, prevState),
@@ -590,28 +673,60 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
 
   const deepDived = deepResults.length;
   deepResults.sort((a, b) => b.finalScore - a.finalScore);
-  const topOpps = deepResults.slice(0, TOP_OUTPUT);
 
-  // Save state
+  // ── Save state for ALL analyzed assets BEFORE applying post-analysis gates ──
+  // This ensures streak keeps accumulating even when filtered by BTC gate or score floor,
+  // so the signal can qualify on the next scan if conditions improve.
   const newState: ScanState = {};
   for (const opp of deepResults) {
     newState[opp._symbol] = { finalScore: opp._finalScore, scanStreak: opp.scanStreak };
   }
   saveState(newState);
 
-  // BTC context
-  const btcTicker = tickerMap.get('BTCUSDT');
-  const btcKlines = await fetchKlines('BTCUSDT', '1h', 3);
+  // ── BTC 4H trend for correlation gate ────────────────────────────────────────
+  const [btcKlines1h, btcKlines4h] = await Promise.all([
+    fetchKlines('BTCUSDT', '1h', 3),
+    fetchKlines('BTCUSDT', '4h', 55),
+  ]);
+
   let btcTrend = 'FLAT';
   let btcChg1h = 0;
-  if (btcKlines && btcKlines.closes.length >= 2) {
-    const bc = btcKlines.closes;
+  if (btcKlines1h && btcKlines1h.closes.length >= 2) {
+    const bc = btcKlines1h.closes;
     btcTrend = bc[bc.length - 1] > bc[bc.length - 2] ? 'UP' : 'DOWN';
     btcChg1h = bc[bc.length - 2] > 0
       ? Math.round((bc[bc.length - 1] - bc[bc.length - 2]) / bc[bc.length - 2] * 100 * 100) / 100 : 0;
   }
 
-  // Strip internal fields
+  let btcTrend4h = 'FLAT';
+  if (btcKlines4h && btcKlines4h.closes.length >= 20) {
+    const c4h = btcKlines4h.closes;
+    const ema20 = calculateEma(c4h, 20);
+    const ema50 = calculateEma(c4h, Math.min(50, c4h.length));
+    const curr = c4h[c4h.length - 1];
+    if (curr > ema20 && ema20 > ema50) btcTrend4h = 'UP';
+    else if (curr < ema20 && ema20 < ema50) btcTrend4h = 'DOWN';
+  }
+
+  // ── Post-analysis quality gates ───────────────────────────────────────────
+  // Applied AFTER state is saved so streaks accumulate independently
+  const qualified = deepResults.filter((opp) => {
+    // 1. BTC correlation gate — altcoins almost never sustainably rally against BTC trend
+    if (btcTrend4h === 'DOWN' && opp.direction === 'LONG') return false;
+    if (btcTrend4h === 'UP' && opp.direction === 'SHORT') return false;
+    // 2. Minimum absolute score floor
+    if (opp._finalScore < MIN_SCORE) return false;
+    // 3. Scan streak — must appear in N consecutive scans to filter one-scan flukes
+    if (opp.scanStreak < MIN_SCAN_STREAK) return false;
+    return true;
+  });
+
+  const filteredByGates = deepResults.length - qualified.length;
+  const topOpps = qualified.slice(0, TOP_OUTPUT);
+
+  const btcTicker = tickerMap.get('BTCUSDT');
+
+  // Strip internal fields before returning
   const clean = topOpps.map(({ _symbol: _s, _finalScore: _f, ...rest }) => rest) as OpportunityResult[];
 
   return {
@@ -621,9 +736,11 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
     passedStage2,
     deepDived,
     disqualified: assetsScanned - deepResults.length,
+    filteredByGates,
     btcContext: {
       price: btcTicker ? Math.round(parseFloat(btcTicker.lastPrice) * 100) / 100 : 0,
       trend: btcTrend,
+      trend4h: btcTrend4h,
       change1h: btcChg1h,
       change24h: btcTicker ? Math.round(parseFloat(btcTicker.priceChangePercent) * 100) / 100 : 0,
     },
