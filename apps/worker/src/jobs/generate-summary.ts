@@ -14,6 +14,7 @@ export interface GenerateSummaryJobData {
 
 interface HeadlineItem {
   title: string;
+  titleTh?: string; // Thai translation (set after LLM response)
   url: string;
   source: string;
 }
@@ -180,6 +181,12 @@ Write a JSON response with exactly these fields:
    - Forward-looking: key levels, upcoming events, emerging risks, or structural shifts
    - Be concrete — vague warnings are not useful
 
+5. "headlines_th": Array of Thai-translated headline titles — translate the FIRST 15 headlines from the list above (same order)
+   - Translate only the title text, keep it natural Thai — not word-for-word
+   - Keep proper names, project names, company names, and token symbols in English (e.g. "Bitcoin", "BlackRock", "SEC", "ETH")
+   - Max 100 characters per translated title
+   - Return exactly 15 strings (or fewer if there are fewer than 15 headlines)
+
 ## Language Rules (apply to ALL bullet fields)
 - Write predominantly Thai. Use English ONLY for: crypto/finance jargon + specific proper names
 - KEEP all proper names in English — NEVER transliterate: "Bitcoin" not "บิทคอยน์", "Binance" not "ไบแนนซ์"
@@ -252,7 +259,8 @@ async function postSummaryToDiscord(
   const headlineLines: string[] = [];
 
   for (const h of headlineItems) {
-    const line = `• [${h.title.substring(0, 70)}](${h.url}) — *${h.source}*`;
+    const displayTitle = (h.titleTh || h.title).substring(0, 80);
+    const line = `• [${displayTitle}](${h.url}) — *${h.source}*`;
     headlineLines.push(line);
   }
 
@@ -326,7 +334,10 @@ async function postSummaryToTelegram(
 
   const headlineLines = headlines
     .slice(0, 8)
-    .map((h, i) => `${i + 1}. <a href="${escapeUrlForHtmlAttr(h.url)}">${escapeHtml(h.title.substring(0, 90))}</a>`)
+    .map((h, i) => {
+      const displayTitle = (h.titleTh || h.title).substring(0, 100);
+      return `${i + 1}. <a href="${escapeUrlForHtmlAttr(h.url)}">${escapeHtml(displayTitle)}</a>`;
+    })
     .join('\n');
 
   // Format bullets for Telegram — bold section headers in HTML
@@ -437,7 +448,7 @@ export async function processGenerateSummaryJob(
   try {
     const llmResponse = await llmProvider.complete(prompt, {
       temperature: 0.4,
-      maxTokens: 2000,
+      maxTokens: 2500,
     });
 
     const parsed = JSON.parse(llmResponse);
@@ -446,6 +457,14 @@ export async function processGenerateSummaryJob(
     const overview: string[] = Array.isArray(parsed.overview) ? parsed.overview : [];
     const drivers: string[]  = Array.isArray(parsed.drivers)  ? parsed.drivers  : [];
     const watch: string[]    = Array.isArray(parsed.watch)     ? parsed.watch    : [];
+
+    // Merge Thai headline translations into headlines array
+    const headlinesTh: string[] = Array.isArray(parsed.headlines_th) ? parsed.headlines_th : [];
+    headlinesTh.forEach((titleTh, i) => {
+      if (headlines[i] && typeof titleTh === 'string' && titleTh.trim()) {
+        headlines[i] = { ...headlines[i], titleTh: titleTh.trim() };
+      }
+    });
 
     // Build flat section text — compatible with feed UI and Discord/Telegram rendering
     const parts: string[] = [];
