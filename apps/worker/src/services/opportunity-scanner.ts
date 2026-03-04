@@ -20,8 +20,8 @@ const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT = 8;
 
 // Quality gates — signals must pass ALL of these to be emitted
-const MIN_SCORE = 270;               // Minimum absolute score (out of 400)
-const MIN_SCAN_STREAK = 2;           // Must appear in N consecutive scans
+const MIN_SCORE = 300;               // Minimum absolute score (out of 420 with entry bonus)
+const MIN_SCAN_STREAK = 3;           // Must appear in N consecutive scans (~15 min at 5-min interval)
 const MAX_FUNDING_ANNUALIZED = 100;  // % — hard veto for extremely crowded longs
 
 const EXCLUDE_SYMBOLS = new Set([
@@ -85,7 +85,8 @@ export interface OpportunityResult {
   hourlyTrend: string;
   trendAligned: boolean;
   swingGrade: boolean;
-  pillarScores: { smartMoney: number; marketStructure: number; technicals: number; funding: number };
+  volumeSpike: boolean;
+  pillarScores: { smartMoney: number; marketStructure: number; technicals: number; funding: number; entryBonus?: number };
   smartMoney: { traders: number; pnlPct: number; accel: number; direction: string };
   technicals: {
     rsi1h: number; rsi15m: number | null; volRatio1h: number; volRatio15m: number | null;
@@ -451,6 +452,12 @@ function scorePillars(
     }
   }
 
+  // All 4 pillars must be at or above baseline — below 52 means the market data
+  // is actively signaling against this trade in that dimension.
+  if (sm < 52 || ms < 52 || tech < 52 || fund < 52) {
+    hardVeto = true;
+  }
+
   return { sm, ms, tech, fund, risks, favorable, annualized, hardVeto };
 }
 
@@ -486,7 +493,8 @@ function chooseDirection(
     if (takerR > 1.1) longV++;
     else if (takerR < 0.9) shortV++;
   }
-  return longV >= shortV ? 'LONG' : 'SHORT';
+  if (Math.abs(longV - shortV) < 2) return null; // No conviction — require clear margin
+  return longV > shortV ? 'LONG' : 'SHORT';
 }
 
 function recommendLeverage(atrPct: number): number {
@@ -600,20 +608,55 @@ async function analyzeAsset(
     const { sm, ms, tech, fund, risks, favorable, annualized, hardVeto } = scorePillars(
       direction, rsi1h, rsi15m, trend4h, volR, oiChg, topLs, takerR, fundingRate, chg1h, chg24h
     );
-    if (hardVeto) return null; // Extreme funding rate — skip
+    if (hardVeto) return null;
+
+    // ── Price-vs-pivot gate ───────────────────────────────────────────────────
+    const pivots = klines4h
+      ? calculatePivotPoints(klines4h.highs, klines4h.lows, klines4h.closes)
+      : null;
+    const currentPrice = c1h[c1h.length - 1];
+
+    if (pivots) {
+      // Hard veto: price fully beyond R2 (LONG) or below S2 (SHORT) — move is over
+      if (direction === 'LONG'  && currentPrice > pivots.r2) return null;
+      if (direction === 'SHORT' && currentPrice < pivots.s2) return null;
+      // Soft: >2% above R1 (LONG) or >2% below S1 (SHORT) — stretched entry
+      if (direction === 'LONG'  && currentPrice > pivots.r1 * 1.02) risks.push('extended_entry');
+      if (direction === 'SHORT' && currentPrice < pivots.s1 * 0.98) risks.push('extended_entry');
+    }
+
+    // ── Late-entry risk ───────────────────────────────────────────────────────
+    const lateEntryRisks: string[] = [];
+    if (Math.abs(chg1h) > atrPct * 0.8) {
+      lateEntryRisks.push('late_entry'); // Current 1H candle already >80% of ATR
+    }
+
+    // ── Entry zone bonus: reward price near key pivot level ───────────────────
+    // Best R/R comes from entering where the SL is defined by a nearby support/resistance.
+    let entryBonus = 0;
+    if (pivots) {
+      if (direction === 'LONG') {
+        const pctAboveS1 = (currentPrice - pivots.s1) / pivots.s1 * 100;
+        if (pctAboveS1 < 0)      entryBonus = 20; // Below S1 — oversold/bounce, tight SL
+        else if (pctAboveS1 < 1) entryBonus = 15; // Within 1% of S1 — ideal entry zone
+        else if (pctAboveS1 < 3) entryBonus = 8;  // Near S1 — decent entry
+      } else {
+        const pctBelowR1 = (pivots.r1 - currentPrice) / pivots.r1 * 100;
+        if (pctBelowR1 < 0)      entryBonus = 20; // Above R1 — breakout SHORT setup
+        else if (pctBelowR1 < 1) entryBonus = 15;
+        else if (pctBelowR1 < 3) entryBonus = 8;
+      }
+    }
 
     const trendAligned = (direction === 'LONG' && trend4h === 'UP')
                       || (direction === 'SHORT' && trend4h === 'DOWN');
-    const finalScore = sm + ms + tech + fund;
+    const finalScore = sm + ms + tech + fund + entryBonus;
     const swingGrade = evaluateSwingGrade(direction, trendAligned, trendDaily, rsi1d, finalScore);
     const leverage = recommendLeverage(atrPct);
 
     const prev = prevState[symbol] ?? { finalScore, scanStreak: 0 };
     const scanStreak = prev.scanStreak + 1;
     const scoreDelta = finalScore - prev.finalScore;
-
-    // Pivot points from last complete 4H candle (replaces naive min/max S/R)
-    const pivots = klines4h ? calculatePivotPoints(klines4h.highs, klines4h.lows, klines4h.closes) : null;
 
     const chg4h = c1h.length > 5 && c1h[c1h.length - 5] > 0
       ? Math.round((c1h[c1h.length - 1] - c1h[c1h.length - 5]) / c1h[c1h.length - 5] * 100 * 100) / 100 : 0;
@@ -642,7 +685,8 @@ async function analyzeAsset(
       hourlyTrend: trend1h,
       trendAligned,
       swingGrade,
-      pillarScores: { smartMoney: sm, marketStructure: ms, technicals: tech, funding: fund },
+      volumeSpike: (volR ?? 0) >= 2.5,
+      pillarScores: { smartMoney: sm, marketStructure: ms, technicals: tech, funding: fund, entryBonus },
       smartMoney: { traders: smTraders, pnlPct: smPnl, accel: smAccel, direction },
       technicals: {
         rsi1h, rsi15m, volRatio1h: volR, volRatio15m: volR15m,
@@ -659,7 +703,7 @@ async function analyzeAsset(
         annualized,
         favorable,
       },
-      risks,
+      risks: [...risks, ...lateEntryRisks],
       _symbol: symbol,
       _finalScore: finalScore,
     };
@@ -796,6 +840,8 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
     if (opp._finalScore < MIN_SCORE) return false;
     // 3. Scan streak — must appear in N consecutive scans to filter one-scan flukes
     if (opp.scanStreak < MIN_SCAN_STREAK) return false;
+    // 4. Volume must be at or above average — below-average volume signals lack follow-through
+    if (opp.technicals.volRatio1h < 1.0) return false;
     return true;
   });
 

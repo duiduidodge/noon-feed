@@ -17,8 +17,8 @@ import type { OpportunityResult } from './opportunity-scanner.js';
 
 const logger = createLogger('worker:watchlist');
 
-const MISSED_SCANS_TO_CLOSE = 2;
-const SCORE_SURGE_THRESHOLD = 30;
+const MISSED_SCANS_TO_CLOSE = 3;
+const SCORE_SURGE_THRESHOLD = 40;
 
 export type WatchlistEvent =
   | { type: 'NEW';    entry: WatchlistEntry; signal: OpportunityResult }

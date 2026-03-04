@@ -202,6 +202,7 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
   switch (event.type) {
     case 'NEW': {
       const swing = event.signal.swingGrade;
+      const volTag = event.signal.volumeSpike ? '  📊 **Vol Spike**' : '';
       const tech = event.signal.technicals as Record<string, unknown>;
       const fields = [
         ...buildPillarFields(event.signal),
@@ -212,7 +213,7 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
           ? `🎯  Swing Setup: ${entry.asset}`
           : `🆕  New Setup: ${entry.asset}`,
         url: swing ? tvChartUrl(entry.asset) : undefined,
-        description: `${dirLabel}  ·  Score: **${entry.lastScore}**${swing ? '  ·  Daily confirmed' : ''}`,
+        description: `${dirLabel}  ·  Score: **${entry.lastScore}**${swing ? '  ·  Daily confirmed' : ''}${volTag}`,
         color: isLong ? COLOR.LONG : COLOR.SHORT,
         fields,
         footer: { text: `Watchlist · ${swing ? 'Swing · ' : ''}Added  ·  ${new Date().toUTCString()}` },
@@ -236,13 +237,14 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
     }
     case 'SURGE': {
       const swing = event.signal.swingGrade;
+      const volTag = event.signal.volumeSpike ? '  📊 **Vol Spike**' : '';
       const delta = entry.lastScore - event.prevScore;
       return {
         title: swing
           ? `🎯🔥  Swing Conviction: ${entry.asset}`
           : `🔥  Conviction Rising: ${entry.asset}`,
         url: swing ? tvChartUrl(entry.asset) : undefined,
-        description: `${dirLabel}  ·  Score: **${event.prevScore}** → **${entry.lastScore}**  (${delta > 0 ? '+' : ''}${delta})`,
+        description: `${dirLabel}  ·  Score: **${event.prevScore}** → **${entry.lastScore}**  (${delta > 0 ? '+' : ''}${delta})${volTag}`,
         color: isLong ? COLOR.LONG : COLOR.SHORT,
         fields: buildPillarFields(event.signal),
         footer: { text: `Watchlist · Surge  ·  ${new Date().toUTCString()}` },
@@ -308,6 +310,7 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
   switch (event.type) {
     case 'NEW': {
       const swing = event.signal.swingGrade;
+      const volTag = event.signal.volumeSpike ? '  📊 <b>Vol Spike</b>' : '';
       const tech = event.signal.technicals as Record<string, unknown>;
       const chartLink = swing
         ? `\n📊 <a href="${tvChartUrl(entry.asset)}">Daily Chart</a>`
@@ -317,7 +320,7 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
         : '';
       return [
         swing ? `🎯 <b>Swing Setup: ${asset}</b>` : `🆕 <b>New Setup: ${asset}</b>`,
-        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${swingLine}${chartLink}`,
+        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${volTag}${swingLine}${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }
@@ -333,11 +336,12 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
     }
     case 'SURGE': {
       const swing = event.signal.swingGrade;
+      const volTag = event.signal.volumeSpike ? '  📊 <b>Vol Spike</b>' : '';
       const delta = entry.lastScore - event.prevScore;
       const chartLink = swing ? `\n📊 <a href="${tvChartUrl(entry.asset)}">Daily Chart</a>` : '';
       return [
         swing ? `🎯🔥 <b>Swing Conviction: ${asset}</b>` : `🔥 <b>Conviction Rising: ${asset}</b>`,
-        `${dirLabel}  ·  Score: <b>${event.prevScore}</b> → <b>${entry.lastScore}</b>  (${delta > 0 ? '+' : ''}${delta})${chartLink}`,
+        `${dirLabel}  ·  Score: <b>${event.prevScore}</b> → <b>${entry.lastScore}</b>  (${delta > 0 ? '+' : ''}${delta})${volTag}${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }

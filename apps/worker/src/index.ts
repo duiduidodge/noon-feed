@@ -14,7 +14,6 @@ import { EmergingMoversSignalsService } from './services/emerging-movers-signals
 import { OpportunitySignalsService } from './services/opportunity-signals.js';
 import { WhaleSignalsService } from './services/whale-signals.js';
 import {
-  postOpportunitySignals,
   postWhaleSnapshot,
   postWhaleSnapshotToTelegram,
   postWatchlistEvents,
@@ -980,14 +979,6 @@ async function main() {
           }
 
           logger.info({ events: watchlistEvents.map((e) => `${e.type}:${e.entry.asset}`) }, 'Watchlist events fired');
-        }
-
-        // Keep the snapshot Discord post for the full picture (Discord only, not Telegram)
-        const signalsWebhook = getSignalsWebhookUrl();
-        if (signalsWebhook && opportunities.length > 0) {
-          postOpportunitySignals(signalsWebhook, opportunities, btcContext).catch((err) =>
-            logger.error({ error: (err as Error).message }, 'Failed to post opportunity signals to Discord')
-          );
         }
 
       } catch (error) {
