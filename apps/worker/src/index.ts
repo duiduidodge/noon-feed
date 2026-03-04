@@ -914,8 +914,7 @@ async function main() {
   let lastEmergingSignalsPoll = 0;
   let lastOpportunitySignalsPoll = 0;
   let lastWhaleSignalsPoll = 0;
-  let lastWhaleNotification = 0;
-  const WHALE_NOTIFICATION_INTERVAL_MS = 60 * 60 * 1000; // notify at most once per hour
+  const sentWhaleNotificationKeys = new Set<string>(); // tracks 'YYYY-MM-DD-morning/evening' slots
   logger.info({ intervalMinutes: config.worker.fetchIntervalMinutes }, 'Worker started, entering main loop');
 
   while (true) {
@@ -1005,12 +1004,15 @@ async function main() {
         const whaleTraders = await whaleSignalsService.pollAndPersist(prisma);
         lastWhaleSignalsPoll = Date.now();
 
-        const shouldNotify =
+        // Fire whale notification at 7 AM and 7 PM Bangkok time (same slots as bi-daily summary)
+        const whaleSlot = getSummarySlotsAroundNow(new Date())[0];
+        const shouldNotifyWhale =
           whaleTraders.length > 0 &&
-          Date.now() - lastWhaleNotification >= WHALE_NOTIFICATION_INTERVAL_MS;
+          whaleSlot !== undefined &&
+          !sentWhaleNotificationKeys.has(whaleSlot.summaryKey);
 
-        if (shouldNotify) {
-          lastWhaleNotification = Date.now();
+        if (shouldNotifyWhale && whaleSlot) {
+          sentWhaleNotificationKeys.add(whaleSlot.summaryKey);
 
           const signalsWebhook = getSignalsWebhookUrl();
           if (signalsWebhook) {
@@ -1027,7 +1029,7 @@ async function main() {
             );
           }
 
-          logger.info({ count: whaleTraders.length }, 'Whale notification sent (hourly gate)');
+          logger.info({ count: whaleTraders.length, slot: whaleSlot.summaryKey }, 'Whale notification sent (bi-daily slot)');
         }
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Failed to refresh whale signals');
