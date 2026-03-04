@@ -162,6 +162,139 @@ export async function postWhaleSnapshot(
   logger.info({ count: traders.length }, 'Posted whale snapshot to Discord');
 }
 
+// ─── Watchlist Alerts ──────────────────────────────────────────────────────────
+
+import type { WatchlistEvent } from './watchlist-manager.js';
+
+export async function postWatchlistEvents(
+  webhookUrl: string,
+  events: WatchlistEvent[],
+): Promise<void> {
+  for (const event of events) {
+    const embed = buildWatchlistEmbed(event);
+    await sendWebhook(webhookUrl, { embeds: [embed] });
+    logger.info({ type: event.type, asset: event.entry.asset }, 'Posted watchlist event to Discord');
+  }
+}
+
+export async function postWatchlistEventsToTelegram(
+  botToken: string,
+  chatId: string,
+  events: WatchlistEvent[],
+): Promise<void> {
+  const telegram = new TelegramService(botToken, chatId);
+  for (const event of events) {
+    const message = buildWatchlistTelegramMessage(event);
+    await telegram.sendHtmlMessage(message);
+    logger.info({ type: event.type, asset: event.entry.asset }, 'Posted watchlist event to Telegram');
+  }
+}
+
+function buildWatchlistEmbed(event: WatchlistEvent): object {
+  const { entry } = event;
+  const isLong = entry.direction === 'LONG';
+  const dirLabel = isLong ? '🟢 LONG' : '🔴 SHORT';
+
+  switch (event.type) {
+    case 'NEW': {
+      return {
+        title: `🆕  New Setup: ${entry.asset}`,
+        description: `${dirLabel}  ·  Score: **${entry.lastScore}**`,
+        color: isLong ? COLOR.LONG : COLOR.SHORT,
+        fields: buildPillarFields(event.signal),
+        footer: { text: `Watchlist · Added  ·  ${new Date().toUTCString()}` },
+        timestamp: new Date().toISOString(),
+      };
+    }
+    case 'FLIP': {
+      const prevLabel = event.prevDirection === 'LONG' ? '🟢 LONG' : '🔴 SHORT';
+      return {
+        title: `🔄  Direction Flip: ${entry.asset}`,
+        description: `${prevLabel} → ${dirLabel}  ·  Score: **${entry.lastScore}**`,
+        color: COLOR.MIXED,
+        fields: buildPillarFields(event.signal),
+        footer: { text: `Watchlist · Flip  ·  ${new Date().toUTCString()}` },
+        timestamp: new Date().toISOString(),
+      };
+    }
+    case 'SURGE': {
+      const delta = entry.lastScore - event.prevScore;
+      return {
+        title: `🔥  Conviction Rising: ${entry.asset}`,
+        description: `${dirLabel}  ·  Score: **${event.prevScore}** → **${entry.lastScore}**  (${delta > 0 ? '+' : ''}${delta})`,
+        color: isLong ? COLOR.LONG : COLOR.SHORT,
+        fields: buildPillarFields(event.signal),
+        footer: { text: `Watchlist · Surge  ·  ${new Date().toUTCString()}` },
+        timestamp: new Date().toISOString(),
+      };
+    }
+    case 'CLOSED': { // no signal available for closed events
+      const duration = entry.closedAt
+        ? Math.round((entry.closedAt.getTime() - entry.addedAt.getTime()) / 60000)
+        : null;
+      return {
+        title: `❌  Setup Closed: ${entry.asset}`,
+        description: `${dirLabel}  ·  Entry: **${entry.entryScore}**  →  Exit: **${entry.lastScore}**${duration !== null ? `  ·  ${duration}m` : ''}`,
+        color: 0x546e7a, // slate
+        footer: { text: `Watchlist · Closed  ·  ${new Date().toUTCString()}` },
+        timestamp: new Date().toISOString(),
+      };
+    }
+  }
+}
+
+function buildPillarFields(signal: OpportunityResult): object[] {
+  const p = signal.pillarScores;
+  if (!p) return [];
+  return [{
+    name: 'Pillars',
+    value: `SM \`${p.smartMoney.toFixed(0)}\`  Struct \`${p.marketStructure.toFixed(0)}\`  Tech \`${p.technicals.toFixed(0)}\`  Fund \`${p.funding.toFixed(0)}\``,
+    inline: false,
+  }];
+}
+
+function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
+  const { entry } = event;
+  const isLong = entry.direction === 'LONG';
+  const dirLabel = isLong ? '🟢 LONG' : '🔴 SHORT';
+  const asset = escapeHtml(entry.asset);
+
+  switch (event.type) {
+    case 'NEW':
+      return [
+        `🆕 <b>New Setup: ${asset}</b>`,
+        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>`,
+        `<i>${new Date().toUTCString()}</i>`,
+      ].join('\n');
+    case 'FLIP': {
+      const prevLabel = event.prevDirection === 'LONG' ? '🟢 LONG' : '🔴 SHORT';
+      return [
+        `🔄 <b>Direction Flip: ${asset}</b>`,
+        `${prevLabel} → ${dirLabel}  ·  Score: <b>${entry.lastScore}</b>`,
+        `<i>${new Date().toUTCString()}</i>`,
+      ].join('\n');
+    }
+    case 'SURGE': {
+      const delta = entry.lastScore - event.prevScore;
+      return [
+        `🔥 <b>Conviction Rising: ${asset}</b>`,
+        `${dirLabel}  ·  Score: <b>${event.prevScore}</b> → <b>${entry.lastScore}</b>  (${delta > 0 ? '+' : ''}${delta})`,
+        `<i>${new Date().toUTCString()}</i>`,
+      ].join('\n');
+    }
+    case 'CLOSED': {
+      const duration = entry.closedAt
+        ? Math.round((entry.closedAt.getTime() - entry.addedAt.getTime()) / 60000)
+        : null;
+      return [
+        `❌ <b>Setup Closed: ${asset}</b>`,
+        `${dirLabel}  ·  Entry: <b>${entry.entryScore}</b>  →  Exit: <b>${entry.lastScore}</b>${duration !== null ? `  ·  ${duration}m` : ''}`,
+        `<i>${new Date().toUTCString()}</i>`,
+      ].join('\n');
+    }
+  }
+}
+
 // ─── Telegram: Trade Setups ────────────────────────────────────────────────────
 
 export async function postOpportunitySignalsToTelegram(

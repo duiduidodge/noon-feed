@@ -17,7 +17,10 @@ import {
   postOpportunitySignals,
   postWhaleSnapshot,
   postWhaleSnapshotToTelegram,
+  postWatchlistEvents,
+  postWatchlistEventsToTelegram,
 } from './services/discord-signals-poster.js';
+import { processWatchlist } from './services/watchlist-manager.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
 import { processFetchAPINewsJob, type FetchAPINewsJobData } from './jobs/fetch-api-news.js';
 import { processFetchArticleJob, type FetchArticleJobData } from './jobs/fetch-article.js';
@@ -958,6 +961,29 @@ async function main() {
         const { opportunities, btcContext } = await opportunitySignalsService.pollAndPersist(prisma);
         lastOpportunitySignalsPoll = Date.now();
 
+        // Run watchlist diffing — only fires on state changes (new/flip/surge/closed)
+        const watchlistEvents = await processWatchlist(prisma, opportunities);
+
+        if (watchlistEvents.length > 0) {
+          const signalsWebhook = getSignalsWebhookUrl();
+          if (signalsWebhook) {
+            postWatchlistEvents(signalsWebhook, watchlistEvents).catch((err) =>
+              logger.error({ error: (err as Error).message }, 'Failed to post watchlist events to Discord')
+            );
+          }
+
+          const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+          const tgChatId = process.env.TELEGRAM_CHAT_ID;
+          if (tgToken && tgChatId) {
+            postWatchlistEventsToTelegram(tgToken, tgChatId, watchlistEvents).catch((err) =>
+              logger.error({ error: (err as Error).message }, 'Failed to post watchlist events to Telegram')
+            );
+          }
+
+          logger.info({ events: watchlistEvents.map((e) => `${e.type}:${e.entry.asset}`) }, 'Watchlist events fired');
+        }
+
+        // Keep the snapshot Discord post for the full picture (Discord only, not Telegram)
         const signalsWebhook = getSignalsWebhookUrl();
         if (signalsWebhook && opportunities.length > 0) {
           postOpportunitySignals(signalsWebhook, opportunities, btcContext).catch((err) =>

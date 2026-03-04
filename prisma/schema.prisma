@@ -332,3 +332,20 @@ model WhaleTrader {
   @@index([createdAt])
   @@map("WhaleTrader")
 }
+
+model SignalWatchlist {
+  id          String    @id @default(cuid())
+  asset       String    @unique
+  direction   String    // 'LONG' | 'SHORT'
+  entryScore  Int       @map("entry_score")
+  lastScore   Int       @map("last_score")
+  missedScans Int       @default(0) @map("missed_scans")
+  status      String    @default("ACTIVE") // 'ACTIVE' | 'CLOSED'
+  addedAt     DateTime  @default(now()) @map("added_at")
+  lastSeenAt  DateTime  @default(now()) @map("last_seen_at")
+  closedAt    DateTime? @map("closed_at")
+
+  @@index([status])
+  @@index([asset])
+  @@map("SignalWatchlist")
+}
