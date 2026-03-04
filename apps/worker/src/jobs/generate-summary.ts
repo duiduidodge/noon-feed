@@ -146,11 +146,11 @@ function buildSummaryPrompt(
 
 ## Context
 This is the ${period} summary for ${dateStr}.
-Your analysis will be displayed ABOVE a price table and a headline list — so do NOT repeat price numbers or list news headlines. They are already shown separately.
+Your analysis will be displayed alongside a price table and a headline list — so do NOT repeat price numbers or list news headlines. They are already shown separately.
 
-**IMPORTANT**: The headlines below are PRE-FILTERED to show only HIGH and MEDIUM impact news. These include major market movers (HIGH) and significant updates (MEDIUM). Use HIGH impact stories as the core of your narrative, and use MEDIUM impact stories to support your analysis of broader trends.
+**IMPORTANT**: The headlines below are PRE-FILTERED to show only HIGH and MEDIUM impact news. Use HIGH impact stories as the core of your analysis and MEDIUM stories to support broader trends.
 
-## Market Data (reference only — do NOT quote these numbers)
+## Market Data (reference only — do NOT quote these numbers directly)
 - BTC: ${formatPrice(prices.btc.price)} (${formatChange(prices.btc.change24h)})
 - ETH: ${formatPrice(prices.eth.price)} (${formatChange(prices.eth.change24h)})
 - SOL: ${formatPrice(prices.sol.price)} (${formatChange(prices.sol.change24h)})
@@ -161,35 +161,34 @@ Your analysis will be displayed ABOVE a price table and a headline list — so d
 ## HIGH & MEDIUM IMPACT News Headlines (${headlines.length} major stories since last summary):
 ${headlinesList || '(No major headlines in this period)'}
 
-## Writing Rules
-Write a JSON response with:
+## Output Format
+Write a JSON response with exactly these fields:
 
-1. "market_context": A 2-3 paragraph analysis in Thai.
-   DO:
-   - Analyze the overall market sentiment, structure, and macro narrative
-   - ALL headlines shown are already pre-filtered as HIGH/MEDIUM impact. Weave these major stories into your analysis naturally as context — but do not recap them individually
-   - Be opinionated about what the market signals mean
-   - Each paragraph should make a distinct point — no repetition
+1. "section_title": A punchy Thai title capturing today's market mood (max 50 chars, no emoji)
 
-   LANGUAGE:
-   - Write predominantly in Thai. The base language is Thai.
-   - Use English ONLY for crypto/finance jargon AND specific names (e.g. sentiment, rally, sideway, flash crash, liquidity, institutional flow, ETF, short squeeze, support, resistance, dominance, altcoin, DeFi, whale)
-   - KEEP all specific names (people, projects, companies, tokens) in ENGLISH. Do NOT transliterate them.
-     - Example: "Binance" -> "Binance" (NOT "ไบแนนซ์")
-     - Example: "Vitalik Buterin" -> "Vitalik Buterin"
-     - Example: "Bitcoin" -> "Bitcoin" (NOT "บิทคอยน์")
-   - Normal vocabulary MUST be in Thai, not English. For example: write "สะท้อน" not "reflect", "ครอง" not "dominate", "สังเกต" not "observe", "อ่อนไหว" not "sensitive", "ส่งสัญญาณ" not "signal", "ปัจจัย" not "factor", "แนวโน้ม" not "trend" (unless used as a technical term)
-   - Aim for roughly 80% Thai, 20% English crypto terms
+2. "overview": Array of exactly 3 bullet strings — macro market direction and sentiment
+   - What is the overall market structure right now? Trending, sideways, recovering, or distributing?
+   - Use Fear & Greed and price action as context clues (without quoting exact numbers)
+   - Each bullet = one distinct, concrete observation about the market state
 
-   DO NOT:
-   - Quote exact prices or percentages from the data above
-   - List or summarize individual headlines
-   - Give directional trading advice, price targets, or recommendations (no "buy", "sell", "entry", "stop-loss", "position sizing")
-   - Repeat the same observation in different words across paragraphs
+3. "drivers": Array of 2–3 bullet strings — specific catalysts moving the market this session
+   - What are the 2–3 most important stories actually driving price action?
+   - Be specific: name the project, institution, or event AND explain the implication
+   - Weave the most impactful headlines in naturally as evidence, not as a recap
 
-   Tone: Sharp, analytical, like a Bloomberg market commentary written for Thai audience. Observe and interpret — do not advise.
+4. "watch": Array of 1–2 bullet strings — what traders should monitor in the next session
+   - Forward-looking: key levels, upcoming events, emerging risks, or structural shifts
+   - Be concrete — vague warnings are not useful
 
-2. "section_title": A punchy Thai title capturing today's market mood (max 50 chars, no emoji)
+## Language Rules (apply to ALL bullet fields)
+- Write predominantly Thai. Use English ONLY for: crypto/finance jargon + specific proper names
+- KEEP all proper names in English — NEVER transliterate: "Bitcoin" not "บิทคอยน์", "Binance" not "ไบแนนซ์"
+- Common Thai vocabulary must stay Thai: "สะท้อน" not "reflect", "ครอง" not "dominate", "ส่งสัญญาณ" not "signal"
+- Aim for ~80% Thai, ~20% English (jargon + names only)
+- Each bullet: max 120 characters. Start with a strong subject or verb phrase. No trailing punctuation.
+- No filler openers ("ทั้งนี้", "อย่างไรก็ตาม", "โดยรวม")
+- No trading advice (no "buy", "sell", "entry", "stop-loss")
+- Tone: sharp and analytical — observe and interpret, do not advise
 
 Respond ONLY with valid JSON. No markdown code blocks.`;
 }
@@ -206,11 +205,21 @@ async function postSummaryToDiscord(
 ): Promise<void> {
   const timeEmoji = scheduleType === 'morning' ? '🌅' : '🌆';
 
-  // Truncate summary if needed
-  const maxSummaryLen = 1500;
-  const description = summaryText.length > maxSummaryLen
-    ? summaryText.substring(0, maxSummaryLen).replace(/\s+\S*$/, '') + '...'
-    : summaryText;
+  // Format bullets for Discord — bold section headers + bullet lines
+  const analysisLines: string[] = [];
+  for (const section of summaryText.split('\n\n')) {
+    const lines = section.split('\n').filter(Boolean);
+    if (lines.length === 0) continue;
+    const [header, ...bullets] = lines;
+    if (header) analysisLines.push(`**${header}**`);
+    bullets.forEach(b => analysisLines.push(b));
+    analysisLines.push('');
+  }
+  const analysisBlock = analysisLines.join('\n').trim();
+  const maxAnalysisLen = 1500;
+  const description = analysisBlock.length > maxAnalysisLen
+    ? analysisBlock.substring(0, maxAnalysisLen).replace(/\s+\S*$/, '') + '...'
+    : analysisBlock;
 
   // Price field — vertical layout with green/red indicators
   const coinLines = [
@@ -320,13 +329,24 @@ async function postSummaryToTelegram(
     .map((h, i) => `${i + 1}. <a href="${escapeUrlForHtmlAttr(h.url)}">${escapeHtml(h.title.substring(0, 90))}</a>`)
     .join('\n');
 
+  // Format bullets for Telegram — bold section headers in HTML
+  const analysisHtmlLines: string[] = [];
+  for (const section of summaryText.split('\n\n')) {
+    const lines = section.split('\n').filter(Boolean);
+    if (lines.length === 0) continue;
+    const [header, ...bullets] = lines;
+    if (header) analysisHtmlLines.push(`<b>${escapeHtml(header)}</b>`);
+    bullets.forEach(b => analysisHtmlLines.push(escapeHtml(b)));
+    analysisHtmlLines.push('');
+  }
+  const analysisHtml = analysisHtmlLines.join('\n').trim();
+
   const message = [
     `${timeEmoji} <b>${escapeHtml(sectionTitle)}</b>`,
     `<i>${summaryLabel}</i>`,
     '━━━━━━━━━━',
     '',
-    '<b>Market Context</b>',
-    escapeHtml(summaryText.substring(0, 1700)),
+    analysisHtml.substring(0, 1700),
     '',
     '━━━━━━━━━━',
     headlineLines ? `<b>📰 ข่าวเด่น ${headlineLines.split('\n').length} ข่าว</b>` : '',
@@ -421,11 +441,26 @@ export async function processGenerateSummaryJob(
     });
 
     const parsed = JSON.parse(llmResponse);
-    summaryText = parsed.market_context || '';
     sectionTitle = parsed.section_title || `สรุปตลาดคริปโต`;
+
+    const overview: string[] = Array.isArray(parsed.overview) ? parsed.overview : [];
+    const drivers: string[]  = Array.isArray(parsed.drivers)  ? parsed.drivers  : [];
+    const watch: string[]    = Array.isArray(parsed.watch)     ? parsed.watch    : [];
+
+    // Build flat section text — compatible with feed UI and Discord/Telegram rendering
+    const parts: string[] = [];
+    if (overview.length > 0) {
+      parts.push(`🌐 ภาพรวม\n${overview.map(b => `• ${b}`).join('\n')}`);
+    }
+    if (drivers.length > 0) {
+      parts.push(`⚡ ปัจจัยขับเคลื่อน\n${drivers.map(b => `• ${b}`).join('\n')}`);
+    }
+    if (watch.length > 0) {
+      parts.push(`⚠️ จับตา\n${watch.map(b => `• ${b}`).join('\n')}`);
+    }
+    summaryText = parts.join('\n\n');
   } catch (error) {
     logger.error({ error: (error as Error).message }, 'LLM summary generation failed');
-    // Fallback: post without LLM summary
     summaryText = `📊 สรุปข่าวคริปโตรอบ ${scheduleType === 'morning' ? 'เช้า' : 'เย็น'} — มีข่าว ${headlines.length} ข่าวในช่วง 12 ชั่วโมงที่ผ่านมา`;
     sectionTitle = `สรุปตลาดคริปโต ${scheduleType === 'morning' ? 'เช้า' : 'เย็น'}`;
   }

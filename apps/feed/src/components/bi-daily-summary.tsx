@@ -140,10 +140,59 @@ function MiniMoodGauge({ value, label = '', svgClassName = 'w-[80px]' }: { value
   );
 }
 
-// Split summary text into paragraphs and highlight inline numbers
-function FormattedSummary({ text }: { text: string }) {
-  const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
+// Parse section-based bullet format into structured sections
+function parseSections(text: string): Array<{ header: string; bullets: string[] }> | null {
+  const sections: Array<{ header: string; bullets: string[] }> = [];
+  let current: { header: string; bullets: string[] } | null = null;
 
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    if (line.startsWith('• ')) {
+      if (!current) current = { header: '', bullets: [] };
+      current.bullets.push(line.slice(2).trim());
+    } else {
+      if (current) sections.push(current);
+      current = { header: line.trim(), bullets: [] };
+    }
+  }
+  if (current) sections.push(current);
+
+  const hasBullets = sections.some(s => s.bullets.length > 0);
+  return hasBullets ? sections : null;
+}
+
+// Render summary — section+bullet format (new) with paragraph fallback (old)
+function FormattedSummary({ text }: { text: string }) {
+  const sections = parseSections(text);
+
+  if (sections) {
+    return (
+      <div className="space-y-5" lang="th">
+        {sections.map((section, i) => (
+          <div key={i}>
+            {section.header && (
+              <p className="font-mono-data text-small font-bold uppercase tracking-[0.12em] text-muted-foreground/70 mb-2">
+                {section.header}
+              </p>
+            )}
+            <ul className="space-y-2.5">
+              {section.bullets.map((bullet, j) => (
+                <li key={j} className="flex items-start gap-2.5">
+                  <span className="text-primary/50 mt-[5px] shrink-0 text-[10px]">◆</span>
+                  <span className="font-thai text-body leading-relaxed text-foreground/90">
+                    {highlightNumbers(bullet)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Fallback: paragraph mode for legacy prose summaries
+  const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
   return (
     <div className="space-y-4" lang="th">
       {paragraphs.map((para, idx) => (
@@ -248,13 +297,15 @@ function CompactSummaryCard({ summary }: { summary: Summary }) {
   const isMorning = summary.scheduleType === 'morning';
   const label = isMorning ? 'MORNING SUMMARY' : 'EVENING SUMMARY';
 
-  // ── TL;DR: first 3 non-trivial paragraphs, capped at 150 chars each ──
+  // ── TL;DR: first 3 bullet lines (lines starting with "• ") ──
   const bullets = summary.summaryText
-    .split(/\n\n+/)
-    .map((p) => p.trim())
-    .filter((p) => p.length > 20)
+    .split('\n')
+    .filter((line) => line.startsWith('• '))
     .slice(0, 3)
-    .map((p) => (p.length > 150 ? p.slice(0, 147) + '…' : p));
+    .map((line) => {
+      const text = line.slice(2);
+      return text.length > 150 ? text.slice(0, 147) + '…' : text;
+    });
 
   // ── Trending tokens extracted from headline corpus ──
   const trending = extractTrendingTokens(summary.headlines);
