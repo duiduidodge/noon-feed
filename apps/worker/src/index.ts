@@ -1006,13 +1006,33 @@ async function main() {
 
         // Fire whale notification at 7 AM and 7 PM Bangkok time (same slots as bi-daily summary)
         const whaleSlot = getSummarySlotsAroundNow(new Date())[0];
+
+        // Check both in-memory (fast) and DB (survives restarts/deploys)
+        const alreadyNotifiedWhale = whaleSlot
+          ? sentWhaleNotificationKeys.has(whaleSlot.summaryKey) ||
+            !!(await prisma.jobAudit.findFirst({
+              where: {
+                jobType: 'WHALE_NOTIFICATION',
+                status: 'COMPLETED',
+                createdAt: { gte: whaleSlot.slotStartUtc },
+              },
+            }))
+          : true;
+
         const shouldNotifyWhale =
           whaleTraders.length > 0 &&
           whaleSlot !== undefined &&
-          !sentWhaleNotificationKeys.has(whaleSlot.summaryKey);
+          !alreadyNotifiedWhale;
 
         if (shouldNotifyWhale && whaleSlot) {
           sentWhaleNotificationKeys.add(whaleSlot.summaryKey);
+          await prisma.jobAudit.create({
+            data: {
+              jobType: 'WHALE_NOTIFICATION',
+              status: 'COMPLETED',
+              metadata: { slotKey: whaleSlot.summaryKey },
+            },
+          });
 
           const signalsWebhook = getSignalsWebhookUrl();
           if (signalsWebhook) {
