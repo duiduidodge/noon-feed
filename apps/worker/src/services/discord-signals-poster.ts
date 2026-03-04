@@ -190,6 +190,10 @@ export async function postWatchlistEventsToTelegram(
   }
 }
 
+function tvChartUrl(asset: string): string {
+  return `https://www.tradingview.com/chart/?symbol=BINANCE:${asset}USDTPERP&interval=D`;
+}
+
 function buildWatchlistEmbed(event: WatchlistEvent): object {
   const { entry } = event;
   const isLong = entry.direction === 'LONG';
@@ -197,19 +201,32 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
 
   switch (event.type) {
     case 'NEW': {
+      const swing = event.signal.swingGrade;
+      const tech = event.signal.technicals as Record<string, unknown>;
+      const fields = [
+        ...buildPillarFields(event.signal),
+        ...(swing ? buildSwingFields(tech) : []),
+      ];
       return {
-        title: `🆕  New Setup: ${entry.asset}`,
-        description: `${dirLabel}  ·  Score: **${entry.lastScore}**`,
+        title: swing
+          ? `🎯  Swing Setup: ${entry.asset}`
+          : `🆕  New Setup: ${entry.asset}`,
+        url: swing ? tvChartUrl(entry.asset) : undefined,
+        description: `${dirLabel}  ·  Score: **${entry.lastScore}**${swing ? '  ·  Daily confirmed' : ''}`,
         color: isLong ? COLOR.LONG : COLOR.SHORT,
-        fields: buildPillarFields(event.signal),
-        footer: { text: `Watchlist · Added  ·  ${new Date().toUTCString()}` },
+        fields,
+        footer: { text: `Watchlist · ${swing ? 'Swing · ' : ''}Added  ·  ${new Date().toUTCString()}` },
         timestamp: new Date().toISOString(),
       };
     }
     case 'FLIP': {
+      const swing = event.signal.swingGrade;
       const prevLabel = event.prevDirection === 'LONG' ? '🟢 LONG' : '🔴 SHORT';
       return {
-        title: `🔄  Direction Flip: ${entry.asset}`,
+        title: swing
+          ? `🎯🔄  Swing Flip: ${entry.asset}`
+          : `🔄  Direction Flip: ${entry.asset}`,
+        url: swing ? tvChartUrl(entry.asset) : undefined,
         description: `${prevLabel} → ${dirLabel}  ·  Score: **${entry.lastScore}**`,
         color: COLOR.MIXED,
         fields: buildPillarFields(event.signal),
@@ -218,9 +235,13 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
       };
     }
     case 'SURGE': {
+      const swing = event.signal.swingGrade;
       const delta = entry.lastScore - event.prevScore;
       return {
-        title: `🔥  Conviction Rising: ${entry.asset}`,
+        title: swing
+          ? `🎯🔥  Swing Conviction: ${entry.asset}`
+          : `🔥  Conviction Rising: ${entry.asset}`,
+        url: swing ? tvChartUrl(entry.asset) : undefined,
         description: `${dirLabel}  ·  Score: **${event.prevScore}** → **${entry.lastScore}**  (${delta > 0 ? '+' : ''}${delta})`,
         color: isLong ? COLOR.LONG : COLOR.SHORT,
         fields: buildPillarFields(event.signal),
@@ -228,14 +249,14 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
         timestamp: new Date().toISOString(),
       };
     }
-    case 'CLOSED': { // no signal available for closed events
+    case 'CLOSED': {
       const duration = entry.closedAt
         ? Math.round((entry.closedAt.getTime() - entry.addedAt.getTime()) / 60000)
         : null;
       return {
         title: `❌  Setup Closed: ${entry.asset}`,
         description: `${dirLabel}  ·  Entry: **${entry.entryScore}**  →  Exit: **${entry.lastScore}**${duration !== null ? `  ·  ${duration}m` : ''}`,
-        color: 0x546e7a, // slate
+        color: 0x546e7a,
         footer: { text: `Watchlist · Closed  ·  ${new Date().toUTCString()}` },
         timestamp: new Date().toISOString(),
       };
@@ -253,6 +274,31 @@ function buildPillarFields(signal: OpportunityResult): object[] {
   }];
 }
 
+function buildSwingFields(tech: Record<string, unknown>): object[] {
+  const fields: object[] = [];
+  const parts: string[] = [];
+  if (tech.trendDaily) parts.push(`Daily ${tech.trendDaily}`);
+  if (typeof tech.rsi1d === 'number') parts.push(`RSI1D \`${(tech.rsi1d as number).toFixed(1)}\``);
+  if (parts.length > 0) fields.push({ name: 'Daily Context', value: parts.join('  ·  '), inline: false });
+
+  const wp = tech.weeklyPivots as Record<string, number> | null | undefined;
+  if (wp && (wp.s1 || wp.r1)) {
+    const fmt = (v: number) => v >= 1000 ? `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}` : v >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(4)}`;
+    fields.push({
+      name: 'Weekly Pivots',
+      value: [
+        wp.s2 != null ? `S2 \`${fmt(wp.s2)}\`` : null,
+        wp.s1 != null ? `S1 \`${fmt(wp.s1)}\`` : null,
+        wp.pp != null ? `PP \`${fmt(wp.pp)}\`` : null,
+        wp.r1 != null ? `R1 \`${fmt(wp.r1)}\`` : null,
+        wp.r2 != null ? `R2 \`${fmt(wp.r2)}\`` : null,
+      ].filter(Boolean).join('  '),
+      inline: false,
+    });
+  }
+  return fields;
+}
+
 function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
   const { entry } = event;
   const isLong = entry.direction === 'LONG';
@@ -260,25 +306,38 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
   const asset = escapeHtml(entry.asset);
 
   switch (event.type) {
-    case 'NEW':
+    case 'NEW': {
+      const swing = event.signal.swingGrade;
+      const tech = event.signal.technicals as Record<string, unknown>;
+      const chartLink = swing
+        ? `\n📊 <a href="${tvChartUrl(entry.asset)}">Daily Chart</a>`
+        : '';
+      const swingLine = swing && typeof tech.rsi1d === 'number'
+        ? `\nDaily: <b>${tech.trendDaily}</b>  ·  RSI1D: <b>${(tech.rsi1d as number).toFixed(1)}</b>`
+        : '';
       return [
-        `🆕 <b>New Setup: ${asset}</b>`,
-        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>`,
+        swing ? `🎯 <b>Swing Setup: ${asset}</b>` : `🆕 <b>New Setup: ${asset}</b>`,
+        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${swingLine}${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
+    }
     case 'FLIP': {
+      const swing = event.signal.swingGrade;
       const prevLabel = event.prevDirection === 'LONG' ? '🟢 LONG' : '🔴 SHORT';
+      const chartLink = swing ? `\n📊 <a href="${tvChartUrl(entry.asset)}">Daily Chart</a>` : '';
       return [
-        `🔄 <b>Direction Flip: ${asset}</b>`,
-        `${prevLabel} → ${dirLabel}  ·  Score: <b>${entry.lastScore}</b>`,
+        swing ? `🎯🔄 <b>Swing Flip: ${asset}</b>` : `🔄 <b>Direction Flip: ${asset}</b>`,
+        `${prevLabel} → ${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }
     case 'SURGE': {
+      const swing = event.signal.swingGrade;
       const delta = entry.lastScore - event.prevScore;
+      const chartLink = swing ? `\n📊 <a href="${tvChartUrl(entry.asset)}">Daily Chart</a>` : '';
       return [
-        `🔥 <b>Conviction Rising: ${asset}</b>`,
-        `${dirLabel}  ·  Score: <b>${event.prevScore}</b> → <b>${entry.lastScore}</b>  (${delta > 0 ? '+' : ''}${delta})`,
+        swing ? `🎯🔥 <b>Swing Conviction: ${asset}</b>` : `🔥 <b>Conviction Rising: ${asset}</b>`,
+        `${dirLabel}  ·  Score: <b>${event.prevScore}</b> → <b>${entry.lastScore}</b>  (${delta > 0 ? '+' : ''}${delta})${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }

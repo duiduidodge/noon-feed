@@ -84,13 +84,16 @@ export interface OpportunityResult {
   scanStreak: number;
   hourlyTrend: string;
   trendAligned: boolean;
+  swingGrade: boolean;
   pillarScores: { smartMoney: number; marketStructure: number; technicals: number; funding: number };
   smartMoney: { traders: number; pnlPct: number; accel: number; direction: string };
   technicals: {
     rsi1h: number; rsi15m: number | null; volRatio1h: number; volRatio15m: number | null;
-    trend4h: string; trend1h: string; trendStrength: number; patterns1h: string[]; patterns15m: string[];
+    trend4h: string; trend1h: string; trendDaily: string; trendStrength: number;
+    rsi1d: number; patterns1h: string[]; patterns15m: string[];
     momentum15m: number | null; chg1h: number; chg4h: number; chg24h: number;
-    support: number | null; resistance: number | null; pivots: PivotPoints | null; atrPct: number;
+    support: number | null; resistance: number | null;
+    pivots: PivotPoints | null; weeklyPivots: PivotPoints | null; atrPct: number;
   };
   funding: { rate: number; annualized: number; favorable: boolean };
   risks: string[];
@@ -225,6 +228,45 @@ function calculatePivotPoints(highs: number[], lows: number[], closes: number[])
     s2: Math.round((pp - (high - low)) * p) / p,
     r2: Math.round((pp + (high - low)) * p) / p,
   };
+}
+
+// Weekly pivot points from the last 7 complete daily candles (proxy for previous week range)
+function calculateWeeklyPivotPoints(highs: number[], lows: number[], closes: number[]): PivotPoints | null {
+  const n = highs.length;
+  if (n < 9) return null;
+  // Slice off today's in-progress candle (n-1) and use the 7 before it
+  const weekHigh = Math.max(...highs.slice(-8, -1));
+  const weekLow  = Math.min(...lows.slice(-8, -1));
+  const weekClose = closes[n - 2]; // yesterday's close
+  const pp = (weekHigh + weekLow + weekClose) / 3;
+  const p = 1_000_000;
+  return {
+    pp: Math.round(pp * p) / p,
+    s1: Math.round(((2 * pp) - weekHigh) * p) / p,
+    r1: Math.round(((2 * pp) - weekLow) * p) / p,
+    s2: Math.round((pp - (weekHigh - weekLow)) * p) / p,
+    r2: Math.round((pp + (weekHigh - weekLow)) * p) / p,
+  };
+}
+
+// Swing grade: true when daily + 4H + 1H all align and daily conditions are healthy
+function evaluateSwingGrade(
+  direction: string,
+  trendAligned: boolean,   // 4H+1H both agree
+  trendDaily: string,
+  rsi1d: number,
+  finalScore: number,
+): boolean {
+  if (!trendAligned) return false;
+  const dailyAligned =
+    (trendDaily === 'UP' && direction === 'LONG') ||
+    (trendDaily === 'DOWN' && direction === 'SHORT');
+  if (!dailyAligned) return false;
+  // Daily RSI mid-zone: not overbought / not deeply oversold (mid-trend entries)
+  if (rsi1d < 35 || rsi1d > 65) return false;
+  // Higher conviction floor for multi-day hold
+  if (finalScore < 300) return false;
+  return true;
 }
 
 // ─── Binance API fetchers ─────────────────────────────────────────────────────
@@ -463,10 +505,11 @@ async function analyzeAsset(
   prevState: ScanState
 ): Promise<(OpportunityResult & { _symbol: string; _finalScore: number }) | null> {
   try {
-    const [klines1h, klines4h, klines15m] = await Promise.all([
+    const [klines1h, klines4h, klines15m, klines1d] = await Promise.all([
       fetchKlines(symbol, '1h', 52),
       fetchKlines(symbol, '4h', 55), // 55 candles for EMA50 + pivot point from previous candle
       fetchKlines(symbol, '15m', 35),
+      fetchKlines(symbol, '1d', 60), // daily for swing grade analysis
     ]);
 
     if (!klines1h) return null;
@@ -513,6 +556,21 @@ async function analyzeAsset(
       else if (curr < ema9 && ema9 < ema21) trend1h = 'DOWN';
     }
 
+    // Daily trend, RSI, and weekly pivots for swing grade
+    let trendDaily = 'FLAT';
+    let rsi1d = 50;
+    let weeklyPivots: PivotPoints | null = null;
+    if (klines1d && klines1d.closes.length >= 21) {
+      const c1d = klines1d.closes;
+      const ema20d = calculateEma(c1d, 20);
+      const ema50d = calculateEma(c1d, Math.min(50, c1d.length));
+      const curr1d = c1d[c1d.length - 1];
+      if (curr1d > ema20d && ema20d > ema50d) trendDaily = 'UP';
+      else if (curr1d < ema20d && ema20d < ema50d) trendDaily = 'DOWN';
+      rsi1d = calculateRsi(c1d, 14);
+      weeklyPivots = calculateWeeklyPivotPoints(klines1d.highs, klines1d.lows, klines1d.closes);
+    }
+
     // Compute chg1h before scorePillars (needed for OI divergence check)
     const chg1h = c1h.length > 1 && c1h[c1h.length - 2] > 0
       ? Math.round((c1h[c1h.length - 1] - c1h[c1h.length - 2]) / c1h[c1h.length - 2] * 100 * 100) / 100 : 0;
@@ -529,6 +587,7 @@ async function analyzeAsset(
     const trendAligned = (direction === 'LONG' && trend4h === 'UP')
                       || (direction === 'SHORT' && trend4h === 'DOWN');
     const finalScore = sm + ms + tech + fund;
+    const swingGrade = evaluateSwingGrade(direction, trendAligned, trendDaily, rsi1d, finalScore);
     const leverage = recommendLeverage(atrPct);
 
     const prev = prevState[symbol] ?? { finalScore, scanStreak: 0 };
@@ -563,17 +622,19 @@ async function analyzeAsset(
       finalScore,
       scoreDelta,
       scanStreak,
-      hourlyTrend: trend1h, // EMA9/EMA21 based — replaces naive 2-candle comparison
+      hourlyTrend: trend1h,
       trendAligned,
+      swingGrade,
       pillarScores: { smartMoney: sm, marketStructure: ms, technicals: tech, funding: fund },
       smartMoney: { traders: smTraders, pnlPct: smPnl, accel: smAccel, direction },
       technicals: {
         rsi1h, rsi15m, volRatio1h: volR, volRatio15m: volR15m,
-        trend4h, trend1h, trendStrength, patterns1h, patterns15m,
+        trend4h, trend1h, trendDaily, trendStrength,
+        rsi1d, patterns1h, patterns15m,
         momentum15m, chg1h, chg4h, chg24h,
-        support: pivots?.s1 ?? null,    // S1 from pivot points
-        resistance: pivots?.r1 ?? null, // R1 from pivot points
-        pivots,
+        support: pivots?.s1 ?? null,
+        resistance: pivots?.r1 ?? null,
+        pivots, weeklyPivots,
         atrPct,
       },
       funding: {
