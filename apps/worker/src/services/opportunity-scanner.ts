@@ -331,10 +331,25 @@ function scorePillars(
   direction: string, rsi1h: number | null, rsi15m: number | null,
   trend4h: string, volR: number | null, oiChg: number | null,
   topLs: number | null, takerR: number | null, fundingRate: number | null,
-  chg1h: number // needed for OI/price divergence check
+  chg1h: number, // needed for OI/price divergence check
+  chg24h: number, // needed for chase filter
 ): { sm: number; ms: number; tech: number; fund: number; risks: string[]; favorable: boolean; annualized: number; hardVeto: boolean } {
   const risks: string[] = [];
   let hardVeto = false;
+
+  // ── 24h chase / extension filter ─────────────────────────────────────────
+  // A token that already moved >12% in 24h in the signal direction is a chase entry.
+  // >20% is a hard veto — the move is done, we missed it.
+  const chg24hInDirection =
+    (direction === 'LONG' && chg24h > 0) ? chg24h :
+    (direction === 'SHORT' && chg24h < 0) ? Math.abs(chg24h) : 0;
+
+  if (chg24hInDirection > 20) {
+    hardVeto = true;
+    risks.push('chasing_pump');
+  } else if (chg24hInDirection > 12) {
+    risks.push('chasing_pump');
+  }
 
   // ── Smart Money ──────────────────────────────────────────────────────────────
   let sm = 50;
@@ -575,12 +590,15 @@ async function analyzeAsset(
     const chg1h = c1h.length > 1 && c1h[c1h.length - 2] > 0
       ? Math.round((c1h[c1h.length - 1] - c1h[c1h.length - 2]) / c1h[c1h.length - 2] * 100 * 100) / 100 : 0;
 
+    // Compute chg24h before scorePillars (needed for chase filter hard veto)
+    const chg24h = Math.round(parseFloat(ticker.priceChangePercent ?? '0') * 100) / 100;
+
     // Direction: requires 1H and 4H agreement — returns null if conflicting
     const direction = chooseDirection(rsi1h, trend4h, trend1h, topLs, takerR);
     if (direction === null) return null; // Conflicting timeframes — skip
 
     const { sm, ms, tech, fund, risks, favorable, annualized, hardVeto } = scorePillars(
-      direction, rsi1h, rsi15m, trend4h, volR, oiChg, topLs, takerR, fundingRate, chg1h
+      direction, rsi1h, rsi15m, trend4h, volR, oiChg, topLs, takerR, fundingRate, chg1h, chg24h
     );
     if (hardVeto) return null; // Extreme funding rate — skip
 
@@ -599,7 +617,6 @@ async function analyzeAsset(
 
     const chg4h = c1h.length > 5 && c1h[c1h.length - 5] > 0
       ? Math.round((c1h[c1h.length - 1] - c1h[c1h.length - 5]) / c1h[c1h.length - 5] * 100 * 100) / 100 : 0;
-    const chg24h = Math.round(parseFloat(ticker.priceChangePercent ?? '0') * 100) / 100;
 
     const patterns1h = detectPatterns(c1h, o1h, h1h, l1h);
     const patterns15m = klines15m
