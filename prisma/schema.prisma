@@ -284,6 +284,8 @@ model OpportunitySignal {
   technicals        Json?
   funding           Json?
   risks             Json?
+  exitLevels        Json?               @map("exit_levels")
+  positionSize      Json?               @map("position_size")
   createdAt         DateTime            @default(now()) @map("created_at")
 
   @@index([snapshotId])
@@ -341,6 +343,8 @@ model SignalWatchlist {
   lastScore   Int       @map("last_score")
   missedScans Int       @default(0) @map("missed_scans")
   status      String    @default("ACTIVE") // 'ACTIVE' | 'CLOSED'
+  entryPrice  Decimal?  @map("entry_price") @db.Decimal(20,8)
+  exitReason  String?   @map("exit_reason") // 'MISSED_SCANS' | 'TIME_EXIT'
   addedAt     DateTime  @default(now()) @map("added_at")
   lastSeenAt  DateTime  @default(now()) @map("last_seen_at")
   closedAt    DateTime? @map("closed_at")

@@ -112,8 +112,8 @@ export async function GET() {
       if (!token) continue;
 
       const trendBonus = item.trendAligned ? 6 : 0;
-      // finalScore is sum of 4 pillars (each 0–100), so range is 0–400. Divide by 4 to normalize to 0–100.
-      const scoreBase = Math.min(85, Math.max(45, Math.round((item.finalScore || 0) / 4)));
+      // finalScore is sum of 3 pillars (each 0–100) + entry bonus, range 0–320. Divide by 3 to normalize to 0–100.
+      const scoreBase = Math.min(85, Math.max(45, Math.round((item.finalScore || 0) / 3)));
       const emerging = emergingByToken.get(token);
       const emergingBonus = emerging ? (emerging.immediate ? 10 : emerging.deep ? 6 : 3) : 0;
       const confidence = Math.min(99, scoreBase + trendBonus + emergingBonus + whaleBackdropBonus);
@@ -143,6 +143,8 @@ export async function GET() {
           technicals: item.technicals as Record<string, unknown> | null,
           funding: item.funding as Record<string, unknown> | null,
           risks: safeStringArray(item.risks),
+          exitLevels: item.exitLevels as Record<string, unknown> | null,
+          positionSize: item.positionSize as Record<string, unknown> | null,
         },
         emergingAlert: emergingFullMap.get(token) ?? null,
         whaleTopScore,
@@ -244,6 +246,8 @@ function buildSetup(params: {
     technicals: Record<string, unknown> | null;
     funding: Record<string, unknown> | null;
     risks: string[];
+    exitLevels: Record<string, unknown> | null;
+    positionSize: Record<string, unknown> | null;
   } | null;
   emergingAlert: AlertRow | null;
   whaleTopScore: number | null;

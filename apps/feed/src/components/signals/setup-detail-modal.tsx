@@ -25,6 +25,8 @@ interface OpportunityDetail {
   technicals: Record<string, unknown> | null;
   funding: Record<string, unknown> | null;
   risks: string[];
+  exitLevels: Record<string, unknown> | null;
+  positionSize: Record<string, unknown> | null;
 }
 
 interface EmergingDetail {
@@ -127,6 +129,20 @@ function velocityLabel(vel: number | null): { text: string; color: string } {
   if (vel >= 0.1) return { text: 'Gaining momentum', color: 'text-bullish' };
   if (vel >= 0.01) return { text: 'Slowly building', color: 'text-yellow-400' };
   return { text: 'Low velocity', color: 'text-muted-foreground/50' };
+}
+
+function fmtPx(v: number): string {
+  if (v >= 10000) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  if (v >= 1) return `$${v.toFixed(2)}`;
+  if (v >= 0.01) return `$${v.toFixed(4)}`;
+  return `$${v.toFixed(6)}`;
+}
+
+function regimeStyle(regime: string | undefined): { label: string; cls: string } {
+  if (regime === 'TRENDING') return { label: 'TRENDING', cls: 'border-bullish/35 bg-bullish/8 text-bullish' };
+  if (regime === 'RANGING') return { label: 'RANGING', cls: 'border-yellow-400/35 bg-yellow-400/8 text-yellow-400' };
+  if (regime === 'VOLATILE') return { label: 'VOLATILE', cls: 'border-orange-400/35 bg-orange-400/8 text-orange-400' };
+  return { label: '—', cls: 'border-border/20 bg-surface/15 text-muted-foreground/50' };
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -316,6 +332,15 @@ export function SetupDetailModal({ setup, onClose }: Props) {
   const accel = sm?.accel as number | undefined;
   const chg1h = tech?.chg1h as number | undefined;
   const chg4h = tech?.chg4h as number | undefined;
+  const regime = tech?.regime as string | undefined;
+  const adx4h = tech?.adx4h as number | undefined;
+  const exitLevels = opp?.exitLevels as {
+    initialSL?: number; trailingSLPct?: number; tp1?: number; tp2?: number; maxHoldHours?: number; riskPct?: number;
+  } | null ?? null;
+  const positionSize = opp?.positionSize as {
+    riskPct?: number; positionPct?: number; dollarRisk10k?: number;
+  } | null ?? null;
+  const regimeInfo = regimeStyle(regime);
 
   const trendInfo = trendLabel(trend4h);
   const trend1hInfo = trend1hLabel(trend1h);
@@ -324,11 +349,11 @@ export function SetupDetailModal({ setup, onClose }: Props) {
   const fundInfo = fundingRate !== undefined ? fundingLabel(fundingRate, setup.direction) : null;
 
   const pillarScores = opp?.pillarScores as {
-    smartMoney?: number; marketStructure?: number; technicals?: number; funding?: number;
+    derivatives?: number; marketStructure?: number; technicals?: number; entryBonus?: number;
   } | null ?? null;
 
   const DirectionIcon = isLong ? TrendingUp : TrendingDown;
-  const hasPillars = pillarScores && Object.values(pillarScores).some((v) => v !== undefined);
+  const hasPillars = pillarScores && (pillarScores.derivatives !== undefined || pillarScores.marketStructure !== undefined);
   const hasSignalReadings = opp && (trend4h !== undefined || trend1h !== undefined || rsiInfo || volInfo || sm || fundInfo);
   // Show chart in right column when there's no opportunity data to fill it
   const showChart = !hasPillars && !hasSignalReadings;
@@ -363,6 +388,17 @@ export function SetupDetailModal({ setup, onClose }: Props) {
             <DirectionIcon className="h-3 w-3" />
             {setup.direction}
           </span>
+
+          {/* Regime badge */}
+          {regime && (
+            <span className={cn(
+              'rounded border px-2 py-0.5 font-mono-data text-[9px] font-bold uppercase tracking-wider shrink-0',
+              regimeInfo.cls
+            )}>
+              {regimeInfo.label}
+              {adx4h !== undefined && <span className="opacity-60 ml-1">ADX {Math.round(adx4h)}</span>}
+            </span>
+          )}
 
           {/* Confidence */}
           <div className="flex flex-col items-center shrink-0">
@@ -592,20 +628,20 @@ export function SetupDetailModal({ setup, onClose }: Props) {
               </>
             )}
 
-            {/* 4-Pillar Scores */}
+            {/* Signal Score — 3-pillar */}
             {hasPillars && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
-                    4-Pillar Score
+                    Signal Score
                   </span>
                   <span className="font-mono-data text-[11px] font-bold text-foreground/70 tabular-nums">
-                    {opp!.finalScore} total
+                    {opp!.finalScore} / 320
                   </span>
                 </div>
                 <div className="space-y-2">
-                  {pillarScores!.smartMoney !== undefined && (
-                    <PillarRow label="Smart Money" score={pillarScores!.smartMoney} color="text-cyan-400" barColor="bg-cyan-400/70" />
+                  {pillarScores!.derivatives !== undefined && (
+                    <PillarRow label="Derivatives" score={pillarScores!.derivatives} color="text-violet-400" barColor="bg-violet-400/70" />
                   )}
                   {pillarScores!.marketStructure !== undefined && (
                     <PillarRow label="Mkt Structure" score={pillarScores!.marketStructure} color="text-primary" barColor="bg-primary/70" />
@@ -613,9 +649,32 @@ export function SetupDetailModal({ setup, onClose }: Props) {
                   {pillarScores!.technicals !== undefined && (
                     <PillarRow label="Technicals" score={pillarScores!.technicals} color="text-amber-400" barColor="bg-amber-400/70" />
                   )}
-                  {pillarScores!.funding !== undefined && (
-                    <PillarRow label="Funding" score={pillarScores!.funding} color="text-violet-400" barColor="bg-violet-400/70" />
-                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Position Size */}
+            {positionSize && positionSize.riskPct != null && (
+              <div className="space-y-1.5">
+                <span className="font-mono-data text-[8px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40">
+                  Position Sizing
+                </span>
+                <div className="grid grid-cols-3 gap-1">
+                  <MiniStat label="Risk">
+                    <span className="font-mono-data text-[13px] font-bold tabular-nums text-foreground/80 leading-none">
+                      {positionSize.riskPct}%
+                    </span>
+                  </MiniStat>
+                  <MiniStat label="Size">
+                    <span className="font-mono-data text-[13px] font-bold tabular-nums text-foreground/80 leading-none">
+                      {positionSize.positionPct}%
+                    </span>
+                  </MiniStat>
+                  <MiniStat label="$10k Risk">
+                    <span className="font-mono-data text-[13px] font-bold tabular-nums text-foreground/80 leading-none">
+                      ${positionSize.dollarRisk10k}
+                    </span>
+                  </MiniStat>
                 </div>
               </div>
             )}
@@ -661,9 +720,9 @@ export function SetupDetailModal({ setup, onClose }: Props) {
                   )}
                   {sm && (
                     <ReadingLine
-                      label="Smart Money"
-                      value={`SM ${(pillarScores?.smartMoney ?? 0)}`}
-                      valueClass="text-cyan-400"
+                      label="Derivatives"
+                      value={`${(pillarScores?.derivatives ?? 0)}`}
+                      valueClass="text-violet-400"
                       description={smLabel(pnlPct, accel)}
                     />
                   )}
@@ -721,6 +780,53 @@ export function SetupDetailModal({ setup, onClose }: Props) {
             )}
           </div>
         </div>
+
+        {/* ── Exit Plan ── */}
+        {exitLevels && (exitLevels.initialSL || exitLevels.tp1 || exitLevels.tp2) && (
+          <div className="border-t border-border/20 bg-surface/5 px-4 py-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-mono-data text-[7px] uppercase tracking-[0.18em] text-muted-foreground/35 shrink-0 mr-1">
+                Exit Plan
+              </span>
+              {exitLevels.initialSL != null && (
+                <div className="flex items-center gap-1 rounded border border-bearish/25 bg-bearish/6 px-2 py-1">
+                  <span className="font-mono-data text-[7px] uppercase tracking-wider text-bearish/50 shrink-0">SL</span>
+                  <span className="font-mono-data text-[11px] font-bold tabular-nums text-bearish">{fmtPx(exitLevels.initialSL)}</span>
+                </div>
+              )}
+              {exitLevels.tp1 != null && (
+                <div className="flex items-center gap-1 rounded border border-bullish/20 bg-bullish/5 px-2 py-1">
+                  <span className="font-mono-data text-[7px] uppercase tracking-wider text-bullish/50 shrink-0">TP1</span>
+                  <span className="font-mono-data text-[11px] font-bold tabular-nums text-bullish">{fmtPx(exitLevels.tp1)}</span>
+                </div>
+              )}
+              {exitLevels.tp2 != null && (
+                <div className="flex items-center gap-1 rounded border border-bullish/15 bg-bullish/4 px-2 py-1">
+                  <span className="font-mono-data text-[7px] uppercase tracking-wider text-bullish/40 shrink-0">TP2</span>
+                  <span className="font-mono-data text-[11px] font-bold tabular-nums text-bullish/80">{fmtPx(exitLevels.tp2)}</span>
+                </div>
+              )}
+              {exitLevels.riskPct != null && exitLevels.riskPct > 0 && (
+                <div className="flex items-center gap-1 rounded border border-border/20 bg-surface/15 px-2 py-1">
+                  <span className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/40 shrink-0">Risk</span>
+                  <span className="font-mono-data text-[11px] font-bold tabular-nums text-foreground/70">{exitLevels.riskPct.toFixed(1)}%</span>
+                </div>
+              )}
+              {exitLevels.trailingSLPct != null && (
+                <div className="flex items-center gap-1 rounded border border-border/20 bg-surface/15 px-2 py-1">
+                  <span className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/40 shrink-0">Trail</span>
+                  <span className="font-mono-data text-[11px] font-bold tabular-nums text-foreground/70">{exitLevels.trailingSLPct.toFixed(1)}%</span>
+                </div>
+              )}
+              {exitLevels.maxHoldHours != null && (
+                <div className="flex items-center gap-1 rounded border border-border/20 bg-surface/15 px-2 py-1">
+                  <span className="font-mono-data text-[7px] uppercase tracking-wider text-muted-foreground/40 shrink-0">Max Hold</span>
+                  <span className="font-mono-data text-[11px] font-bold tabular-nums text-foreground/70">{exitLevels.maxHoldHours}h</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Footer ── */}
         <div className="flex items-center gap-3 border-t border-border/25 bg-surface/8 px-4 py-2.5">

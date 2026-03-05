@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { fetchHLAssetMap, type HLAssetMap } from './hyperliquid-client.js';
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -20,7 +21,7 @@ const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT = 8;
 
 // Quality gates — signals must pass ALL of these to be emitted
-const MIN_SCORE = 300;               // Minimum absolute score (out of 420 with entry bonus)
+const MIN_SCORE = 225;               // Minimum absolute score (out of 320 with entry bonus, 3-pillar system)
 const MIN_SCAN_STREAK = 3;           // Must appear in N consecutive scans (~15 min at 5-min interval)
 const MAX_FUNDING_ANNUALIZED = 100;  // % — hard veto for extremely crowded longs
 
@@ -46,6 +47,22 @@ function resolveStateFile(): string {
 
 const STATE_FILE = resolveStateFile();
 
+// Market-stats file: ring buffer of recent readings for adaptive thresholds
+function resolveMarketStatsFile(): string {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const projectRoot = path.resolve(here, '../../../..');
+    const artifactsDir = path.join(projectRoot, 'artifacts');
+    if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
+    return path.join(artifactsDir, '.market-stats.json');
+  } catch {
+    return path.join(os.tmpdir(), '.market-stats.json');
+  }
+}
+
+const MARKET_STATS_FILE = resolveMarketStatsFile();
+const STATS_WINDOW = 500; // ~4 hours of data at 10 assets/scan, 5-min interval
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface KlineData {
@@ -67,12 +84,41 @@ interface ScanState {
   [symbol: string]: { finalScore: number; scanStreak: number };
 }
 
+interface MarketStats {
+  updatedAt: string;
+  rsi: number[];      // last STATS_WINDOW 1H RSI readings
+  volRatio: number[]; // last STATS_WINDOW volume ratio readings
+}
+
+interface AdaptiveThresholds {
+  rsiLow: number;        // 15th-percentile RSI (stage-2 lower bound, default 25)
+  rsiHigh: number;       // 85th-percentile RSI (stage-2 upper bound, default 78)
+  volSpikeRatio: number; // 90th-percentile volRatio (spike threshold, default 2.5)
+}
+
 interface PivotPoints {
   pp: number;
   s1: number;
   r1: number;
   s2: number;
   r2: number;
+}
+
+export type MarketRegime = 'TRENDING' | 'RANGING' | 'VOLATILE';
+
+export interface ExitLevels {
+  initialSL: number;       // hard stop price
+  trailingSLPct: number;   // trailing stop as % distance
+  tp1: number;             // 2:1 R/R target
+  tp2: number;             // 3:1 R/R target
+  maxHoldHours: number;    // time-based exit
+  riskPct: number;         // entry-to-SL distance as %
+}
+
+export interface PositionSize {
+  riskPct: number;       // % of portfolio at risk (0.5–2%)
+  positionPct: number;   // % of portfolio as position size
+  dollarRisk10k: number; // dollar risk for a $10k portfolio
 }
 
 export interface OpportunityResult {
@@ -86,7 +132,10 @@ export interface OpportunityResult {
   trendAligned: boolean;
   swingGrade: boolean;
   volumeSpike: boolean;
-  pillarScores: { smartMoney: number; marketStructure: number; technicals: number; funding: number; entryBonus?: number };
+  regime: MarketRegime;
+  exitLevels: ExitLevels;
+  positionSize: PositionSize;
+  pillarScores: { derivatives: number; marketStructure: number; technicals: number; entryBonus?: number };
   smartMoney: { traders: number; pnlPct: number; accel: number; direction: string };
   technicals: {
     rsi1h: number; rsi15m: number | null; volRatio1h: number; volRatio15m: number | null;
@@ -94,9 +143,10 @@ export interface OpportunityResult {
     rsi1d: number; patterns1h: string[]; patterns15m: string[];
     momentum15m: number | null; chg1h: number; chg4h: number; chg24h: number;
     support: number | null; resistance: number | null;
-    pivots: PivotPoints | null; weeklyPivots: PivotPoints | null; atrPct: number;
+    pivots: PivotPoints | null; weeklyPivots: PivotPoints | null; atrPct: number; adx4h: number;
   };
   funding: { rate: number; annualized: number; favorable: boolean };
+  hyperliquid: { funding: number; openInterest: number; dayVolume: number } | null;
   risks: string[];
 }
 
@@ -265,8 +315,8 @@ function evaluateSwingGrade(
   if (!dailyAligned) return false;
   // Daily RSI mid-zone: not overbought / not deeply oversold (mid-trend entries)
   if (rsi1d < 35 || rsi1d > 65) return false;
-  // Higher conviction floor for multi-day hold
-  if (finalScore < 300) return false;
+  // Higher conviction floor for multi-day hold (75% of 320 max)
+  if (finalScore < 240) return false;
   return true;
 }
 
@@ -326,94 +376,159 @@ async function fetchFundingRate(symbol: string): Promise<number | null> {
   return isNaN(val) ? null : val;
 }
 
-// ─── Scoring ──────────────────────────────────────────────────────────────────
+// ─── Scoring (3-pillar system) ────────────────────────────────────────────────
 
-function scorePillars(
-  direction: string, rsi1h: number | null, rsi15m: number | null,
-  trend4h: string, volR: number | null, oiChg: number | null,
-  topLs: number | null, takerR: number | null, fundingRate: number | null,
-  chg1h: number, // needed for OI/price divergence check
-  chg24h: number, // needed for chase filter
-): { sm: number; ms: number; tech: number; fund: number; risks: string[]; favorable: boolean; annualized: number; hardVeto: boolean } {
+// Pillar 1: Derivatives — unified funding + OI + L/S ratio + taker flow
+function scoreDerivatives(
+  direction: string,
+  fundingRate: number | null,
+  oiChg: number | null,
+  topLs: number | null,
+  takerR: number | null,
+  chg1h: number,
+  chg24h: number,
+  atrPct: number,  // ATR-normalized chase filter thresholds
+  hlData: { funding: number; openInterest: number; dayVolume: number } | null, // HL on-chain data
+): { score: number; risks: string[]; hardVeto: boolean; annualized: number; favorable: boolean } {
   const risks: string[] = [];
   let hardVeto = false;
+  let annualized = 0;
+  let favorable = false;
 
-  // ── 24h chase / extension filter ─────────────────────────────────────────
-  // A token that already moved >12% in 24h in the signal direction is a chase entry.
-  // >20% is a hard veto — the move is done, we missed it.
-  const chg24hInDirection =
+  // ── ATR-normalized 24h chase filter ──────────────────────────────────────
+  // A 24h move > 5× ATR is exhaustion; > 3× ATR is a soft warning
+  const chaseVeto = Math.max(15, atrPct * 5); // floor at 15% to avoid over-filtering
+  const chaseSoft = Math.max(8, atrPct * 3);  // floor at 8%
+  const chg24hInDir =
     (direction === 'LONG' && chg24h > 0) ? chg24h :
     (direction === 'SHORT' && chg24h < 0) ? Math.abs(chg24h) : 0;
+  if (chg24hInDir > chaseVeto) { hardVeto = true; risks.push('chasing_pump'); }
+  else if (chg24hInDir > chaseSoft) risks.push('chasing_pump');
 
-  if (chg24hInDirection > 20) {
-    hardVeto = true;
-    risks.push('chasing_pump');
-  } else if (chg24hInDirection > 12) {
-    risks.push('chasing_pump');
-  }
-
-  // ── Smart Money ──────────────────────────────────────────────────────────────
-  let sm = 50;
-  if (topLs !== null) {
-    const ratio = direction === 'LONG' ? topLs : (topLs > 0 ? 1 / topLs : 1);
-    if (ratio >= 2.0) sm = 85;
-    else if (ratio >= 1.5) sm = 75;
-    else if (ratio >= 1.2) sm = 65;
-    else if (ratio >= 1.0) sm = 55;
-    else if (ratio >= 0.8) sm = 40;
-    else sm = 30;
-  }
-  if (takerR !== null) {
-    const goodTaker = (direction === 'LONG' && takerR > 1.1) || (direction === 'SHORT' && takerR < 0.9);
-    if (goodTaker) sm = Math.min(100, sm + 10);
-  }
-
-  // ── Market Structure (with OI/price divergence) ───────────────────────────
-  let ms = 50;
-  if (trend4h === 'UP') ms = direction === 'LONG' ? 68 : 35;
-  else if (trend4h === 'DOWN') ms = direction === 'SHORT' ? 68 : 35;
-
-  if (oiChg !== null) {
-    if (oiChg > 5) {
-      const priceAligned =
-        (direction === 'LONG' && chg1h > 0) ||
-        (direction === 'SHORT' && chg1h < 0);
-      const priceDiverges =
-        (direction === 'LONG' && chg1h < 0) ||
-        (direction === 'SHORT' && chg1h > 0);
-
-      if (priceAligned) {
-        // OI rising + price moving with direction = confirmed accumulation
-        ms = Math.min(100, ms + 15);
-      } else if (priceDiverges) {
-        // OI rising but price moving against direction = distribution signal
-        ms = Math.max(0, ms - 20);
-        risks.push('oi_price_divergence');
-      } else {
-        ms = Math.min(100, ms + 5);
-      }
-    } else if (oiChg > 2) {
-      ms = Math.min(100, ms + 8);
-    } else if (oiChg < -5) {
-      ms = Math.max(0, ms - 15);
+  // ── Funding (contributes -20 to +20) ─────────────────────────────────────
+  let fAdj = 0;
+  if (fundingRate !== null) {
+    annualized = Math.round(fundingRate * 3 * 365 * 100 * 100) / 100;
+    if (direction === 'LONG') {
+      if (annualized > MAX_FUNDING_ANNUALIZED) { hardVeto = true; risks.push('extreme_funding'); }
+      else if (fundingRate < -0.0002) { fAdj = 20; favorable = true; }
+      else if (fundingRate < 0)       { fAdj = 12; favorable = true; }
+      else if (fundingRate < 0.0002)   fAdj = 2;
+      else if (fundingRate < 0.001)    fAdj = -8;
+      else { fAdj = -20; risks.push('high_funding'); }
+    } else {
+      if (fundingRate > 0.0002)        { fAdj = 20; favorable = true; }
+      else if (fundingRate > 0)        { fAdj = 12; favorable = true; }
+      else if (fundingRate > -0.0002)   fAdj = 2;
+      else                              fAdj = -15;
     }
   }
-  if (volR !== null && volR > 1.5) ms = Math.min(100, ms + 8);
 
-  // ── Technicals ────────────────────────────────────────────────────────────
+  // ── OI change (contributes -15 to +15) ───────────────────────────────────
+  let oiAdj = 0;
+  if (oiChg !== null) {
+    const priceAligned  = (direction === 'LONG' && chg1h > 0) || (direction === 'SHORT' && chg1h < 0);
+    const priceDiverges = (direction === 'LONG' && chg1h < 0) || (direction === 'SHORT' && chg1h > 0);
+    if (oiChg > 5) {
+      if (priceAligned)       oiAdj = 15;
+      else if (priceDiverges) { oiAdj = -15; risks.push('oi_price_divergence'); }
+      else                    oiAdj = 5;
+    } else if (oiChg > 2) {
+      oiAdj = 8;
+    } else if (oiChg < -5) {
+      oiAdj = -10;
+    }
+  }
+
+  // ── L/S ratio (contributes -10 to +12) ───────────────────────────────────
+  let lsAdj = 0;
+  if (topLs !== null) {
+    const ratio = direction === 'LONG' ? topLs : (topLs > 0 ? 1 / topLs : 1);
+    if      (ratio >= 1.5) lsAdj = 12;
+    else if (ratio >= 1.2) lsAdj = 8;
+    else if (ratio >= 1.0) lsAdj = 3;
+    else if (ratio >= 0.8) lsAdj = -3;
+    else                   lsAdj = -10;
+  }
+
+  // ── Taker ratio (contributes -5 to +8) ───────────────────────────────────
+  let takerAdj = 0;
+  if (takerR !== null) {
+    const aligned = (direction === 'LONG' && takerR > 1.1) || (direction === 'SHORT' && takerR < 0.9);
+    const opposed = (direction === 'LONG' && takerR < 0.9) || (direction === 'SHORT' && takerR > 1.1);
+    if (aligned)      takerAdj = 8;
+    else if (opposed) takerAdj = -5;
+  }
+
+  // ── Hyperliquid on-chain confirmation ─────────────────────────────────────
+  let hlAdj = 0;
+  if (hlData && fundingRate !== null) {
+    // Funding divergence: HL and Binance funding disagree in sign → informational risk
+    const binanceSign = fundingRate > 0.00001 ? 1 : fundingRate < -0.00001 ? -1 : 0;
+    const hlSign = hlData.funding > 0.00001 ? 1 : hlData.funding < -0.00001 ? -1 : 0;
+    if (binanceSign !== 0 && hlSign !== 0 && binanceSign !== hlSign) {
+      risks.push('hl_funding_divergence');
+      hlAdj = -5; // Divergent venues signal uncertainty
+    } else if (binanceSign !== 0 && hlSign === binanceSign && favorable) {
+      hlAdj = 3; // Both venues confirm favorable funding
+    }
+  }
+
+  const score = Math.min(100, Math.max(0, 50 + fAdj + oiAdj + lsAdj + takerAdj + hlAdj));
+  if (score < 35) hardVeto = true; // Derivatives actively against this trade
+
+  return { score, risks, hardVeto, annualized, favorable };
+}
+
+// Pillar 2: Structure — trend alignment + volume + ADX trend strength
+function scoreStructure(
+  direction: string,
+  trend4h: string,
+  trend1h: string,
+  volR: number | null,
+  adx4h: number,
+): { score: number; risks: string[] } {
+  const t4Aligned = (direction === 'LONG' && trend4h === 'UP') || (direction === 'SHORT' && trend4h === 'DOWN');
+  const t4Opposed = (direction === 'LONG' && trend4h === 'DOWN') || (direction === 'SHORT' && trend4h === 'UP');
+  const t1Aligned = (direction === 'LONG' && trend1h === 'UP') || (direction === 'SHORT' && trend1h === 'DOWN');
+  const t1Opposed = (direction === 'LONG' && trend1h === 'DOWN') || (direction === 'SHORT' && trend1h === 'UP');
+
+  let base = 50;
+  if (t4Aligned && t1Aligned)      base = 68;
+  else if (t4Aligned)               base = 58;
+  else if (t1Aligned)               base = 55;
+  else if (t4Opposed || t1Opposed)  base = 35;
+
+  if (volR !== null && volR >= 1.5) base += 8;
+  if (adx4h >= 30)       base += 10;
+  else if (adx4h >= 25)  base += 5;
+
+  return { score: Math.min(100, Math.max(0, base)), risks: [] };
+}
+
+// Pillar 3: Technicals — RSI + volume spike + 15m confirmation
+function scoreTechnicals(
+  direction: string,
+  rsi1h: number | null,
+  rsi15m: number | null,
+  volR: number | null,
+  volSpikeRatio: number, // adaptive spike threshold (default 2.5)
+): { score: number; risks: string[] } {
+  const risks: string[] = [];
   let tech = 50;
+
   if (rsi1h !== null) {
     if (direction === 'LONG') {
-      if (rsi1h >= 45 && rsi1h <= 65) tech = 72;
+      if (rsi1h >= 45 && rsi1h <= 65)  tech = 72;
       else if (rsi1h >= 30 && rsi1h < 45) tech = 78;
-      else if (rsi1h < 30) tech = 62;
-      else if (rsi1h > 75) { tech = 32; risks.push('overbought_rsi'); }
-      else tech = 55;
+      else if (rsi1h < 30)             tech = 62;
+      else if (rsi1h > 75)             { tech = 32; risks.push('overbought_rsi'); }
+      else                             tech = 55;
     } else {
-      if (rsi1h >= 55 && rsi1h <= 72) tech = 72;
-      else if (rsi1h > 72) tech = 78;
-      else if (rsi1h < 30) { tech = 32; risks.push('oversold_rsi'); }
-      else tech = 55;
+      if (rsi1h >= 55 && rsi1h <= 72)  tech = 72;
+      else if (rsi1h > 72)             tech = 78;
+      else if (rsi1h < 30)             { tech = 32; risks.push('oversold_rsi'); }
+      else                             tech = 55;
     }
   }
   if (rsi15m !== null) {
@@ -422,43 +537,24 @@ function scorePillars(
     if (good15m) tech = Math.min(100, tech + 8);
   }
   if (volR !== null) {
-    if (volR >= 2.5) tech = Math.min(100, tech + 15);
-    else if (volR >= 1.5) tech = Math.min(100, tech + 8);
-    else if (volR < 0.6) { tech = Math.max(0, tech - 15); risks.push('low_volume'); }
+    if (volR >= volSpikeRatio)      tech = Math.min(100, tech + 15); // spike
+    else if (volR >= 1.5)           tech = Math.min(100, tech + 8);  // elevated
+    else if (volR < 0.6)            { tech = Math.max(0, tech - 15); risks.push('low_volume'); }
   }
 
-  // ── Funding ───────────────────────────────────────────────────────────────
-  let fund = 50;
-  let favorable = false;
-  let annualized = 0;
-  if (fundingRate !== null) {
-    annualized = Math.round(fundingRate * 3 * 365 * 100 * 100) / 100;
+  return { score: tech, risks };
+}
 
-    if (direction === 'LONG') {
-      // Hard veto: extremely crowded long — funding above threshold is unsustainable
-      if (annualized > MAX_FUNDING_ANNUALIZED) {
-        hardVeto = true;
-        risks.push('extreme_funding');
-      } else if (fundingRate < -0.0002) { fund = 90; favorable = true; }
-      else if (fundingRate < 0) { fund = 75; favorable = true; }
-      else if (fundingRate < 0.0002) fund = 55;
-      else if (fundingRate < 0.001) fund = 40;
-      else { fund = 25; risks.push('high_funding'); }
-    } else {
-      if (fundingRate > 0.0002) { fund = 90; favorable = true; }
-      else if (fundingRate > 0) { fund = 75; favorable = true; }
-      else if (fundingRate > -0.0002) fund = 55;
-      else fund = 30;
-    }
-  }
-
-  // All 4 pillars must be at or above baseline — below 52 means the market data
-  // is actively signaling against this trade in that dimension.
-  if (sm < 52 || ms < 52 || tech < 52 || fund < 52) {
-    hardVeto = true;
-  }
-
-  return { sm, ms, tech, fund, risks, favorable, annualized, hardVeto };
+// Position sizing based on score quality and exit-level risk distance
+function calculatePositionSize(finalScore: number, exitLevels: ExitLevels): PositionSize {
+  const scoreRatio = Math.min(1, Math.max(0, finalScore / 300));
+  const riskPct = Math.round((0.5 + scoreRatio * 1.5) * 100) / 100; // 0.5% to 2%
+  const slDistPct = exitLevels.riskPct; // already a %-distance (e.g. 1.5 for 1.5%)
+  const positionPct = slDistPct > 0
+    ? Math.min(25, Math.round(riskPct / (slDistPct / 100) * 100) / 100)
+    : 5;
+  const dollarRisk10k = Math.round(10000 * riskPct / 100 * 100) / 100;
+  return { riskPct, positionPct, dollarRisk10k };
 }
 
 // Returns null if 1H and 4H trends conflict — asset should be skipped
@@ -497,14 +593,141 @@ function chooseDirection(
   return longV > shortV ? 'LONG' : 'SHORT';
 }
 
-function recommendLeverage(atrPct: number): number {
-  if (atrPct > 3) return 3;
-  if (atrPct > 2) return 5;
-  if (atrPct > 1) return 8;
-  return 10;
+function recommendLeverage(atrPct: number, regime: MarketRegime): number {
+  // Volatile regime: reduce leverage by 1 tier
+  const base = atrPct > 3 ? 3 : atrPct > 2 ? 5 : atrPct > 1 ? 8 : 10;
+  return regime === 'VOLATILE' ? Math.max(3, base - (base <= 5 ? 1 : 2)) : base;
 }
 
-// ─── State persistence ────────────────────────────────────────────────────────
+// ADX via Wilder smoothing — uses 4H kline data (already fetched)
+function calculateAdx(highs: number[], lows: number[], closes: number[], period = 14): number {
+  if (closes.length < period * 2 + 2) return 25; // neutral default if insufficient data
+
+  const plusDM: number[] = [];
+  const minusDM: number[] = [];
+  const trArr: number[] = [];
+
+  for (let i = 1; i < closes.length; i++) {
+    const upMove   = highs[i]  - highs[i - 1];
+    const downMove = lows[i - 1] - lows[i];
+    plusDM.push(upMove > downMove && upMove > 0 ? upMove : 0);
+    minusDM.push(downMove > upMove && downMove > 0 ? downMove : 0);
+    trArr.push(Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1]),
+    ));
+  }
+
+  // Wilder's smoothing seed
+  let smTr     = trArr.slice(0, period).reduce((a, b) => a + b, 0);
+  let smPlusDM  = plusDM.slice(0, period).reduce((a, b) => a + b, 0);
+  let smMinusDM = minusDM.slice(0, period).reduce((a, b) => a + b, 0);
+
+  const dxArr: number[] = [];
+  for (let i = period; i < trArr.length; i++) {
+    smTr      = smTr     - smTr / period     + trArr[i];
+    smPlusDM  = smPlusDM  - smPlusDM / period  + plusDM[i];
+    smMinusDM = smMinusDM - smMinusDM / period + minusDM[i];
+
+    const plusDI  = smTr > 0 ? (smPlusDM  / smTr) * 100 : 0;
+    const minusDI = smTr > 0 ? (smMinusDM / smTr) * 100 : 0;
+    const sumDI   = plusDI + minusDI;
+    dxArr.push(sumDI > 0 ? Math.abs(plusDI - minusDI) / sumDI * 100 : 0);
+  }
+
+  if (dxArr.length < period) return 25;
+  const adx = dxArr.slice(-period).reduce((a, b) => a + b, 0) / period;
+  return Math.round(adx * 10) / 10;
+}
+
+// Regime classification: TRENDING, RANGING, or VOLATILE
+function classifyRegime(adx4h: number, atrPct14: number, atrPct50: number): MarketRegime {
+  const atrRatio = atrPct50 > 0 ? atrPct14 / atrPct50 : 1;
+  if (adx4h >= 25 && atrRatio < 1.8) return 'TRENDING';
+  if (adx4h < 20  && atrRatio < 1.2) return 'RANGING';
+  return 'VOLATILE';
+}
+
+// ATR-based exit levels with pivot refinement
+function calculateExitLevels(
+  currentPrice: number,
+  direction: string,
+  atrPct: number,
+  pivots: PivotPoints | null,
+  regime: MarketRegime,
+): ExitLevels {
+  const p = 1_000_000;
+  const atrMultiplier = regime === 'VOLATILE' ? 2.0 : 1.5;
+  const slDist = (atrPct / 100) * atrMultiplier * currentPrice;
+
+  let slPrice: number;
+  if (direction === 'LONG') {
+    // Use tighter of: ATR-based stop or S1 pivot (when S1 is tighter)
+    const pivotSL = pivots?.s1 ?? (currentPrice - slDist);
+    const atrSL   = currentPrice - slDist;
+    slPrice = Math.max(pivotSL, atrSL); // tighter (higher) stop
+    slPrice = Math.min(slPrice, currentPrice * 0.98); // never more than 2% below for sanity
+  } else {
+    const pivotSL = pivots?.r1 ?? (currentPrice + slDist);
+    const atrSL   = currentPrice + slDist;
+    slPrice = Math.min(pivotSL, atrSL); // tighter (lower) stop
+    slPrice = Math.max(slPrice, currentPrice * 1.02); // never more than 2% above
+  }
+
+  const riskDist  = Math.abs(currentPrice - slPrice);
+  const riskPct   = currentPrice > 0 ? Math.round(riskDist / currentPrice * 100 * 100) / 100 : 1;
+
+  const tp1 = direction === 'LONG'
+    ? Math.round((currentPrice + riskDist * 2) * p) / p
+    : Math.round((currentPrice - riskDist * 2) * p) / p;
+  const tp2 = direction === 'LONG'
+    ? Math.round((currentPrice + riskDist * 3) * p) / p
+    : Math.round((currentPrice - riskDist * 3) * p) / p;
+
+  const maxHoldHours = regime === 'TRENDING' ? 48 : regime === 'RANGING' ? 24 : 12;
+
+  return {
+    initialSL:     Math.round(slPrice * p) / p,
+    trailingSLPct: Math.round(atrPct * atrMultiplier * 100) / 100,
+    tp1,
+    tp2,
+    maxHoldHours,
+    riskPct,
+  };
+}
+
+// ─── State & market stats persistence ────────────────────────────────────────
+
+function percentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 50;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.floor(sorted.length * p / 100);
+  return sorted[Math.min(idx, sorted.length - 1)];
+}
+
+function loadMarketStats(): MarketStats {
+  try {
+    return JSON.parse(fs.readFileSync(MARKET_STATS_FILE, 'utf8')) as MarketStats;
+  } catch {
+    return { updatedAt: '', rsi: [], volRatio: [] };
+  }
+}
+
+function saveMarketStats(stats: MarketStats): void {
+  try {
+    fs.writeFileSync(MARKET_STATS_FILE, JSON.stringify(stats), 'utf8');
+  } catch { /* best effort */ }
+}
+
+function computeThresholds(stats: MarketStats): AdaptiveThresholds {
+  const hasEnough = stats.rsi.length >= 50;
+  return {
+    rsiLow:        hasEnough ? Math.max(20, percentile(stats.rsi, 15)) : 25,
+    rsiHigh:       hasEnough ? Math.min(82, percentile(stats.rsi, 85)) : 78,
+    volSpikeRatio: stats.volRatio.length >= 50 ? Math.max(1.8, percentile(stats.volRatio, 90)) : 2.5,
+  };
+}
 
 function loadState(): ScanState {
   try {
@@ -525,7 +748,9 @@ function saveState(state: ScanState): void {
 async function analyzeAsset(
   symbol: string,
   ticker: TickerRow,
-  prevState: ScanState
+  prevState: ScanState,
+  thresholds: AdaptiveThresholds,
+  hlMap: HLAssetMap | null,
 ): Promise<(OpportunityResult & { _symbol: string; _finalScore: number }) | null> {
   try {
     const [klines1h, klines4h, klines15m, klines1d] = await Promise.all([
@@ -546,11 +771,22 @@ async function analyzeAsset(
       fetchFundingRate(symbol),
     ]);
 
+    // Resolve Hyperliquid on-chain data for this symbol (coin = symbol without USDT suffix)
+    const hlCoin = symbol.replace('USDT', '');
+    const hlCtx = hlMap?.get(hlCoin) ?? null;
+    const hlData = hlCtx ? {
+      funding: hlCtx.funding,
+      openInterest: hlCtx.openInterest,
+      dayVolume: hlCtx.dayVolume,
+    } : null;
+
     const rsi1h = calculateRsi(c1h);
     const rsi15m = klines15m ? calculateRsi(klines15m.closes) : null;
     const volR = volumeRatio(v1h);
     const volR15m = klines15m ? volumeRatio(klines15m.vols) : null;
-    const atrPct = calculateAtrPct(h1h, l1h, c1h);
+    const atrPct = calculateAtrPct(h1h, l1h, c1h);       // 14-period ATR %
+    const atrPct50 = calculateAtrPct(h1h, l1h, c1h, 50); // 50-period baseline ATR %
+    const adx4h = klines4h ? calculateAdx(klines4h.highs, klines4h.lows, klines4h.closes) : 25;
 
     // 4H trend: EMA20 vs EMA50
     let trend4h = 'FLAT';
@@ -605,16 +841,23 @@ async function analyzeAsset(
     const direction = chooseDirection(rsi1h, trend4h, trend1h, topLs, takerR);
     if (direction === null) return null; // Conflicting timeframes — skip
 
-    const { sm, ms, tech, fund, risks, favorable, annualized, hardVeto } = scorePillars(
-      direction, rsi1h, rsi15m, trend4h, volR, oiChg, topLs, takerR, fundingRate, chg1h, chg24h
+    const { score: derivScore, risks: derivRisks, hardVeto, annualized, favorable } = scoreDerivatives(
+      direction, fundingRate, oiChg, topLs, takerR, chg1h, chg24h, atrPct, hlData
     );
     if (hardVeto) return null;
+
+    const { score: structScore, risks: structRisks } = scoreStructure(direction, trend4h, trend1h, volR, adx4h);
+    const { score: techScore, risks: techRisks } = scoreTechnicals(
+      direction, rsi1h, rsi15m, volR, thresholds.volSpikeRatio
+    );
 
     // ── Price-vs-pivot gate ───────────────────────────────────────────────────
     const pivots = klines4h
       ? calculatePivotPoints(klines4h.highs, klines4h.lows, klines4h.closes)
       : null;
     const currentPrice = c1h[c1h.length - 1];
+
+    const risks = [...derivRisks, ...structRisks, ...techRisks];
 
     if (pivots) {
       // Hard veto: price fully beyond R2 (LONG) or below S2 (SHORT) — move is over
@@ -648,11 +891,18 @@ async function analyzeAsset(
       }
     }
 
+    // ── Regime classification ─────────────────────────────────────────────────
+    const regime = classifyRegime(adx4h, atrPct, atrPct50);
+
+    // ── Exit levels ───────────────────────────────────────────────────────────
+    const exitLevels = calculateExitLevels(currentPrice, direction, atrPct, pivots, regime);
+
     const trendAligned = (direction === 'LONG' && trend4h === 'UP')
                       || (direction === 'SHORT' && trend4h === 'DOWN');
-    const finalScore = sm + ms + tech + fund + entryBonus;
+    const finalScore = derivScore + structScore + techScore + entryBonus;
     const swingGrade = evaluateSwingGrade(direction, trendAligned, trendDaily, rsi1d, finalScore);
-    const leverage = recommendLeverage(atrPct);
+    const leverage = recommendLeverage(atrPct, regime);
+    const positionSize = calculatePositionSize(finalScore, exitLevels);
 
     const prev = prevState[symbol] ?? { finalScore, scanStreak: 0 };
     const scanStreak = prev.scanStreak + 1;
@@ -686,7 +936,10 @@ async function analyzeAsset(
       trendAligned,
       swingGrade,
       volumeSpike: (volR ?? 0) >= 2.5,
-      pillarScores: { smartMoney: sm, marketStructure: ms, technicals: tech, funding: fund, entryBonus },
+      regime,
+      exitLevels,
+      positionSize,
+      pillarScores: { derivatives: derivScore, marketStructure: structScore, technicals: techScore, entryBonus },
       smartMoney: { traders: smTraders, pnlPct: smPnl, accel: smAccel, direction },
       technicals: {
         rsi1h, rsi15m, volRatio1h: volR, volRatio15m: volR15m,
@@ -696,13 +949,14 @@ async function analyzeAsset(
         support: pivots?.s1 ?? null,
         resistance: pivots?.r1 ?? null,
         pivots, weeklyPivots,
-        atrPct,
+        atrPct, adx4h,
       },
       funding: {
         rate: fundingRate !== null ? Math.round(fundingRate * 1_000_000) / 1_000_000 : 0,
         annualized,
         favorable,
       },
+      hyperliquid: hlData,
       risks: [...risks, ...lateEntryRisks],
       _symbol: symbol,
       _finalScore: finalScore,
@@ -737,6 +991,14 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
   const scanTime = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
   const prevState = loadState();
 
+  // Load market stats and compute adaptive thresholds
+  const marketStats = loadMarketStats();
+  const thresholds = computeThresholds(marketStats);
+
+  // Fetch Hyperliquid data once for the whole scan (feature-flagged)
+  const hlEnabled = process.env.ENABLE_HYPERLIQUID === 'true';
+  const hlMap: HLAssetMap | null = hlEnabled ? await fetchHLAssetMap() : null;
+
   // Fetch all tickers
   const allTickers = await getJson<TickerRow[]>(`${BASE_URL}/fapi/v1/ticker/24hr`);
   if (!allTickers || !Array.isArray(allTickers)) {
@@ -761,7 +1023,7 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
 
   const passedStage1 = stage1.length;
 
-  // Stage 2: quick RSI + volume ratio check
+  // Stage 2: quick RSI + volume ratio check (using adaptive RSI bounds)
   const stage2Results = await runConcurrent(
     stage1,
     async (t) => {
@@ -769,7 +1031,9 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
       if (!klines) return null;
       const rsi = calculateRsi(klines.closes);
       const volR = volumeRatio(klines.vols);
-      if (rsi >= 25 && rsi <= 78 && volR >= 0.6) return { sym: t.symbol, rsi, volR, ticker: t };
+      if (rsi >= thresholds.rsiLow && rsi <= thresholds.rsiHigh && volR >= 0.6) {
+        return { sym: t.symbol, rsi, volR, ticker: t };
+      }
       return null;
     },
     12
@@ -789,7 +1053,7 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
   // Deep dive — analyzeAsset already filters out conflicting trends and funding vetoes
   const deepResults = (await runConcurrent(
     deepTargets,
-    (item) => analyzeAsset(item.sym, item.ticker, prevState),
+    (item) => analyzeAsset(item.sym, item.ticker, prevState, thresholds, hlMap),
     MAX_CONCURRENT
   )).filter((r): r is NonNullable<typeof r> => r !== null);
 
@@ -804,6 +1068,23 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
     newState[opp._symbol] = { finalScore: opp._finalScore, scanStreak: opp.scanStreak };
   }
   saveState(newState);
+
+  // ── Update market stats ring buffer ──────────────────────────────────────────
+  // Collect RSI and volume readings from all deep-analyzed assets to feed adaptive thresholds
+  for (const opp of deepResults) {
+    marketStats.rsi.push(opp.technicals.rsi1h);
+    marketStats.volRatio.push(opp.technicals.volRatio1h);
+  }
+  // Also append Stage 2 readings (broader sample)
+  for (const item of stage2Results.filter(Boolean) as NonNullable<(typeof stage2Results)[number]>[]) {
+    marketStats.rsi.push(item.rsi);
+    marketStats.volRatio.push(item.volR);
+  }
+  // Trim to window and save
+  if (marketStats.rsi.length > STATS_WINDOW) marketStats.rsi = marketStats.rsi.slice(-STATS_WINDOW);
+  if (marketStats.volRatio.length > STATS_WINDOW) marketStats.volRatio = marketStats.volRatio.slice(-STATS_WINDOW);
+  marketStats.updatedAt = scanTime;
+  saveMarketStats(marketStats);
 
   // ── BTC 4H trend for correlation gate ────────────────────────────────────────
   const [btcKlines1h, btcKlines4h] = await Promise.all([
@@ -836,11 +1117,14 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
     // 1. BTC correlation gate — altcoins almost never sustainably rally against BTC trend
     if (btcTrend4h === 'DOWN' && opp.direction === 'LONG') return false;
     if (btcTrend4h === 'UP' && opp.direction === 'SHORT') return false;
-    // 2. Minimum absolute score floor
-    if (opp._finalScore < MIN_SCORE) return false;
-    // 3. Scan streak — must appear in N consecutive scans to filter one-scan flukes
+    // 2. Regime gate — no signals in RANGING markets (ADX < 20, no trend to trade)
+    if (opp.regime === 'RANGING') return false;
+    // 3. Minimum absolute score floor (raised by 30 in VOLATILE regimes)
+    const scoreFloor = opp.regime === 'VOLATILE' ? MIN_SCORE + 30 : MIN_SCORE;
+    if (opp._finalScore < scoreFloor) return false;
+    // 4. Scan streak — must appear in N consecutive scans to filter one-scan flukes
     if (opp.scanStreak < MIN_SCAN_STREAK) return false;
-    // 4. Volume must be at or above average — below-average volume signals lack follow-through
+    // 5. Volume must be at or above average — below-average volume signals lack follow-through
     if (opp.technicals.volRatio1h < 1.0) return false;
     return true;
   });

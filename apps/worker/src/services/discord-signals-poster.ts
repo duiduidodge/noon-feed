@@ -57,7 +57,7 @@ export async function postOpportunitySignals(
     const p = o.pillarScores;
     return {
       name: `${o.asset} — Pillars`,
-      value: `SM \`${p.smartMoney.toFixed(0)}\`  Struct \`${p.marketStructure.toFixed(0)}\`  Tech \`${p.technicals.toFixed(0)}\`  Fund \`${p.funding.toFixed(0)}\``,
+      value: `Deriv \`${p.derivatives.toFixed(0)}\`  Struct \`${p.marketStructure.toFixed(0)}\`  Tech \`${p.technicals.toFixed(0)}\``,
       inline: false,
     };
   });
@@ -203,9 +203,11 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
     case 'NEW': {
       const swing = event.signal.swingGrade;
       const volTag = event.signal.volumeSpike ? '  📊 **Vol Spike**' : '';
+      const regimeTag = buildRegimeTag(event.signal);
       const tech = event.signal.technicals as Record<string, unknown>;
       const fields = [
         ...buildPillarFields(event.signal),
+        ...buildExitFields(event.signal),
         ...(swing ? buildSwingFields(tech) : []),
       ];
       return {
@@ -213,7 +215,7 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
           ? `🎯  Swing Setup: ${entry.asset}`
           : `🆕  New Setup: ${entry.asset}`,
         url: swing ? tvChartUrl(entry.asset) : undefined,
-        description: `${dirLabel}  ·  Score: **${entry.lastScore}**${swing ? '  ·  Daily confirmed' : ''}${volTag}`,
+        description: `${dirLabel}  ·  Score: **${entry.lastScore}**${regimeTag}${swing ? '  ·  Daily confirmed' : ''}${volTag}`,
         color: isLong ? COLOR.LONG : COLOR.SHORT,
         fields,
         footer: { text: `Watchlist · ${swing ? 'Swing · ' : ''}Added  ·  ${new Date().toUTCString()}` },
@@ -222,15 +224,16 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
     }
     case 'FLIP': {
       const swing = event.signal.swingGrade;
+      const regimeTag = buildRegimeTag(event.signal);
       const prevLabel = event.prevDirection === 'LONG' ? '🟢 LONG' : '🔴 SHORT';
       return {
         title: swing
           ? `🎯🔄  Swing Flip: ${entry.asset}`
           : `🔄  Direction Flip: ${entry.asset}`,
         url: swing ? tvChartUrl(entry.asset) : undefined,
-        description: `${prevLabel} → ${dirLabel}  ·  Score: **${entry.lastScore}**`,
+        description: `${prevLabel} → ${dirLabel}  ·  Score: **${entry.lastScore}**${regimeTag}`,
         color: COLOR.MIXED,
-        fields: buildPillarFields(event.signal),
+        fields: [...buildPillarFields(event.signal), ...buildExitFields(event.signal)],
         footer: { text: `Watchlist · Flip  ·  ${new Date().toUTCString()}` },
         timestamp: new Date().toISOString(),
       };
@@ -238,15 +241,16 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
     case 'SURGE': {
       const swing = event.signal.swingGrade;
       const volTag = event.signal.volumeSpike ? '  📊 **Vol Spike**' : '';
+      const regimeTag = buildRegimeTag(event.signal);
       const delta = entry.lastScore - event.prevScore;
       return {
         title: swing
           ? `🎯🔥  Swing Conviction: ${entry.asset}`
           : `🔥  Conviction Rising: ${entry.asset}`,
         url: swing ? tvChartUrl(entry.asset) : undefined,
-        description: `${dirLabel}  ·  Score: **${event.prevScore}** → **${entry.lastScore}**  (${delta > 0 ? '+' : ''}${delta})${volTag}`,
+        description: `${dirLabel}  ·  Score: **${event.prevScore}** → **${entry.lastScore}**  (${delta > 0 ? '+' : ''}${delta})${regimeTag}${volTag}`,
         color: isLong ? COLOR.LONG : COLOR.SHORT,
-        fields: buildPillarFields(event.signal),
+        fields: [...buildPillarFields(event.signal), ...buildExitFields(event.signal)],
         footer: { text: `Watchlist · Surge  ·  ${new Date().toUTCString()}` },
         timestamp: new Date().toISOString(),
       };
@@ -255,9 +259,10 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
       const duration = entry.closedAt
         ? Math.round((entry.closedAt.getTime() - entry.addedAt.getTime()) / 60000)
         : null;
+      const reasonLabel = entry.exitReason === 'TIME_EXIT' ? '  ·  ⏱ Time exit' : '';
       return {
         title: `❌  Setup Closed: ${entry.asset}`,
-        description: `${dirLabel}  ·  Entry: **${entry.entryScore}**  →  Exit: **${entry.lastScore}**${duration !== null ? `  ·  ${duration}m` : ''}`,
+        description: `${dirLabel}  ·  Entry: **${entry.entryScore}**  →  Exit: **${entry.lastScore}**${duration !== null ? `  ·  ${duration}m` : ''}${reasonLabel}`,
         color: 0x546e7a,
         footer: { text: `Watchlist · Closed  ·  ${new Date().toUTCString()}` },
         timestamp: new Date().toISOString(),
@@ -271,7 +276,32 @@ function buildPillarFields(signal: OpportunityResult): object[] {
   if (!p) return [];
   return [{
     name: 'Pillars',
-    value: `SM \`${p.smartMoney.toFixed(0)}\`  Struct \`${p.marketStructure.toFixed(0)}\`  Tech \`${p.technicals.toFixed(0)}\`  Fund \`${p.funding.toFixed(0)}\``,
+    value: `Deriv \`${p.derivatives.toFixed(0)}\`  Struct \`${p.marketStructure.toFixed(0)}\`  Tech \`${p.technicals.toFixed(0)}\``,
+    inline: false,
+  }];
+}
+
+function fmtPrice(v: number): string {
+  if (v >= 10000) return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+  if (v >= 1)     return `$${v.toFixed(2)}`;
+  return `$${v.toFixed(5)}`;
+}
+
+function buildRegimeTag(signal: OpportunityResult): string {
+  const regime = signal.regime;
+  if (!regime) return '';
+  const adx = (signal.technicals as Record<string, unknown>).adx4h;
+  const adxStr = typeof adx === 'number' ? ` ADX ${adx.toFixed(0)}` : '';
+  const icon = regime === 'TRENDING' ? '📈' : regime === 'VOLATILE' ? '⚡' : '↔️';
+  return `  ·  ${icon} ${regime}${adxStr}`;
+}
+
+function buildExitFields(signal: OpportunityResult): object[] {
+  const el = signal.exitLevels;
+  if (!el) return [];
+  return [{
+    name: 'Exit Plan',
+    value: `SL \`${fmtPrice(el.initialSL)}\`  TP1 \`${fmtPrice(el.tp1)}\`  TP2 \`${fmtPrice(el.tp2)}\`  ·  Risk \`${el.riskPct.toFixed(1)}%\`  ·  Max \`${el.maxHoldHours}h\``,
     inline: false,
   }];
 }
@@ -318,9 +348,16 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
       const swingLine = swing && typeof tech.rsi1d === 'number'
         ? `\nDaily: <b>${tech.trendDaily}</b>  ·  RSI1D: <b>${(tech.rsi1d as number).toFixed(1)}</b>`
         : '';
+      const el = event.signal.exitLevels;
+      const exitLine = el
+        ? `\nSL <code>${fmtPrice(el.initialSL)}</code>  TP1 <code>${fmtPrice(el.tp1)}</code>  TP2 <code>${fmtPrice(el.tp2)}</code>  Risk <b>${el.riskPct.toFixed(1)}%</b>  Max <b>${el.maxHoldHours}h</b>`
+        : '';
+      const regimeLine = event.signal.regime
+        ? `  ·  ${event.signal.regime === 'TRENDING' ? '📈' : event.signal.regime === 'VOLATILE' ? '⚡' : '↔️'} ${event.signal.regime}`
+        : '';
       return [
         swing ? `🎯 <b>Swing Setup: ${asset}</b>` : `🆕 <b>New Setup: ${asset}</b>`,
-        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${volTag}${swingLine}${chartLink}`,
+        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${regimeLine}${volTag}${swingLine}${exitLine}${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }
@@ -328,9 +365,13 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
       const swing = event.signal.swingGrade;
       const prevLabel = event.prevDirection === 'LONG' ? '🟢 LONG' : '🔴 SHORT';
       const chartLink = swing ? `\n📊 <a href="${tvChartUrl(entry.asset)}">Daily Chart</a>` : '';
+      const el = event.signal.exitLevels;
+      const exitLine = el
+        ? `\nSL <code>${fmtPrice(el.initialSL)}</code>  TP1 <code>${fmtPrice(el.tp1)}</code>  TP2 <code>${fmtPrice(el.tp2)}</code>`
+        : '';
       return [
         swing ? `🎯🔄 <b>Swing Flip: ${asset}</b>` : `🔄 <b>Direction Flip: ${asset}</b>`,
-        `${prevLabel} → ${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${chartLink}`,
+        `${prevLabel} → ${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${exitLine}${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }
@@ -349,9 +390,10 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
       const duration = entry.closedAt
         ? Math.round((entry.closedAt.getTime() - entry.addedAt.getTime()) / 60000)
         : null;
+      const reasonLabel = entry.exitReason === 'TIME_EXIT' ? '  ·  ⏱ Time exit' : '';
       return [
         `❌ <b>Setup Closed: ${asset}</b>`,
-        `${dirLabel}  ·  Entry: <b>${entry.entryScore}</b>  →  Exit: <b>${entry.lastScore}</b>${duration !== null ? `  ·  ${duration}m` : ''}`,
+        `${dirLabel}  ·  Entry: <b>${entry.entryScore}</b>  →  Exit: <b>${entry.lastScore}</b>${duration !== null ? `  ·  ${duration}m` : ''}${reasonLabel}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }
@@ -381,7 +423,7 @@ export async function postOpportunitySignalsToTelegram(
 
   const pillarLines = opportunities.slice(0, 5).map(o => {
     const p = o.pillarScores;
-    return `<b>${escapeHtml(o.asset)}</b>  SM <code>${p.smartMoney.toFixed(0)}</code>  Str <code>${p.marketStructure.toFixed(0)}</code>  Tech <code>${p.technicals.toFixed(0)}</code>  Fund <code>${p.funding.toFixed(0)}</code>`;
+    return `<b>${escapeHtml(o.asset)}</b>  Deriv <code>${p.derivatives.toFixed(0)}</code>  Struct <code>${p.marketStructure.toFixed(0)}</code>  Tech <code>${p.technicals.toFixed(0)}</code>`;
   });
 
   const btcLine = btcContext

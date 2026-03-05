@@ -67,9 +67,17 @@ export class OpportunitySignalsService {
             trendAligned: Boolean(item.trendAligned),
             pillarScores: toNullableJsonInput(item.pillarScores),
             smartMoney: toNullableJsonInput(item.smartMoney),
-            technicals: toNullableJsonInput(item.technicals),
+            technicals: toNullableJsonInput(
+              item.technicals
+                ? { ...(item.technicals as object), regime: item.regime ?? null }
+                : item.regime
+                ? { regime: item.regime }
+                : null
+            ),
             funding: toNullableJsonInput(item.funding),
             risks: toNullableJsonInput(item.risks),
+            exitLevels: toNullableJsonInput(item.exitLevels ?? null),
+            positionSize: toNullableJsonInput(item.positionSize ?? null),
           })),
         });
       }

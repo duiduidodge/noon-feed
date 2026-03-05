@@ -8,7 +8,8 @@
  *   NEW     — asset not in watchlist (or previously CLOSED) → added
  *   FLIP    — direction reversed on an active entry
  *   SURGE   — score jumped ≥ SCORE_SURGE_THRESHOLD on an active entry
- *   CLOSED  — active entry missed ≥ MISSED_SCANS_TO_CLOSE consecutive scans
+ *   CLOSED  — active entry missed ≥ MISSED_SCANS_TO_CLOSE consecutive scans,
+ *             OR held beyond maxHoldHours (time-based exit)
  */
 
 import type { PrismaClient } from '@prisma/client';
@@ -34,9 +35,21 @@ export interface WatchlistEntry {
   lastScore: number;
   missedScans: number;
   status: string;
+  entryPrice: number | null;
+  exitReason: string | null;
   addedAt: Date;
   lastSeenAt: Date;
   closedAt: Date | null;
+}
+
+// Derive approximate entry price from SL and risk %
+function deriveEntryPrice(signal: OpportunityResult): number | null {
+  const { initialSL, riskPct } = signal.exitLevels;
+  if (riskPct <= 0) return null;
+  const ratio = riskPct / 100;
+  return signal.direction === 'LONG'
+    ? Math.round(initialSL / (1 - ratio) * 1_000_000) / 1_000_000
+    : Math.round(initialSL / (1 + ratio) * 1_000_000) / 1_000_000;
 }
 
 export async function processWatchlist(
@@ -74,6 +87,8 @@ export async function processWatchlist(
             lastScore: signal.finalScore,
             missedScans: 0,
             status: 'ACTIVE',
+            entryPrice: deriveEntryPrice(signal),
+            exitReason: null,
             addedAt: new Date(),
             lastSeenAt: new Date(),
             closedAt: null,
@@ -89,6 +104,7 @@ export async function processWatchlist(
             direction: signal.direction,
             entryScore: signal.finalScore,
             lastScore: signal.finalScore,
+            entryPrice: deriveEntryPrice(signal),
           },
         }) as WatchlistEntry;
         events.push({ type: 'NEW', entry: created, signal });
@@ -128,25 +144,32 @@ export async function processWatchlist(
   for (const entry of activeEntries) {
     if (qualifiedMap.has(entry.asset)) continue; // Already handled above
 
+    const ageHours = (Date.now() - entry.addedAt.getTime()) / 3_600_000;
     const newMissedScans = entry.missedScans + 1;
 
-    if (newMissedScans >= MISSED_SCANS_TO_CLOSE) {
+    // Time-based exit: close stale signals regardless of missed-scan count
+    // Use 72h as a conservative max (covers TRENDING regime 48h + buffer for gaps)
+    const isTimeExpired = ageHours > 72;
+
+    if (isTimeExpired || newMissedScans >= MISSED_SCANS_TO_CLOSE) {
+      const reason = isTimeExpired ? 'TIME_EXIT' : 'MISSED_SCANS';
       const closed = await prisma.signalWatchlist.update({
         where: { asset: entry.asset },
         data: {
           missedScans: newMissedScans,
           status: 'CLOSED',
+          exitReason: reason,
           closedAt: new Date(),
         },
       }) as WatchlistEntry;
       events.push({ type: 'CLOSED', entry: closed });
-      logger.info({ asset: entry.asset, missedScans: newMissedScans }, 'Watchlist: signal closed');
+      logger.info({ asset: entry.asset, missedScans: newMissedScans, reason }, 'Watchlist: signal closed');
     } else {
       await prisma.signalWatchlist.update({
         where: { asset: entry.asset },
         data: { missedScans: newMissedScans },
       });
-      logger.debug({ asset: entry.asset, missedScans: newMissedScans }, 'Watchlist: missed scan, still watching');
+      logger.debug({ asset: entry.asset, missedScans: newMissedScans, ageHours: Math.round(ageHours) }, 'Watchlist: missed scan, still watching');
     }
   }
 
