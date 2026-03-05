@@ -6,9 +6,6 @@
   "scripts": {
     "run": "tsx src/run.ts"
   },
-  "dependencies": {
-    "@crypto-news/worker": "workspace:*"
-  },
   "devDependencies": {
     "tsx": "^4.7.0",
     "typescript": "^5.4.0"
