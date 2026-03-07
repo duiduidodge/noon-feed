@@ -21,10 +21,14 @@ const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT = 8;
 const REQUIRE_EMA_BOUNCE = process.env.OPPORTUNITY_REQUIRE_EMA_BOUNCE !== 'false';
 const EMA_BOUNCE_MIN_CONFLUENCE = Math.max(1, Number(process.env.OPPORTUNITY_EMA_BOUNCE_MIN_CONFLUENCE || '2'));
+const DEBUG_OPPORTUNITY_GATES = process.env.OPPORTUNITY_DEBUG_GATES === 'true';
+const BLOCK_RANGING_REGIME = process.env.OPPORTUNITY_BLOCK_RANGING_REGIME !== 'false';
+const MIN_VOL_RATIO = Number(process.env.OPPORTUNITY_MIN_VOL_RATIO || '1');
 
 // Quality gates — signals must pass ALL of these to be emitted
-const MIN_SCORE = 225;               // Minimum absolute score (out of 320 with entry bonus, 3-pillar system)
-const MIN_SCAN_STREAK = 3;           // Must appear in N consecutive scans (~15 min at 5-min interval)
+const MIN_SCORE = Number(process.env.OPPORTUNITY_MIN_SCORE || '225'); // Minimum absolute score
+const MIN_SCAN_STREAK = Number(process.env.OPPORTUNITY_MIN_SCAN_STREAK || '3'); // Consecutive scans required
+const VOLATILE_SCORE_BONUS = Number(process.env.OPPORTUNITY_VOLATILE_SCORE_BONUS || '30'); // Extra floor in VOLATILE regime
 const MAX_FUNDING_ANNUALIZED = 100;  // % — hard veto for extremely crowded longs
 
 const EXCLUDE_SYMBOLS = new Set([
@@ -1038,7 +1042,9 @@ async function analyzeAsset(
           / klines15m.closes[klines15m.closes.length - 5] * 100 * 100) / 100
       : null;
 
-    const smTraders = Math.max(sm, 1) * 10;
+    // Proxy conviction scale when explicit trader-count feed is unavailable.
+    // Anchors around 100 and scales with long/short imbalance.
+    const smTraders = Math.max(10, Math.round((topLs ?? 1) * 100));
     const smPnl = topLs !== null ? Math.round((topLs - 1) * 12 * 10) / 10 : 0;
     const smAccel = oiChg !== null ? Math.round(oiChg / 10 * 100) / 100 : 0;
 
@@ -1231,23 +1237,64 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
 
   // ── Post-analysis quality gates ───────────────────────────────────────────
   // Applied AFTER state is saved so streaks accumulate independently
+  const gateDrops = {
+    btc: 0,
+    regime: 0,
+    score: 0,
+    streak: 0,
+    volume: 0,
+    ema: 0,
+  };
+
   const qualified = deepResults.filter((opp) => {
     // 1. BTC correlation gate — altcoins almost never sustainably rally against BTC trend
-    if (btcTrend4h === 'DOWN' && opp.direction === 'LONG') return false;
-    if (btcTrend4h === 'UP' && opp.direction === 'SHORT') return false;
+    if (btcTrend4h === 'DOWN' && opp.direction === 'LONG') { gateDrops.btc++; return false; }
+    if (btcTrend4h === 'UP' && opp.direction === 'SHORT') { gateDrops.btc++; return false; }
     // 2. Regime gate — no signals in RANGING markets (ADX < 20, no trend to trade)
-    if (opp.regime === 'RANGING') return false;
+    if (BLOCK_RANGING_REGIME && opp.regime === 'RANGING') { gateDrops.regime++; return false; }
     // 3. Minimum absolute score floor (raised by 30 in VOLATILE regimes)
-    const scoreFloor = opp.regime === 'VOLATILE' ? MIN_SCORE + 30 : MIN_SCORE;
-    if (opp._finalScore < scoreFloor) return false;
+    const scoreFloor = opp.regime === 'VOLATILE' ? MIN_SCORE + VOLATILE_SCORE_BONUS : MIN_SCORE;
+    if (opp._finalScore < scoreFloor) { gateDrops.score++; return false; }
     // 4. Scan streak — must appear in N consecutive scans to filter one-scan flukes
-    if (opp.scanStreak < MIN_SCAN_STREAK) return false;
+    if (opp.scanStreak < MIN_SCAN_STREAK) { gateDrops.streak++; return false; }
     // 5. Volume must be at or above average — below-average volume signals lack follow-through
-    if (opp.technicals.volRatio1h < 1.0) return false;
+    if (opp.technicals.volRatio1h < MIN_VOL_RATIO) { gateDrops.volume++; return false; }
     // 6. EMA bounce system gate (1H/2H/4H EMA200 + 1D EMA50 confluence)
-    if (REQUIRE_EMA_BOUNCE && !opp.technicals.emaBounce.isValid) return false;
+    if (REQUIRE_EMA_BOUNCE && !opp.technicals.emaBounce.isValid) { gateDrops.ema++; return false; }
     return true;
   });
+
+  if (DEBUG_OPPORTUNITY_GATES) {
+    console.log('[opportunity-scan] gate drops', gateDrops, 'deepResults', deepResults.length, 'qualified', qualified.length);
+    for (const opp of deepResults) {
+      const scoreFloor = opp.regime === 'VOLATILE' ? MIN_SCORE + VOLATILE_SCORE_BONUS : MIN_SCORE;
+      const reason =
+        (btcTrend4h === 'DOWN' && opp.direction === 'LONG') || (btcTrend4h === 'UP' && opp.direction === 'SHORT') ? 'btc' :
+        (BLOCK_RANGING_REGIME && opp.regime === 'RANGING') ? 'regime' :
+        opp._finalScore < scoreFloor ? 'score' :
+        opp.scanStreak < MIN_SCAN_STREAK ? 'streak' :
+        opp.technicals.volRatio1h < MIN_VOL_RATIO ? 'volume' :
+        (REQUIRE_EMA_BOUNCE && !opp.technicals.emaBounce.isValid) ? 'ema' : 'pass';
+      console.log(
+        '[opportunity-scan] candidate',
+        opp.asset,
+        'score',
+        opp._finalScore,
+        'floor',
+        scoreFloor,
+        'regime',
+        opp.regime,
+        'streak',
+        opp.scanStreak,
+        'vol',
+        opp.technicals.volRatio1h,
+        'ema',
+        `${opp.technicals.emaBounce.confluence}/${opp.technicals.emaBounce.required}`,
+        '->',
+        reason
+      );
+    }
+  }
 
   const filteredByGates = deepResults.length - qualified.length;
   const topOpps = qualified.slice(0, TOP_OUTPUT);
