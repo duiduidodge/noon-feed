@@ -6,6 +6,9 @@ import {
   EnrichmentOutputSchema,
   extractJsonFromResponse,
   truncate,
+  stripCJK,
+  containsCJK,
+  hasSufficientThai,
 } from '@crypto-news/shared';
 
 const logger = createLogger('worker:enrichment');
@@ -101,8 +104,16 @@ export class EnrichmentService {
       return this.createMinimalOutput(articleTitle, sourceName, articleText);
     }
 
-    logger.info({ url }, 'Article enriched successfully');
-    return validation.data;
+    const sanitized = this.sanitizeOutput(validation.data, articleTitle, sourceName, articleText);
+
+    logger.info(
+      {
+        url,
+        sanitized: sanitized.title_th !== validation.data.title_th || sanitized.summary_th !== validation.data.summary_th,
+      },
+      'Article enriched successfully'
+    );
+    return sanitized;
   }
 
   private async attemptJsonFix(invalidJson: string): Promise<unknown> {
@@ -115,14 +126,58 @@ export class EnrichmentService {
     // Detect tags from available text
     const detectedTags = detectTagsFromText(title + ' ' + text);
     const tags = detectedTags.length > 0 ? detectedTags.slice(0, 3) : ['Altcoin'];
+    const cleanedTitle = stripCJK(title).trim();
+    const safeTitle = cleanedTitle.length > 0 ? cleanedTitle : `${source} รายงานข่าวคริปโต`;
 
     return {
-      title_th: `${title.substring(0, 80)}...`,
+      title_th: `สรุปข่าว: ${safeTitle.substring(0, 75)}`,
       summary_th: 'เนื้อหาบทความมีจำกัด ไม่สามารถสรุปได้อย่างครบถ้วน กรุณาอ่านบทความต้นฉบับสำหรับข้อมูลเพิ่มเติม',
       tags,
       sentiment: 'neutral',
       market_impact: 'low',
       cautions: ['เนื้อหาบทความมีจำกัด ข้อมูลอาจไม่ครบถ้วน'],
+    };
+  }
+
+  private sanitizeOutput(
+    output: EnrichmentOutput,
+    articleTitle: string,
+    sourceName: string,
+    articleText: string
+  ): EnrichmentOutput {
+    const cleanTitle = stripCJK(output.title_th).replace(/\s+/g, ' ').trim();
+    const cleanSummary = stripCJK(output.summary_th).replace(/\s+/g, ' ').trim();
+    const cleanCautions = (output.cautions || [])
+      .map((item) => stripCJK(item).trim())
+      .filter((item) => item.length > 0)
+      .slice(0, 5);
+    const cleanQuotes = (output.must_quote || [])
+      .map((item) => stripCJK(item).trim())
+      .filter((item) => item.length > 0)
+      .slice(0, 5);
+
+    const hasUnsafeChars = containsCJK(output.title_th) || containsCJK(output.summary_th);
+    const weakThai = !hasSufficientThai(cleanSummary, 14, 0.1);
+
+    if (hasUnsafeChars || weakThai || cleanSummary.length < 30 || cleanTitle.length < 8) {
+      logger.warn(
+        {
+          hasUnsafeChars,
+          weakThai,
+          titleLength: cleanTitle.length,
+          summaryLength: cleanSummary.length,
+        },
+        'Enrichment output failed language quality checks, using minimal fallback'
+      );
+      return this.createMinimalOutput(articleTitle, sourceName, articleText);
+    }
+
+    return {
+      ...output,
+      title_th: cleanTitle.substring(0, 90),
+      summary_th: cleanSummary.substring(0, 1000),
+      cautions: cleanCautions.length > 0 ? cleanCautions : undefined,
+      must_quote: cleanQuotes.length > 0 ? cleanQuotes : undefined,
     };
   }
 }

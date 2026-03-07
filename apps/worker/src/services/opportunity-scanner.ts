@@ -19,6 +19,8 @@ const DEEP_LIMIT = 10;
 const TOP_OUTPUT = 6;
 const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT = 8;
+const REQUIRE_EMA_BOUNCE = process.env.OPPORTUNITY_REQUIRE_EMA_BOUNCE !== 'false';
+const EMA_BOUNCE_MIN_CONFLUENCE = Math.max(1, Number(process.env.OPPORTUNITY_EMA_BOUNCE_MIN_CONFLUENCE || '2'));
 
 // Quality gates — signals must pass ALL of these to be emitted
 const MIN_SCORE = 225;               // Minimum absolute score (out of 320 with entry bonus, 3-pillar system)
@@ -104,6 +106,27 @@ interface PivotPoints {
   r2: number;
 }
 
+interface EmaBounceFrameSignal {
+  timeframe: '1h' | '2h' | '4h' | '1d';
+  period: number;
+  ema: number;
+  price: number;
+  distancePct: number;
+  touched: boolean;
+  reclaimed: boolean;
+  rejected: boolean;
+  valid: boolean;
+}
+
+interface EmaBounceSignal {
+  direction: 'LONG' | 'SHORT';
+  confluence: number;
+  required: number;
+  isValid: boolean;
+  scoreBonus: number;
+  frames: EmaBounceFrameSignal[];
+}
+
 export type MarketRegime = 'TRENDING' | 'RANGING' | 'VOLATILE';
 
 export interface ExitLevels {
@@ -144,6 +167,7 @@ export interface OpportunityResult {
     momentum15m: number | null; chg1h: number; chg4h: number; chg24h: number;
     support: number | null; resistance: number | null;
     pivots: PivotPoints | null; weeklyPivots: PivotPoints | null; atrPct: number; adx4h: number;
+    emaBounce: EmaBounceSignal;
   };
   funding: { rate: number; annualized: number; favorable: boolean };
   hyperliquid: { funding: number; openInterest: number; dayVolume: number } | null;
@@ -512,6 +536,7 @@ function scoreTechnicals(
   rsi1h: number | null,
   rsi15m: number | null,
   volR: number | null,
+  emaBounceBonus: number,
   volSpikeRatio: number, // adaptive spike threshold (default 2.5)
 ): { score: number; risks: string[] } {
   const risks: string[] = [];
@@ -542,7 +567,96 @@ function scoreTechnicals(
     else if (volR < 0.6)            { tech = Math.max(0, tech - 15); risks.push('low_volume'); }
   }
 
+  if (emaBounceBonus > 0) {
+    tech = Math.min(100, tech + emaBounceBonus);
+  }
+
   return { score: tech, risks };
+}
+
+function evaluateEmaBounceFrame(
+  direction: 'LONG' | 'SHORT',
+  timeframe: '1h' | '2h' | '4h' | '1d',
+  period: number,
+  highs: number[],
+  lows: number[],
+  closes: number[],
+  touchTolerancePct: number,
+): EmaBounceFrameSignal {
+  const price = closes[closes.length - 1] ?? 0;
+  const ema = calculateEma(closes, period);
+  const distancePct = ema > 0 ? ((price - ema) / ema) * 100 : 0;
+  const lookback = Math.min(3, lows.length);
+  const recentLows = lows.slice(-lookback);
+  const recentHighs = highs.slice(-lookback);
+  const lastLow = lows[lows.length - 1] ?? price;
+  const lastHigh = highs[highs.length - 1] ?? price;
+  const lastRange = Math.max(1e-9, lastHigh - lastLow);
+  const closePos = (price - lastLow) / lastRange; // 0=low close, 1=high close
+
+  const upperTouch = ema * (1 + touchTolerancePct / 100);
+  const lowerTouch = ema * (1 - touchTolerancePct / 100);
+
+  const touched = direction === 'LONG'
+    ? Math.min(...recentLows) <= upperTouch
+    : Math.max(...recentHighs) >= lowerTouch;
+  const reclaimed = direction === 'LONG' ? price >= ema : price <= ema;
+  const rejected = direction === 'LONG' ? closePos >= 0.55 : closePos <= 0.45;
+  const notExtended = Math.abs(distancePct) <= touchTolerancePct * 2.5;
+  const valid = touched && reclaimed && rejected && notExtended;
+
+  return {
+    timeframe,
+    period,
+    ema: Math.round(ema * 1_000_000) / 1_000_000,
+    price: Math.round(price * 1_000_000) / 1_000_000,
+    distancePct: Math.round(distancePct * 100) / 100,
+    touched,
+    reclaimed,
+    rejected,
+    valid,
+  };
+}
+
+function analyzeEmaBounceSignal(
+  direction: 'LONG' | 'SHORT',
+  klines1h: KlineData,
+  klines2h: KlineData | null,
+  klines4h: KlineData | null,
+  klines1d: KlineData | null,
+  atrPct: number
+): EmaBounceSignal {
+  const tf1hTol = Math.max(0.5, Math.min(1.6, atrPct * 0.45));
+  const tf2hTol = Math.max(0.7, Math.min(2.0, atrPct * 0.6));
+  const tf4hTol = Math.max(0.9, Math.min(2.4, atrPct * 0.75));
+  const tf1dTol = Math.max(1.0, Math.min(2.8, atrPct * 0.9));
+
+  const frames: EmaBounceFrameSignal[] = [
+    evaluateEmaBounceFrame(direction, '1h', 200, klines1h.highs, klines1h.lows, klines1h.closes, tf1hTol),
+  ];
+
+  if (klines2h && klines2h.closes.length >= 200) {
+    frames.push(evaluateEmaBounceFrame(direction, '2h', 200, klines2h.highs, klines2h.lows, klines2h.closes, tf2hTol));
+  }
+  if (klines4h && klines4h.closes.length >= 200) {
+    frames.push(evaluateEmaBounceFrame(direction, '4h', 200, klines4h.highs, klines4h.lows, klines4h.closes, tf4hTol));
+  }
+  if (klines1d && klines1d.closes.length >= 50) {
+    frames.push(evaluateEmaBounceFrame(direction, '1d', 50, klines1d.highs, klines1d.lows, klines1d.closes, tf1dTol));
+  }
+
+  const confluence = frames.filter((f) => f.valid).length;
+  const isValid = confluence >= EMA_BOUNCE_MIN_CONFLUENCE;
+  const scoreBonus = isValid ? Math.min(20, 8 + confluence * 4) : 0;
+
+  return {
+    direction,
+    confluence,
+    required: EMA_BOUNCE_MIN_CONFLUENCE,
+    isValid,
+    scoreBonus,
+    frames,
+  };
 }
 
 // Position sizing based on score quality and exit-level risk distance
@@ -753,11 +867,12 @@ async function analyzeAsset(
   hlMap: HLAssetMap | null,
 ): Promise<(OpportunityResult & { _symbol: string; _finalScore: number }) | null> {
   try {
-    const [klines1h, klines4h, klines15m, klines1d] = await Promise.all([
-      fetchKlines(symbol, '1h', 52),
-      fetchKlines(symbol, '4h', 55), // 55 candles for EMA50 + pivot point from previous candle
+    const [klines1h, klines2h, klines4h, klines15m, klines1d] = await Promise.all([
+      fetchKlines(symbol, '1h', 220), // EMA200 + short-term structure
+      fetchKlines(symbol, '2h', 220), // EMA200 bounce confluence
+      fetchKlines(symbol, '4h', 220), // EMA200 + pivots + ADX
       fetchKlines(symbol, '15m', 35),
-      fetchKlines(symbol, '1d', 60), // daily for swing grade analysis
+      fetchKlines(symbol, '1d', 80), // EMA50 daily bounce + swing context
     ]);
 
     if (!klines1h) return null;
@@ -840,6 +955,7 @@ async function analyzeAsset(
     // Direction: requires 1H and 4H agreement — returns null if conflicting
     const direction = chooseDirection(rsi1h, trend4h, trend1h, topLs, takerR);
     if (direction === null) return null; // Conflicting timeframes — skip
+    const emaBounce = analyzeEmaBounceSignal(direction, klines1h, klines2h, klines4h, klines1d, atrPct);
 
     const { score: derivScore, risks: derivRisks, hardVeto, annualized, favorable } = scoreDerivatives(
       direction, fundingRate, oiChg, topLs, takerR, chg1h, chg24h, atrPct, hlData
@@ -848,7 +964,7 @@ async function analyzeAsset(
 
     const { score: structScore, risks: structRisks } = scoreStructure(direction, trend4h, trend1h, volR, adx4h);
     const { score: techScore, risks: techRisks } = scoreTechnicals(
-      direction, rsi1h, rsi15m, volR, thresholds.volSpikeRatio
+      direction, rsi1h, rsi15m, volR, emaBounce.scoreBonus, thresholds.volSpikeRatio
     );
 
     // ── Price-vs-pivot gate ───────────────────────────────────────────────────
@@ -858,6 +974,7 @@ async function analyzeAsset(
     const currentPrice = c1h[c1h.length - 1];
 
     const risks = [...derivRisks, ...structRisks, ...techRisks];
+    if (!emaBounce.isValid) risks.push('ema_bounce_not_confirmed');
 
     if (pivots) {
       // Hard veto: price fully beyond R2 (LONG) or below S2 (SHORT) — move is over
@@ -950,6 +1067,7 @@ async function analyzeAsset(
         resistance: pivots?.r1 ?? null,
         pivots, weeklyPivots,
         atrPct, adx4h,
+        emaBounce,
       },
       funding: {
         rate: fundingRate !== null ? Math.round(fundingRate * 1_000_000) / 1_000_000 : 0,
@@ -1126,6 +1244,8 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
     if (opp.scanStreak < MIN_SCAN_STREAK) return false;
     // 5. Volume must be at or above average — below-average volume signals lack follow-through
     if (opp.technicals.volRatio1h < 1.0) return false;
+    // 6. EMA bounce system gate (1H/2H/4H EMA200 + 1D EMA50 confluence)
+    if (REQUIRE_EMA_BOUNCE && !opp.technicals.emaBounce.isValid) return false;
     return true;
   });
 

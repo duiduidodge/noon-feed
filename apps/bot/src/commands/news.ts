@@ -7,7 +7,7 @@ import {
   ButtonStyle,
 } from 'discord.js';
 import { PrismaClient } from '@prisma/client';
-import { TAG_VOCABULARY, formatDateThai } from '@crypto-news/shared';
+import { TAG_VOCABULARY, formatDateThai, stripCJK, truncate } from '@crypto-news/shared';
 import type { Sentiment, MarketImpact } from '@crypto-news/shared';
 
 const SENTIMENT_COLORS: Record<Sentiment, number> = {
@@ -112,19 +112,20 @@ async function handleLatest(interaction: ChatInputCommandInteraction, prisma: Pr
     const sentiment = e.sentiment.toLowerCase() as Sentiment;
     const marketImpact = e.marketImpact.toLowerCase() as MarketImpact;
     const tags = e.tags as string[];
+    const safeTitle = stripCJK(e.titleTh || article.titleOriginal).trim() || 'สรุปข่าวคริปโต';
+    const safeSummary = truncate(stripCJK(e.summaryTh || article.extractedText || '').replace(/\s+/g, ' ').trim(), 900) || 'ไม่มีสรุปข่าว';
 
     return new EmbedBuilder()
-      .setTitle(`${MARKET_IMPACT_EMOJI[marketImpact]} ${e.titleTh}`)
+      .setTitle(`${MARKET_IMPACT_EMOJI[marketImpact]} ${safeTitle}`)
       .setURL(article.url)
-      .setDescription(e.summaryTh)
+      .setDescription(safeSummary)
       .setColor(SENTIMENT_COLORS[sentiment])
       .addFields(
         { name: 'Sentiment', value: sentiment, inline: true },
         { name: 'Impact', value: marketImpact, inline: true },
         { name: 'Tags', value: tags.map((t) => `\`${t}\``).join(' '), inline: true }
       )
-      .setFooter({ text: `${article.source.name} | ${formatDateThai(article.publishedAt)}` })
-      .setTimestamp(article.publishedAt || undefined);
+      .setFooter({ text: `${article.source.name} | ${formatDateThai(article.publishedAt)}` });
   });
 
   await interaction.editReply({ embeds: embeds.slice(0, 10) }); // Discord limit: 10 embeds

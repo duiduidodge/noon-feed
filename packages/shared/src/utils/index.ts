@@ -315,6 +315,37 @@ export function formatTags(tags: string[]): string {
   return tags.map((tag) => `#${tag}`).join(' ');
 }
 
+// Language/script guardrails for LLM-generated Thai copy
+const THAI_CHAR_REGEX = /[\u0E00-\u0E7F]/g;
+const CJK_CHAR_REGEX = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/;
+const CJK_CHAR_REGEX_GLOBAL = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/g;
+const WORD_CHAR_REGEX = /[A-Za-z0-9\u0E00-\u0E7F]/g;
+
+export function countThaiChars(text: string): number {
+  return (text.match(THAI_CHAR_REGEX) || []).length;
+}
+
+export function containsCJK(text: string): boolean {
+  return CJK_CHAR_REGEX.test(text);
+}
+
+export function stripCJK(text: string): string {
+  return text
+    .replace(CJK_CHAR_REGEX_GLOBAL, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function hasSufficientThai(text: string, minThaiChars: number = 12, minThaiRatio: number = 0.12): boolean {
+  const thaiChars = countThaiChars(text);
+  if (thaiChars < minThaiChars) return false;
+
+  const wordChars = (text.match(WORD_CHAR_REGEX) || []).length;
+  if (wordChars === 0) return false;
+
+  return thaiChars / wordChars >= minThaiRatio;
+}
+
 // ── Article noise filter ──────────────────────────────────────────
 // Patterns that indicate low-value content not worth enriching.
 // Matched case-insensitively against the article title.

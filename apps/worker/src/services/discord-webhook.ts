@@ -1,4 +1,4 @@
-import { createLogger, formatDateThai, escapeMarkdown } from '@crypto-news/shared';
+import { createLogger, formatDateThai, escapeMarkdown, stripCJK, truncate } from '@crypto-news/shared';
 import type { Sentiment, MarketImpact } from '@crypto-news/shared';
 
 const logger = createLogger('worker:discord-webhook');
@@ -59,8 +59,10 @@ export class DiscordWebhookService {
     const marketImpact = enrichment.marketImpact.toLowerCase() as MarketImpact;
     const tags = enrichment.tags as string[];
 
-    const title = enrichment.titleTh || article.titleOriginal;
-    const summary = enrichment.summaryTh || article.extractedText || 'No summary available';
+    const rawTitle = enrichment.titleTh || article.titleOriginal;
+    const rawSummary = enrichment.summaryTh || article.extractedText || 'No summary available';
+    const title = stripCJK(rawTitle).trim() || 'สรุปข่าวคริปโต';
+    const summary = truncate(stripCJK(rawSummary).replace(/\s+/g, ' ').trim(), 900) || 'ไม่มีสรุปข่าว';
 
     const embed: WebhookEmbed = {
       title: `${MARKET_IMPACT_EMOJI[marketImpact]} ${title}`,
@@ -92,7 +94,6 @@ export class DiscordWebhookService {
       footer: {
         text: `📡 ${article.source.name} | ${formatDateThai(article.publishedAt)}`,
       },
-      timestamp: article.publishedAt?.toISOString(),
     };
 
     const message: WebhookMessage = { embeds: [embed] };

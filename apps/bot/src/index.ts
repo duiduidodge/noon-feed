@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, Events, Collection, ChatInputCommandInteraction } from 'discord.js';
 import { PrismaClient } from '@prisma/client';
-import { createLogger, buildConfig, sleep } from '@crypto-news/shared';
+import { createLogger, buildConfig, sleep, stripCJK, truncate } from '@crypto-news/shared';
 import * as newsCommand from './commands/news.js';
 
 const logger = createLogger('bot');
@@ -108,9 +108,15 @@ async function processPendingPosts() {
             low: '📝',
           };
 
+          const safeTitle = stripCJK(e.titleTh || posting.article.titleOriginal).trim() || 'สรุปข่าวคริปโต';
+          const safeSummary = truncate(
+            stripCJK(e.summaryTh || posting.article.extractedText || '').replace(/\s+/g, ' ').trim(),
+            900
+          ) || 'ไม่มีสรุปข่าว';
+
           const embed = {
-            title: `${impactEmoji[marketImpact]} ${e.titleTh}`,
-            description: `**📝 สรุป:**\n${e.summaryTh}`,
+            title: `${impactEmoji[marketImpact]} ${safeTitle}`,
+            description: `**📝 สรุป:**\n${safeSummary}`,
             url: posting.article.url,
             color: sentimentColors[sentiment],
             fields: [
@@ -138,7 +144,6 @@ async function processPendingPosts() {
             footer: {
               text: `📡 ${posting.article.source.name} | ${posting.article.publishedAt?.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' }) || 'Unknown'}`,
             },
-            timestamp: posting.article.publishedAt?.toISOString(),
           };
 
           const message = await (channel as any).send({ embeds: [embed] });

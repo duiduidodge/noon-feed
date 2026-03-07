@@ -7,6 +7,9 @@ import {
   truncate,
   stripHtml,
   chunk,
+  containsCJK,
+  stripCJK,
+  hasSufficientThai,
 } from '../utils/index.js';
 
 describe('normalizeUrl', () => {
@@ -175,5 +178,21 @@ describe('chunk', () => {
   it('should handle array smaller than chunk size', () => {
     const array = [1, 2];
     expect(chunk(array, 5)).toEqual([[1, 2]]);
+  });
+});
+
+describe('language guardrails', () => {
+  it('should detect CJK characters', () => {
+    expect(containsCJK('ข่าวคริปโต 中文')).toBe(true);
+    expect(containsCJK('ข่าวคริปโต Bitcoin ETF')).toBe(false);
+  });
+
+  it('should remove CJK characters from mixed text', () => {
+    expect(stripCJK('ข่าวคริปโต 中文 Bitcoin')).toBe('ข่าวคริปโต Bitcoin');
+  });
+
+  it('should validate Thai-heavy text', () => {
+    expect(hasSufficientThai('บิตคอยน์ปรับตัวขึ้นหลังเงินทุน ETF ไหลเข้าอย่างต่อเนื่อง')).toBe(true);
+    expect(hasSufficientThai('Bitcoin ETF inflows remain strong this week')).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { createLogger, formatDateThai, escapeMarkdown, getChannelForTags } from '@crypto-news/shared';
+import { createLogger, formatDateThai, escapeMarkdown, getChannelForTags, stripCJK, truncate } from '@crypto-news/shared';
 import type { ChannelRouting, Sentiment, MarketImpact } from '@crypto-news/shared';
 
 const logger = createLogger('worker:job:post-discord');
@@ -91,8 +91,10 @@ export async function processPostDiscordJob(
     // Build Discord embed
     const sentiment = enrichment.sentiment.toLowerCase() as Sentiment;
     const marketImpact = enrichment.marketImpact.toLowerCase() as MarketImpact;
-    const titleTh = enrichment.titleTh || article.titleOriginal;
-    const summaryTh = enrichment.summaryTh || article.extractedText || 'No summary available';
+    const rawTitle = enrichment.titleTh || article.titleOriginal;
+    const rawSummary = enrichment.summaryTh || article.extractedText || 'No summary available';
+    const titleTh = stripCJK(rawTitle).trim() || 'สรุปข่าวคริปโต';
+    const summaryTh = truncate(stripCJK(rawSummary).replace(/\s+/g, ' ').trim(), 900) || 'ไม่มีสรุปข่าว';
 
     const embed: DiscordEmbed = {
       title: `${MARKET_IMPACT_EMOJI[marketImpact]} ${titleTh}`,
@@ -124,7 +126,6 @@ export async function processPostDiscordJob(
       footer: {
         text: `📡 ${article.source.name} | ${formatDateThai(article.publishedAt)}`,
       },
-      timestamp: article.publishedAt?.toISOString(),
     };
 
     // Send to Discord

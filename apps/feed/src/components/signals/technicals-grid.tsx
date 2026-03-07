@@ -29,6 +29,11 @@ interface TechnicalsData {
   resistance?: number;
   atrPct?: number;
   pivots?: PivotPoints | null;
+  emaBounce?: {
+    confluence?: number;
+    required?: number;
+    isValid?: boolean;
+  };
 }
 
 function rsiColor(val: number): string {
@@ -140,6 +145,19 @@ export function TechnicalsGrid({ data }: { data: TechnicalsData | null }) {
           </div>
         ))}
       </div>
+
+      {/* EMA bounce confluence */}
+      {data.emaBounce && (
+        <div className="flex items-center gap-2 px-1">
+          <span className="font-mono-data text-[8px] text-muted-foreground/50 uppercase">EMA Bounce</span>
+          <span className={cn(
+            'font-mono-data text-[10px] font-bold tabular-nums',
+            data.emaBounce.isValid ? 'text-bullish' : 'text-amber-400'
+          )}>
+            {(data.emaBounce.confluence ?? 0)}/{data.emaBounce.required ?? 0}
+          </span>
+        </div>
+      )}
 
       {/* S/R line (S1/R1 from pivot points) */}
       {(data.support || data.resistance) && (

@@ -1,4 +1,4 @@
-import { createLogger } from '@crypto-news/shared';
+import { createLogger, stripCJK, truncate } from '@crypto-news/shared';
 import type { Article, Enrichment, Source } from '@prisma/client';
 
 const logger = createLogger('worker:service:discord-article-poster');
@@ -17,8 +17,10 @@ export class DiscordArticlePoster {
     }
 
     const { enrichment } = article;
-    const titleTh = enrichment.titleTh || article.titleOriginal;
-    const summaryTh = enrichment.summaryTh || article.extractedText?.substring(0, 300) || '';
+    const rawTitle = enrichment.titleTh || article.titleOriginal;
+    const rawSummary = enrichment.summaryTh || article.extractedText?.substring(0, 300) || '';
+    const titleTh = stripCJK(rawTitle).trim() || 'สรุปข่าวคริปโต';
+    const summaryTh = truncate(stripCJK(rawSummary).replace(/\s+/g, ' ').trim(), 900);
 
     // Sentiment emoji
     const sentimentEmoji = {
@@ -59,7 +61,6 @@ export class DiscordArticlePoster {
       footer: {
         text: 'Crypto News Bot',
       },
-      timestamp: article.publishedAt?.toISOString() || new Date().toISOString(),
     };
 
     const payload = {
