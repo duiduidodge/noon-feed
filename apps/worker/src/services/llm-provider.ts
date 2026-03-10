@@ -117,6 +117,43 @@ export class OpenRouterProvider implements LLMProviderInterface {
       }
     );
   }
+
+  async completeWithImage(prompt: string, imageBase64: string, options: LLMOptions = {}): Promise<string> {
+    const { temperature = 0.3, maxTokens = 1500, model } = options;
+    const visionModel = model || process.env.VISION_LLM_MODEL || 'x-ai/grok-4-fast';
+
+    return retryWithBackoff(
+      async () => {
+        const response = await this.client.chat.completions.create({
+          model: visionModel,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:image/png;base64,${imageBase64}` } },
+            ],
+          }],
+          temperature,
+          max_tokens: maxTokens,
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+          throw new Error('Empty response from OpenRouter vision');
+        }
+
+        return content;
+      },
+      {
+        maxRetries: 1,
+        baseDelayMs: 3000,
+        shouldRetry: isRetryableError,
+        onRetry: (error, attempt) => {
+          logger.warn({ error: error.message, attempt }, 'Retrying OpenRouter vision request');
+        },
+      }
+    );
+  }
 }
 
 // Anthropic Provider

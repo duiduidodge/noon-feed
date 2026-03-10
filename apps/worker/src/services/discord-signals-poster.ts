@@ -16,14 +16,29 @@ const COLOR = {
   WHALE: 0x1565c0,  // blue
 };
 
-async function sendWebhook(webhookUrl: string, body: object): Promise<void> {
-  const res = await fetch(webhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    throw new Error(`Discord ${res.status}: ${await res.text()}`);
+async function sendWebhook(webhookUrl: string, body: object, imageBuffer?: Buffer): Promise<void> {
+  if (imageBuffer) {
+    // Use FormData to attach the chart image
+    const formData = new FormData();
+    formData.append('payload_json', JSON.stringify(body));
+    formData.append('files[0]', new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' }), 'chart.png');
+
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      throw new Error(`Discord ${res.status}: ${await res.text()}`);
+    }
+  } else {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      throw new Error(`Discord ${res.status}: ${await res.text()}`);
+    }
   }
 }
 
@@ -172,7 +187,16 @@ export async function postWatchlistEvents(
 ): Promise<void> {
   for (const event of events) {
     const embed = buildWatchlistEmbed(event);
-    await sendWebhook(webhookUrl, { embeds: [embed] });
+    const chartBuffer = 'signal' in event && event.signal.chartImageBase64
+      ? Buffer.from(event.signal.chartImageBase64, 'base64')
+      : undefined;
+
+    // If chart image attached, reference it in the embed
+    if (chartBuffer) {
+      (embed as any).image = { url: 'attachment://chart.png' };
+    }
+
+    await sendWebhook(webhookUrl, { embeds: [embed] }, chartBuffer);
     logger.info({ type: event.type, asset: event.entry.asset }, 'Posted watchlist event to Discord');
   }
 }
@@ -208,6 +232,7 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
       const fields = [
         ...buildPillarFields(event.signal),
         ...buildExitFields(event.signal),
+        ...buildThesisField(event.signal),
         ...(swing ? buildSwingFields(tech) : []),
       ];
       return {
@@ -233,7 +258,7 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
         url: swing ? tvChartUrl(entry.asset) : undefined,
         description: `${prevLabel} → ${dirLabel}  ·  Score: **${entry.lastScore}**${regimeTag}`,
         color: COLOR.MIXED,
-        fields: [...buildPillarFields(event.signal), ...buildExitFields(event.signal)],
+        fields: [...buildPillarFields(event.signal), ...buildExitFields(event.signal), ...buildThesisField(event.signal)],
         footer: { text: `Watchlist · Flip  ·  ${new Date().toUTCString()}` },
         timestamp: new Date().toISOString(),
       };
@@ -250,7 +275,7 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
         url: swing ? tvChartUrl(entry.asset) : undefined,
         description: `${dirLabel}  ·  Score: **${event.prevScore}** → **${entry.lastScore}**  (${delta > 0 ? '+' : ''}${delta})${regimeTag}${volTag}`,
         color: isLong ? COLOR.LONG : COLOR.SHORT,
-        fields: [...buildPillarFields(event.signal), ...buildExitFields(event.signal)],
+        fields: [...buildPillarFields(event.signal), ...buildExitFields(event.signal), ...buildThesisField(event.signal)],
         footer: { text: `Watchlist · Surge  ·  ${new Date().toUTCString()}` },
         timestamp: new Date().toISOString(),
       };
@@ -269,6 +294,15 @@ function buildWatchlistEmbed(event: WatchlistEvent): object {
       };
     }
   }
+}
+
+function buildThesisField(signal: OpportunityResult): object[] {
+  if (!signal.thesis || signal.thesis.length === 0) return [];
+  return [{
+    name: '\uD83D\uDCCB Thesis',
+    value: signal.thesis.map(b => `\u2022 ${b}`).join('\n'),
+    inline: false,
+  }];
 }
 
 function buildPillarFields(signal: OpportunityResult): object[] {
@@ -355,9 +389,12 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
       const regimeLine = event.signal.regime
         ? `  ·  ${event.signal.regime === 'TRENDING' ? '📈' : event.signal.regime === 'VOLATILE' ? '⚡' : '↔️'} ${event.signal.regime}`
         : '';
+      const thesisLine = event.signal.thesis && event.signal.thesis.length > 0
+        ? `\n\n📋 <b>Thesis</b>\n${event.signal.thesis.map(b => `• ${escapeHtml(b)}`).join('\n')}`
+        : '';
       return [
         swing ? `🎯 <b>Swing Setup: ${asset}</b>` : `🆕 <b>New Setup: ${asset}</b>`,
-        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${regimeLine}${volTag}${swingLine}${exitLine}${chartLink}`,
+        `${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${regimeLine}${volTag}${swingLine}${exitLine}${thesisLine}${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }
@@ -369,9 +406,12 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
       const exitLine = el
         ? `\nSL <code>${fmtPrice(el.initialSL)}</code>  TP1 <code>${fmtPrice(el.tp1)}</code>  TP2 <code>${fmtPrice(el.tp2)}</code>`
         : '';
+      const thesisLine = event.signal.thesis && event.signal.thesis.length > 0
+        ? `\n\n📋 <b>Thesis</b>\n${event.signal.thesis.map(b => `• ${escapeHtml(b)}`).join('\n')}`
+        : '';
       return [
         swing ? `🎯🔄 <b>Swing Flip: ${asset}</b>` : `🔄 <b>Direction Flip: ${asset}</b>`,
-        `${prevLabel} → ${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${exitLine}${chartLink}`,
+        `${prevLabel} → ${dirLabel}  ·  Score: <b>${entry.lastScore}</b>${exitLine}${thesisLine}${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }
@@ -380,9 +420,12 @@ function buildWatchlistTelegramMessage(event: WatchlistEvent): string {
       const volTag = event.signal.volumeSpike ? '  📊 <b>Vol Spike</b>' : '';
       const delta = entry.lastScore - event.prevScore;
       const chartLink = swing ? `\n📊 <a href="${tvChartUrl(entry.asset)}">Daily Chart</a>` : '';
+      const thesisLine = event.signal.thesis && event.signal.thesis.length > 0
+        ? `\n\n📋 <b>Thesis</b>\n${event.signal.thesis.map(b => `• ${escapeHtml(b)}`).join('\n')}`
+        : '';
       return [
         swing ? `🎯🔥 <b>Swing Conviction: ${asset}</b>` : `🔥 <b>Conviction Rising: ${asset}</b>`,
-        `${dirLabel}  ·  Score: <b>${event.prevScore}</b> → <b>${entry.lastScore}</b>  (${delta > 0 ? '+' : ''}${delta})${volTag}${chartLink}`,
+        `${dirLabel}  ·  Score: <b>${event.prevScore}</b> → <b>${entry.lastScore}</b>  (${delta > 0 ? '+' : ''}${delta})${volTag}${thesisLine}${chartLink}`,
         `<i>${new Date().toUTCString()}</i>`,
       ].join('\n');
     }

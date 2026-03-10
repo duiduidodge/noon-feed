@@ -17,13 +17,14 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.10.0",
     "@crypto-news/shared": "*",
     "@mozilla/readability": "^0.5.0",
+    "@napi-rs/canvas": "^0.1.96",
     "@prisma/client": "^5.7.0",
     "bullmq": "^5.1.0",
     "jsdom": "^23.0.1",
     "openai": "^4.24.0",
-    "@anthropic-ai/sdk": "^0.10.0",
     "pino": "^8.17.1",
     "rss-parser": "^3.13.0"
   },

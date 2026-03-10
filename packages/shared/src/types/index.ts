@@ -149,6 +149,7 @@ export interface ExportRow {
 export interface LLMProviderInterface {
   name: LLMProvider;
   complete(prompt: string, options?: LLMOptions): Promise<string>;
+  completeWithImage?(prompt: string, imageBase64: string, options?: LLMOptions): Promise<string>;
 }
 
 export interface LLMOptions {

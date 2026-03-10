@@ -20,6 +20,7 @@ import {
   postWatchlistEventsToTelegram,
 } from './services/discord-signals-poster.js';
 import { processWatchlist } from './services/watchlist-manager.js';
+import { enrichSignalWithThesis } from './services/signal-enrichment.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
 import { processFetchAPINewsJob, type FetchAPINewsJobData } from './jobs/fetch-api-news.js';
 import { processFetchArticleJob, type FetchArticleJobData } from './jobs/fetch-article.js';
@@ -962,10 +963,28 @@ async function main() {
         // Run watchlist diffing — only fires on state changes (new/flip/surge/closed)
         const watchlistEvents = await processWatchlist(prisma, opportunities);
 
-        if (watchlistEvents.length > 0) {
+        // Filter: drop CLOSED events (noise) and non-A-tier signals
+        const postableEvents = watchlistEvents.filter(e => {
+          if (e.type === 'CLOSED') return false;
+          if ('signal' in e && e.signal.convictionTier !== 'A') return false;
+          return true;
+        });
+
+        if (postableEvents.length > 0) {
+          // Enrich A-tier signals with chart image + vision analysis + thesis
+          for (const event of postableEvents) {
+            if ('signal' in event) {
+              try {
+                await enrichSignalWithThesis(llmProvider, event.signal, btcContext);
+              } catch (err) {
+                logger.warn({ error: (err as Error).message, asset: event.entry.asset }, 'Signal enrichment failed; posting without thesis');
+              }
+            }
+          }
+
           const signalsWebhook = getSignalsWebhookUrl();
           if (signalsWebhook) {
-            postWatchlistEvents(signalsWebhook, watchlistEvents).catch((err) =>
+            postWatchlistEvents(signalsWebhook, postableEvents).catch((err) =>
               logger.error({ error: (err as Error).message }, 'Failed to post watchlist events to Discord')
             );
           }
@@ -973,12 +992,18 @@ async function main() {
           const tgToken = process.env.TELEGRAM_BOT_TOKEN;
           const tgChatId = process.env.TELEGRAM_CHAT_ID;
           if (tgToken && tgChatId) {
-            postWatchlistEventsToTelegram(tgToken, tgChatId, watchlistEvents).catch((err) =>
+            postWatchlistEventsToTelegram(tgToken, tgChatId, postableEvents).catch((err) =>
               logger.error({ error: (err as Error).message }, 'Failed to post watchlist events to Telegram')
             );
           }
+        }
 
-          logger.info({ events: watchlistEvents.map((e) => `${e.type}:${e.entry.asset}`) }, 'Watchlist events fired');
+        if (watchlistEvents.length > 0) {
+          logger.info({
+            total: watchlistEvents.length,
+            posted: postableEvents.length,
+            events: watchlistEvents.map((e) => `${e.type}:${e.entry.asset}`),
+          }, 'Watchlist events fired');
         }
 
       } catch (error) {

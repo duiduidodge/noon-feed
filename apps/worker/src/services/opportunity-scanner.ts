@@ -21,15 +21,22 @@ const REQUEST_TIMEOUT_MS = 12_000;
 const MAX_CONCURRENT = 8;
 const REQUIRE_EMA_BOUNCE = process.env.OPPORTUNITY_REQUIRE_EMA_BOUNCE !== 'false';
 const EMA_BOUNCE_MIN_CONFLUENCE = Math.max(1, Number(process.env.OPPORTUNITY_EMA_BOUNCE_MIN_CONFLUENCE || '2'));
-const DEBUG_OPPORTUNITY_GATES = process.env.OPPORTUNITY_DEBUG_GATES === 'true';
+// Checked at runtime (not import time) so CLI scripts can enable it
+const isDebugGates = () => process.env.OPPORTUNITY_DEBUG_GATES === 'true';
 const BLOCK_RANGING_REGIME = process.env.OPPORTUNITY_BLOCK_RANGING_REGIME !== 'false';
 const MIN_VOL_RATIO = Number(process.env.OPPORTUNITY_MIN_VOL_RATIO || '1');
 
 // Quality gates — signals must pass ALL of these to be emitted
-const MIN_SCORE = Number(process.env.OPPORTUNITY_MIN_SCORE || '225'); // Minimum absolute score
+const MIN_SCORE = Number(process.env.OPPORTUNITY_MIN_SCORE || '220'); // Minimum absolute score
 const MIN_SCAN_STREAK = Number(process.env.OPPORTUNITY_MIN_SCAN_STREAK || '3'); // Consecutive scans required
 const VOLATILE_SCORE_BONUS = Number(process.env.OPPORTUNITY_VOLATILE_SCORE_BONUS || '30'); // Extra floor in VOLATILE regime
 const MAX_FUNDING_ANNUALIZED = 100;  // % — hard veto for extremely crowded longs
+const MIN_ADX_TRENDING = Number(process.env.OPPORTUNITY_MIN_ADX_TRENDING || '25'); // ADX floor for TRENDING regime
+
+// Conviction tier thresholds — A-tier gets posted to Discord, B-tier logged only
+const A_TIER_MIN_SCORE = Number(process.env.OPPORTUNITY_A_TIER_MIN_SCORE || '260');
+const A_TIER_MIN_STREAK = Number(process.env.OPPORTUNITY_A_TIER_MIN_STREAK || '6');
+const A_TIER_MIN_ADX = Number(process.env.OPPORTUNITY_A_TIER_MIN_ADX || '28');
 
 const EXCLUDE_SYMBOLS = new Set([
   'USDCUSDT', 'BUSDUSDT', 'TUSDUSDT', 'USDTUSDT', 'DAIUSDT',
@@ -176,6 +183,9 @@ export interface OpportunityResult {
   funding: { rate: number; annualized: number; favorable: boolean };
   hyperliquid: { funding: number; openInterest: number; dayVolume: number } | null;
   risks: string[];
+  convictionTier: 'A' | 'B';
+  thesis?: string[];
+  chartImageBase64?: string;
 }
 
 export interface OpportunityScanResult {
@@ -1082,6 +1092,7 @@ async function analyzeAsset(
       },
       hyperliquid: hlData,
       risks: [...risks, ...lateEntryRisks],
+      convictionTier: 'B' as const, // Default B; upgraded to A in post-analysis
       _symbol: symbol,
       _finalScore: finalScore,
     };
@@ -1147,7 +1158,9 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
 
   const passedStage1 = stage1.length;
 
-  // Stage 2: quick RSI + volume ratio check (using adaptive RSI bounds)
+  // Stage 2: quick RSI + volume check — loose pre-filter, real filtering is post-analysis
+  // Accept any asset with non-extreme RSI (10-90) and minimal volume activity.
+  // The post-analysis gates (score, streak, ADX, EMA bounce, conviction tier) do the real work.
   const stage2Results = await runConcurrent(
     stage1,
     async (t) => {
@@ -1155,7 +1168,7 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
       if (!klines) return null;
       const rsi = calculateRsi(klines.closes);
       const volR = volumeRatio(klines.vols);
-      if (rsi >= thresholds.rsiLow && rsi <= thresholds.rsiHigh && volR >= 0.6) {
+      if (rsi >= 10 && rsi <= 90 && volR >= 0.4) {
         return { sym: t.symbol, rsi, volR, ticker: t };
       }
       return null;
@@ -1240,37 +1253,59 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
   const gateDrops = {
     btc: 0,
     regime: 0,
+    adx: 0,
     score: 0,
     streak: 0,
     volume: 0,
     ema: 0,
   };
 
+  // BTC 4H trend strength: only veto when BTC has a strong 4H trend (EMA spread > 0.5%)
+  let btcTrendStrength4h = 0;
+  if (btcKlines4h && btcKlines4h.closes.length >= 50) {
+    const c4h = btcKlines4h.closes;
+    const btcEma20 = calculateEma(c4h, 20);
+    const btcEma50 = calculateEma(c4h, 50);
+    btcTrendStrength4h = Math.abs(btcEma20 - btcEma50) / btcEma50 * 100;
+  }
+  const BTC_GATE_ENABLED = btcTrendStrength4h >= 1.0; // Only veto on strong BTC trend (>1% EMA spread)
+
   const qualified = deepResults.filter((opp) => {
-    // 1. BTC correlation gate — altcoins almost never sustainably rally against BTC trend
-    if (btcTrend4h === 'DOWN' && opp.direction === 'LONG') { gateDrops.btc++; return false; }
-    if (btcTrend4h === 'UP' && opp.direction === 'SHORT') { gateDrops.btc++; return false; }
+    // 1. BTC correlation gate — only when BTC has strong directional 4H trend
+    if (BTC_GATE_ENABLED && btcTrend4h === 'DOWN' && opp.direction === 'LONG') { gateDrops.btc++; return false; }
+    if (BTC_GATE_ENABLED && btcTrend4h === 'UP' && opp.direction === 'SHORT') { gateDrops.btc++; return false; }
     // 2. Regime gate — no signals in RANGING markets (ADX < 20, no trend to trade)
     if (BLOCK_RANGING_REGIME && opp.regime === 'RANGING') { gateDrops.regime++; return false; }
-    // 3. Minimum absolute score floor (raised by 30 in VOLATILE regimes)
+    // 3. ADX floor — TRENDING regime must have meaningful directional strength
+    if (opp.regime === 'TRENDING' && opp.technicals.adx4h < MIN_ADX_TRENDING) { gateDrops.adx++; return false; }
+    // 4. Minimum absolute score floor (raised by 30 in VOLATILE regimes)
     const scoreFloor = opp.regime === 'VOLATILE' ? MIN_SCORE + VOLATILE_SCORE_BONUS : MIN_SCORE;
     if (opp._finalScore < scoreFloor) { gateDrops.score++; return false; }
-    // 4. Scan streak — must appear in N consecutive scans to filter one-scan flukes
+    // 5. Scan streak — must appear in N consecutive scans to filter one-scan flukes
     if (opp.scanStreak < MIN_SCAN_STREAK) { gateDrops.streak++; return false; }
-    // 5. Volume must be at or above average — below-average volume signals lack follow-through
+    // 6. Volume must be at or above average — below-average volume signals lack follow-through
     if (opp.technicals.volRatio1h < MIN_VOL_RATIO) { gateDrops.volume++; return false; }
-    // 6. EMA bounce system gate (1H/2H/4H EMA200 + 1D EMA50 confluence)
+    // 7. EMA bounce system gate (1H/2H/4H EMA200 + 1D EMA50 confluence)
     if (REQUIRE_EMA_BOUNCE && !opp.technicals.emaBounce.isValid) { gateDrops.ema++; return false; }
     return true;
   });
 
-  if (DEBUG_OPPORTUNITY_GATES) {
+  // ── Assign conviction tiers ────────────────────────────────────────────────
+  for (const opp of qualified) {
+    const isATier = opp.swingGrade
+      || (opp._finalScore >= A_TIER_MIN_SCORE && opp.scanStreak >= A_TIER_MIN_STREAK && opp.technicals.adx4h >= A_TIER_MIN_ADX);
+    (opp as any).convictionTier = isATier ? 'A' : 'B';
+  }
+
+  if (isDebugGates()) {
+    console.log('[opportunity-scan] BTC 4H:', btcTrend4h, 'strength:', btcTrendStrength4h.toFixed(3) + '%', 'gate:', BTC_GATE_ENABLED ? 'ON' : 'OFF');
     console.log('[opportunity-scan] gate drops', gateDrops, 'deepResults', deepResults.length, 'qualified', qualified.length);
     for (const opp of deepResults) {
       const scoreFloor = opp.regime === 'VOLATILE' ? MIN_SCORE + VOLATILE_SCORE_BONUS : MIN_SCORE;
       const reason =
-        (btcTrend4h === 'DOWN' && opp.direction === 'LONG') || (btcTrend4h === 'UP' && opp.direction === 'SHORT') ? 'btc' :
+        (BTC_GATE_ENABLED && ((btcTrend4h === 'DOWN' && opp.direction === 'LONG') || (btcTrend4h === 'UP' && opp.direction === 'SHORT'))) ? 'btc' :
         (BLOCK_RANGING_REGIME && opp.regime === 'RANGING') ? 'regime' :
+        (opp.regime === 'TRENDING' && opp.technicals.adx4h < MIN_ADX_TRENDING) ? 'adx' :
         opp._finalScore < scoreFloor ? 'score' :
         opp.scanStreak < MIN_SCAN_STREAK ? 'streak' :
         opp.technicals.volRatio1h < MIN_VOL_RATIO ? 'volume' :
@@ -1286,12 +1321,16 @@ export async function runOpportunityScan(): Promise<OpportunityScanResult> {
         opp.regime,
         'streak',
         opp.scanStreak,
+        'adx',
+        opp.technicals.adx4h,
         'vol',
         opp.technicals.volRatio1h,
         'ema',
         `${opp.technicals.emaBounce.confluence}/${opp.technicals.emaBounce.required}`,
         '->',
-        reason
+        reason,
+        'tier',
+        (opp as any).convictionTier ?? '-',
       );
     }
   }
