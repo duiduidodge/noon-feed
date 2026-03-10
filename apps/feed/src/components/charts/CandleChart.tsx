@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
@@ -13,6 +13,8 @@ import type { CandleMsg } from "@/hooks/useChartStream";
 import type { Timeframe } from "./TimeframeSelector";
 import type { Coin } from "./CoinSelector";
 import { calcSMA, calcEMA, calcRSI, type OHLCPoint, type IndicatorConfig } from "@/lib/indicators";
+import { calcSwingHighsLows, calcFairValueGaps, calcOrderBlocks, calcBreakOfStructure } from "@/lib/smc";
+import { ZonePrimitive, LevelPrimitive, type ZoneConfig, type LevelConfig } from "@/lib/chart-primitives";
 
 type Props = {
   coin: Coin;
@@ -20,6 +22,7 @@ type Props = {
   latestCandle: CandleMsg | null;
   indicators: IndicatorConfig[];
   showRSI: boolean;
+  showSMC: boolean;
 };
 
 const BULL_COLOR = "#22c55e";
@@ -46,7 +49,7 @@ function calcIndicatorPoints(config: IndicatorConfig, data: OHLCPoint[]) {
   return config.type === "sma" ? calcSMA(data, config.period) : calcEMA(data, config.period);
 }
 
-function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI }: Props) {
+function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showSMC }: Props) {
   const containerRef    = useRef<HTMLDivElement>(null);
   const rsiContainerRef = useRef<HTMLDivElement>(null);
 
@@ -64,6 +67,10 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI }: Pro
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const indicatorSeriesRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
 
+  // SMC primitives
+  const zonePrimitiveRef  = useRef<ZonePrimitive | null>(null);
+  const levelPrimitiveRef = useRef<LevelPrimitive | null>(null);
+
   // Keep latest candle data accessible to effects without re-running the main effect
   const candleDataRef = useRef<OHLCPoint[]>([]);
 
@@ -71,10 +78,84 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI }: Pro
   const currentIndicatorsRef = useRef(indicators);
   currentIndicatorsRef.current = indicators;
 
+  const currentShowSMCRef = useRef(showSMC);
+  currentShowSMCRef.current = showSMC;
+
   const syncingRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
 
   const [status, setStatus] = useState("mounting…");
+
+  // ── SMC computation helper ────────────────────────────────────────────────
+  const computeSMC = useCallback((data: OHLCPoint[]) => {
+    if (!currentShowSMCRef.current) {
+      zonePrimitiveRef.current?.setZones([]);
+      levelPrimitiveRef.current?.setLevels([]);
+      seriesRef.current?.setMarkers([]);
+      return;
+    }
+    if (data.length < 20) return;
+
+    const swings = calcSwingHighsLows(data, 5);
+    const fvgs = calcFairValueGaps(data);
+    const obs = calcOrderBlocks(data, swings);
+    const bos = calcBreakOfStructure(data, swings);
+
+    // Zones: FVGs + unmitigated Order Blocks
+    const zones: ZoneConfig[] = [];
+
+    for (const fvg of fvgs) {
+      zones.push({
+        startTime: fvg.startTime,
+        endTime: fvg.endTime,
+        top: fvg.top,
+        bottom: fvg.bottom,
+        fillColor: fvg.direction === 1 ? "rgba(0,200,83,0.08)" : "rgba(229,57,53,0.08)",
+        borderColor: fvg.direction === 1 ? "rgba(0,200,83,0.25)" : "rgba(229,57,53,0.25)",
+      });
+    }
+
+    for (const ob of obs) {
+      if (ob.mitigated) continue;
+      zones.push({
+        startTime: ob.startTime,
+        endTime: 0, // extend to right edge
+        top: ob.top,
+        bottom: ob.bottom,
+        fillColor: ob.direction === 1 ? "rgba(0,188,212,0.10)" : "rgba(171,71,188,0.10)",
+        borderColor: ob.direction === 1 ? "rgba(0,188,212,0.35)" : "rgba(171,71,188,0.35)",
+        label: ob.direction === 1 ? "OB+" : "OB-",
+        labelColor: ob.direction === 1 ? "rgba(0,188,212,0.7)" : "rgba(171,71,188,0.7)",
+      });
+    }
+
+    zonePrimitiveRef.current?.setZones(zones);
+
+    // Levels: BOS / CHoCH
+    const levels: LevelConfig[] = bos.map((b) => ({
+      time: b.time,
+      level: b.level,
+      color: b.type === "BOS" ? "#00e5ff" : "#ffd740",
+      label: `${b.type} ${b.direction === 1 ? "▲" : "▼"}`,
+    }));
+
+    levelPrimitiveRef.current?.setLevels(levels);
+
+    // Markers: swing highs/lows
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const markers: any[] = swings.map((sw) => ({
+      time: sw.time,
+      position: sw.direction === 1 ? "aboveBar" : "belowBar",
+      color: sw.direction === 1 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.5)",
+      shape: sw.direction === 1 ? "arrowDown" : "arrowUp",
+      text: "",
+      size: 0.5,
+    }));
+
+    // Sort markers by time (required by lightweight-charts)
+    markers.sort((a, b) => a.time - b.time);
+    seriesRef.current?.setMarkers(markers);
+  }, []);
 
   // ── Main chart + RSI init (reruns on coin/timeframe change only) ────────
   useEffect(() => {
@@ -119,6 +200,14 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI }: Pro
         borderUpColor: BULL_COLOR, borderDownColor: BEAR_COLOR,
         wickUpColor: BULL_COLOR, wickDownColor: BEAR_COLOR,
       });
+
+      // SMC primitives — attach to candlestick series
+      const zonePrimitive = new ZonePrimitive();
+      const levelPrimitive = new LevelPrimitive();
+      series.attachPrimitive(zonePrimitive);
+      series.attachPrimitive(levelPrimitive);
+      zonePrimitiveRef.current = zonePrimitive;
+      levelPrimitiveRef.current = levelPrimitive;
 
       // Volume histogram
       const volSeries = chart.addHistogramSeries({
@@ -253,6 +342,9 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI }: Pro
             indicatorSeriesRef.current.set(config.id, s);
           }
 
+          // Compute SMC overlays
+          computeSMC(data);
+
           chartRef.current?.timeScale().fitContent();
           setStatus("");
         })
@@ -268,6 +360,8 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI }: Pro
         volSeriesRef.current = null;
         rsiSeriesRef.current = null;
         indicatorSeriesRef.current.clear();
+        zonePrimitiveRef.current  = null;
+        levelPrimitiveRef.current = null;
         candleDataRef.current = [];
         cleanupRef.current    = null;
       };
@@ -332,6 +426,11 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI }: Pro
       });
     } catch { /* not ready */ }
   }, [latestCandle]);
+
+  // ── SMC toggle ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    computeSMC(candleDataRef.current);
+  }, [showSMC, computeSMC]);
 
   // ── RSI chart height when toggled ───────────────────────────────────────
   useEffect(() => {

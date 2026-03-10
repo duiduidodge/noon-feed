@@ -9,14 +9,16 @@ export const EMA_PALETTE = ["#f97316", "#06b6d4", "#84cc16", "#fb7185", "#7c3aed
 type Props = {
   indicators: IndicatorConfig[];
   showRSI: boolean;
+  showSMC: boolean;
   onAdd: (type: "sma" | "ema") => void;
   onRemove: (id: string) => void;
   onPeriodChange: (id: string, period: number) => void;
   onToggleRSI: () => void;
+  onToggleSMC: () => void;
 };
 
 export function IndicatorSelector({
-  indicators, showRSI, onAdd, onRemove, onPeriodChange, onToggleRSI,
+  indicators, showRSI, showSMC, onAdd, onRemove, onPeriodChange, onToggleRSI, onToggleSMC,
 }: Props) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -36,7 +38,7 @@ export function IndicatorSelector({
 
   const smas = indicators.filter((i) => i.type === "sma");
   const emas = indicators.filter((i) => i.type === "ema");
-  const count = indicators.length + (showRSI ? 1 : 0);
+  const count = indicators.length + (showRSI ? 1 : 0) + (showSMC ? 1 : 0);
 
   return (
     <div className="relative">
@@ -108,6 +110,27 @@ export function IndicatorSelector({
               }}
             >
               {showRSI ? "on" : "off"}
+            </button>
+          </div>
+
+          <div className="my-2.5 border-t border-border/15" />
+
+          {/* SMC */}
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-mono text-foreground/50">SMC</span>
+              <span className="ml-1.5 text-[9px] font-mono text-foreground/25">FVG · OB · BOS</span>
+            </div>
+            <button
+              onClick={onToggleSMC}
+              className="text-[9px] font-mono px-2.5 py-0.5 rounded-full border transition-all duration-150"
+              style={{
+                borderColor: showSMC ? "#00e5ff" : "rgba(255,255,255,0.08)",
+                color:       showSMC ? "#00e5ff" : "rgba(255,255,255,0.25)",
+                background:  showSMC ? "rgba(0,229,255,0.1)" : "transparent",
+              }}
+            >
+              {showSMC ? "on" : "off"}
             </button>
           </div>
         </div>

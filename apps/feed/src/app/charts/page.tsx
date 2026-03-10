@@ -81,6 +81,7 @@ export default function ChartsPage() {
     { id: uid(), type: "ema", period: 21, color: EMA_PALETTE[0] },
   ]);
   const [showRSI, setShowRSI] = useState(false);
+  const [showSMC, setShowSMC] = useState(true);
 
   const addIndicator = useCallback((type: "sma" | "ema") => {
     setIndicators((prev) => {
@@ -162,10 +163,12 @@ export default function ChartsPage() {
         <IndicatorSelector
           indicators={indicators}
           showRSI={showRSI}
+          showSMC={showSMC}
           onAdd={addIndicator}
           onRemove={removeIndicator}
           onPeriodChange={updatePeriod}
           onToggleRSI={() => setShowRSI((v) => !v)}
+          onToggleSMC={() => setShowSMC((v) => !v)}
         />
 
         {/* Divider */}
@@ -195,6 +198,7 @@ export default function ChartsPage() {
               latestCandle={latestCandle}
               indicators={indicators}
               showRSI={showRSI}
+              showSMC={showSMC}
             />
           </div>
           <TradesPanel trades={trades} />
