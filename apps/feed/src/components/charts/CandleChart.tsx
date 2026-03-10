@@ -12,7 +12,7 @@ import {
 import type { CandleMsg } from "@/hooks/useChartStream";
 import type { Timeframe } from "./TimeframeSelector";
 import type { Coin } from "./CoinSelector";
-import { calcSMA, calcEMA, calcRSI, type OHLCPoint, type IndicatorConfig } from "@/lib/indicators";
+import { calcSMA, calcEMA, calcRSI, calcVWAP, type OHLCPoint, type IndicatorConfig } from "@/lib/indicators";
 import { calcSwingHighsLows, calcFairValueGaps, calcOrderBlocks, calcBreakOfStructure } from "@/lib/smc";
 import { ZonePrimitive, LevelPrimitive, type ZoneConfig, type LevelConfig } from "@/lib/chart-primitives";
 
@@ -30,6 +30,14 @@ const BEAR_COLOR = "#ef4444";
 const BULL_VOL   = "rgba(34,197,94,0.35)";
 const BEAR_VOL   = "rgba(239,68,68,0.35)";
 
+// Swing length per timeframe — higher for lower TFs to avoid noise
+const SWING_LENGTH: Record<string, number> = {
+  "1m": 10, "5m": 8, "15m": 6, "1h": 5, "4h": 5, "1d": 4,
+};
+
+// Throttle interval for SMC recompute on live data (ms)
+const SMC_REFRESH_INTERVAL = 5000;
+
 const CHART_THEME = {
   layout: {
     background: { type: ColorType.Solid, color: "#0d1410" },
@@ -46,7 +54,10 @@ const CHART_THEME = {
 };
 
 function calcIndicatorPoints(config: IndicatorConfig, data: OHLCPoint[]) {
-  return config.type === "sma" ? calcSMA(data, config.period) : calcEMA(data, config.period);
+  if (config.type === "sma") return calcSMA(data, config.period);
+  if (config.type === "ema") return calcEMA(data, config.period);
+  if (config.type === "vwap") return calcVWAP(data, config.period);
+  return calcSMA(data, config.period);
 }
 
 function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showSMC }: Props) {
@@ -81,10 +92,34 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
   const currentShowSMCRef = useRef(showSMC);
   currentShowSMCRef.current = showSMC;
 
+  const currentTimeframeRef = useRef(timeframe);
+  currentTimeframeRef.current = timeframe;
+
+  const smcThrottleRef = useRef(0);
+
   const syncingRef = useRef(false);
   const cleanupRef = useRef<(() => void) | null>(null);
 
   const [status, setStatus] = useState("mounting…");
+
+  // ── Refresh all computed overlays (indicators + SMC) from candleDataRef ──
+  const refreshOverlays = useCallback(() => {
+    const data = candleDataRef.current;
+    if (data.length === 0) return;
+
+    // Update indicator series
+    for (const config of currentIndicatorsRef.current) {
+      const s = indicatorSeriesRef.current.get(config.id);
+      if (s) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        s.setData(calcIndicatorPoints(config, data) as any);
+      }
+    }
+
+    // Update RSI
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rsiSeriesRef.current?.setData(calcRSI(data, 14) as any);
+  }, []);
 
   // ── SMC computation helper ────────────────────────────────────────────────
   const computeSMC = useCallback((data: OHLCPoint[]) => {
@@ -94,9 +129,10 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
       seriesRef.current?.setMarkers([]);
       return;
     }
-    if (data.length < 20) return;
+    if (data.length < 30) return;
 
-    const swings = calcSwingHighsLows(data, 5);
+    const swLen = SWING_LENGTH[currentTimeframeRef.current] ?? 5;
+    const swings = calcSwingHighsLows(data, swLen);
     const fvgs = calcFairValueGaps(data);
     const obs = calcOrderBlocks(data, swings);
     const bos = calcBreakOfStructure(data, swings);
@@ -104,14 +140,17 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
     // Zones: FVGs + unmitigated Order Blocks
     const zones: ZoneConfig[] = [];
 
+    // Only show recent FVGs (last 60% of data) to avoid clutter
+    const fvgCutoff = data.length > 50 ? data[Math.floor(data.length * 0.3)].time : 0;
     for (const fvg of fvgs) {
+      if (fvg.startTime < fvgCutoff) continue;
       zones.push({
         startTime: fvg.startTime,
         endTime: fvg.endTime,
         top: fvg.top,
         bottom: fvg.bottom,
-        fillColor: fvg.direction === 1 ? "rgba(0,200,83,0.08)" : "rgba(229,57,53,0.08)",
-        borderColor: fvg.direction === 1 ? "rgba(0,200,83,0.25)" : "rgba(229,57,53,0.25)",
+        fillColor: fvg.direction === 1 ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+        borderColor: fvg.direction === 1 ? "rgba(34,197,94,0.40)" : "rgba(239,68,68,0.40)",
       });
     }
 
@@ -122,10 +161,10 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
         endTime: 0, // extend to right edge
         top: ob.top,
         bottom: ob.bottom,
-        fillColor: ob.direction === 1 ? "rgba(0,188,212,0.10)" : "rgba(171,71,188,0.10)",
-        borderColor: ob.direction === 1 ? "rgba(0,188,212,0.35)" : "rgba(171,71,188,0.35)",
+        fillColor: ob.direction === 1 ? "rgba(0,188,212,0.14)" : "rgba(171,71,188,0.14)",
+        borderColor: ob.direction === 1 ? "rgba(0,188,212,0.50)" : "rgba(171,71,188,0.50)",
         label: ob.direction === 1 ? "OB+" : "OB-",
-        labelColor: ob.direction === 1 ? "rgba(0,188,212,0.7)" : "rgba(171,71,188,0.7)",
+        labelColor: ob.direction === 1 ? "rgba(0,188,212,0.85)" : "rgba(171,71,188,0.85)",
       });
     }
 
@@ -141,15 +180,15 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
 
     levelPrimitiveRef.current?.setLevels(levels);
 
-    // Markers: swing highs/lows
+    // Markers: swing highs/lows — small circle markers
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const markers: any[] = swings.map((sw) => ({
       time: sw.time,
       position: sw.direction === 1 ? "aboveBar" : "belowBar",
-      color: sw.direction === 1 ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.5)",
-      shape: sw.direction === 1 ? "arrowDown" : "arrowUp",
-      text: "",
-      size: 0.5,
+      color: sw.direction === 1 ? "#ffffff99" : "#ffffff99",
+      shape: "circle",
+      text: sw.direction === 1 ? "H" : "L",
+      size: 0.3,
     }));
 
     // Sort markers by time (required by lightweight-charts)
@@ -424,7 +463,30 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
         time: latestCandle.time, value: latestCandle.volume,
         color: latestCandle.close >= latestCandle.open ? BULL_VOL : BEAR_VOL,
       });
+
+      // Update candleDataRef with latest candle data
+      const data = candleDataRef.current;
+      if (data.length > 0) {
+        const last = data[data.length - 1];
+        if (last.time === latestCandle.time) {
+          // Update existing candle in-place
+          data[data.length - 1] = latestCandle;
+        } else if (latestCandle.time > last.time) {
+          // New candle — append and trim
+          data.push(latestCandle);
+          if (data.length > 350) data.splice(0, data.length - 300);
+        }
+      }
+
+      // Throttled refresh of overlays (indicators + SMC)
+      const now = Date.now();
+      if (now - smcThrottleRef.current > SMC_REFRESH_INTERVAL) {
+        smcThrottleRef.current = now;
+        refreshOverlays();
+        computeSMC(data);
+      }
     } catch { /* not ready */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestCandle]);
 
   // ── SMC toggle ────────────────────────────────────────────────────────────

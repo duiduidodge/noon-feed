@@ -5,12 +5,13 @@ import type { IndicatorConfig } from "@/lib/indicators";
 
 export const SMA_PALETTE = ["#f59e0b", "#8b5cf6", "#3b82f6", "#ec4899", "#10b981", "#f43f5e"];
 export const EMA_PALETTE = ["#f97316", "#06b6d4", "#84cc16", "#fb7185", "#7c3aed", "#0ea5e9"];
+export const VWAP_PALETTE = ["#e879f9", "#22d3ee", "#a3e635"];
 
 type Props = {
   indicators: IndicatorConfig[];
   showRSI: boolean;
   showSMC: boolean;
-  onAdd: (type: "sma" | "ema") => void;
+  onAdd: (type: "sma" | "ema" | "vwap") => void;
   onRemove: (id: string) => void;
   onPeriodChange: (id: string, period: number) => void;
   onToggleRSI: () => void;
@@ -38,6 +39,7 @@ export function IndicatorSelector({
 
   const smas = indicators.filter((i) => i.type === "sma");
   const emas = indicators.filter((i) => i.type === "ema");
+  const vwaps = indicators.filter((i) => i.type === "vwap");
   const count = indicators.length + (showRSI ? 1 : 0) + (showSMC ? 1 : 0);
 
   return (
@@ -88,6 +90,18 @@ export function IndicatorSelector({
             items={emas}
             typeLabel="EMA"
             onAdd={() => onAdd("ema")}
+            onRemove={onRemove}
+            onPeriodChange={onPeriodChange}
+          />
+
+          <div className="my-2.5 border-t border-border/15" />
+
+          {/* VWAP section */}
+          <IndicatorSection
+            label="VWAP"
+            items={vwaps}
+            typeLabel="VWAP"
+            onAdd={() => onAdd("vwap")}
             onRemove={onRemove}
             onPeriodChange={onPeriodChange}
           />

@@ -1,6 +1,6 @@
 export type IndicatorConfig = {
   id: string;
-  type: "sma" | "ema";
+  type: "sma" | "ema" | "vwap";
   period: number;
   color: string;
 };
@@ -72,6 +72,29 @@ export function calcRSI(data: OHLCPoint[], period: number): LinePoint[] {
     avgLoss = (avgLoss * (period - 1) + loss) / period;
     const rsi = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
     out.push({ time: data[i].time, value: rsi });
+  }
+  return out;
+}
+
+/**
+ * VWAP — Volume-Weighted Average Price
+ * Resets each trading session. For crypto (24/7), uses a rolling anchor
+ * based on the period parameter as number of bars to look back.
+ */
+export function calcVWAP(data: OHLCPoint[], period: number): LinePoint[] {
+  const out: LinePoint[] = [];
+  for (let i = 0; i < data.length; i++) {
+    const start = Math.max(0, i - period + 1);
+    let cumTP = 0;
+    let cumVol = 0;
+    for (let j = start; j <= i; j++) {
+      const tp = (data[j].high + data[j].low + data[j].close) / 3;
+      cumTP += tp * data[j].volume;
+      cumVol += data[j].volume;
+    }
+    if (cumVol > 0) {
+      out.push({ time: data[i].time, value: cumTP / cumVol });
+    }
   }
   return out;
 }

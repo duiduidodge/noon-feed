@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { CoinSelector, type Coin } from "@/components/charts/CoinSelector";
 import { TimeframeSelector, type Timeframe } from "@/components/charts/TimeframeSelector";
-import { IndicatorSelector, SMA_PALETTE, EMA_PALETTE } from "@/components/charts/IndicatorSelector";
+import { IndicatorSelector, SMA_PALETTE, EMA_PALETTE, VWAP_PALETTE } from "@/components/charts/IndicatorSelector";
 import { TradesPanel } from "@/components/charts/TradesPanel";
 import { OrderBookPanel } from "@/components/charts/OrderBookPanel";
 import { FundingPanel } from "@/components/charts/FundingPanel";
@@ -83,14 +83,16 @@ export default function ChartsPage() {
   const [showRSI, setShowRSI] = useState(false);
   const [showSMC, setShowSMC] = useState(true);
 
-  const addIndicator = useCallback((type: "sma" | "ema") => {
+  const addIndicator = useCallback((type: "sma" | "ema" | "vwap") => {
     setIndicators((prev) => {
-      const palette = type === "sma" ? SMA_PALETTE : EMA_PALETTE;
+      const palette = type === "sma" ? SMA_PALETTE : type === "ema" ? EMA_PALETTE : VWAP_PALETTE;
       const existing = prev.filter((i) => i.type === type);
       const color = pickColor(palette, existing);
       const defaultPeriod = type === "sma"
         ? ([20, 50, 200].find((p) => !existing.some((i) => i.period === p)) ?? 20)
-        : ([9, 21, 55].find((p) => !existing.some((i) => i.period === p)) ?? 9);
+        : type === "ema"
+        ? ([9, 21, 55].find((p) => !existing.some((i) => i.period === p)) ?? 9)
+        : ([50, 100, 200].find((p) => !existing.some((i) => i.period === p)) ?? 50);
       return [...prev, { id: uid(), type, period: defaultPeriod, color }];
     });
   }, []);
