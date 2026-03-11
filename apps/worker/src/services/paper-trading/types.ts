@@ -35,6 +35,8 @@ export interface PaperTradingConfig {
   maxHoldHours: number;
   /** ADX minimum to consider market trending (regime filter) */
   minAdxTrending: number;
+  /** Minimum confluence score to take a trade (default 45) */
+  minEntryScore: number;
   /** Cooldown hours after SL hit before re-entering same asset */
   reEntryCooldownHours: number;
 }
@@ -54,7 +56,8 @@ export const DEFAULT_CONFIG: PaperTradingConfig = {
   initialEquity: 10000,
   cycleIntervalSeconds: 300,
   maxHoldHours: 72,
-  minAdxTrending: 20,
+  minAdxTrending: 18,
+  minEntryScore: 45,
   reEntryCooldownHours: 8,
 };
 

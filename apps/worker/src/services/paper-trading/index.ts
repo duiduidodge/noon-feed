@@ -40,6 +40,7 @@ function loadConfig(): PaperTradingConfig {
     cycleIntervalSeconds:  Number(process.env.PAPER_TRADING_INTERVAL_SECONDS        ?? DEFAULTS.cycleIntervalSeconds),
     maxHoldHours:          Number(process.env.PAPER_TRADING_MAX_HOLD_HOURS          ?? DEFAULTS.maxHoldHours),
     minAdxTrending:        Number(process.env.PAPER_TRADING_MIN_ADX                 ?? DEFAULTS.minAdxTrending),
+    minEntryScore:         Number(process.env.PAPER_TRADING_MIN_ENTRY_SCORE         ?? DEFAULTS.minEntryScore),
     reEntryCooldownHours:  Number(process.env.PAPER_TRADING_REENTRY_COOLDOWN_HOURS  ?? DEFAULTS.reEntryCooldownHours),
   };
 }

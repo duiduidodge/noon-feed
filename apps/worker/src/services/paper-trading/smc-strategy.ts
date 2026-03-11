@@ -270,7 +270,7 @@ export function evaluateEntrySignal(
   }
 
   // ── Entry threshold: need primary + at least 2 confirmations ────────────
-  if (score < 55) return null;
+  if (score < config.minEntryScore) return null;
 
   // ── Determine entry type and optimal price ──────────────────────────────
   // If price is inside a zone, use market entry.
