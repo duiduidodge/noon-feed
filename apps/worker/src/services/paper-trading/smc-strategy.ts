@@ -270,6 +270,7 @@ export function evaluateEntrySignal(
   }
 
   // ── Entry threshold: need primary + at least 2 confirmations ────────────
+  console.log(`[paper-trading] ${smc4h.asset} score=${score} (BOS:${lastBreak.type} FVG:${confluence.fvgRetest} OB:${confluence.obRetest} Swing:${confluence.swingAlignment} MTF:${confluence.mtfAgreement}) adx=${calculateADX(ohlc4h).toFixed(1)} dir:${direction} bosAge:${smc4h.candleCount - lastBreak.index}`);
   if (score < config.minEntryScore) return null;
 
   // ── Determine entry type and optimal price ──────────────────────────────
@@ -302,10 +303,10 @@ export function evaluateEntrySignal(
   // ── Calculate SL ────────────────────────────────────────────────────────
   const effectiveEntry = entryType === 'limit' ? limitPrice : price;
   const slPrice = calculateStopLoss(smc4h, direction, effectiveEntry, config);
-  if (slPrice === null) return null;
+  if (slPrice === null) { console.log(`[paper-trading] ${smc4h.asset} REJECTED: no SL level`); return null; }
 
   const slPct = Math.abs(effectiveEntry - slPrice) / effectiveEntry * 100;
-  if (slPct < config.minSlPct || slPct > config.maxSlPct) return null;
+  if (slPct < config.minSlPct || slPct > config.maxSlPct) { console.log(`[paper-trading] ${smc4h.asset} REJECTED: SL% ${slPct.toFixed(2)} out of bounds [${config.minSlPct},${config.maxSlPct}]`); return null; }
 
   // ── Calculate TP ────────────────────────────────────────────────────────
   const { tp1, tp2 } = calculateTakeProfit(smc4h, direction, effectiveEntry, slPrice, config);
@@ -314,7 +315,7 @@ export function evaluateEntrySignal(
   const slDist = Math.abs(effectiveEntry - slPrice);
   const rrRatio = tp1Dist / slDist;
 
-  if (rrRatio < config.minRR) return null;
+  if (rrRatio < config.minRR) { console.log(`[paper-trading] ${smc4h.asset} REJECTED: RR ${rrRatio.toFixed(2)} < ${config.minRR} (entry:${effectiveEntry.toFixed(2)} SL:${slPrice.toFixed(2)} TP1:${tp1.toFixed(2)})`); return null; }
 
   return {
     asset: smc4h.asset,
