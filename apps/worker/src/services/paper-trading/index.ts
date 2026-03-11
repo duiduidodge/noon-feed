@@ -8,7 +8,7 @@
 
 import type { PaperTradingConfig, PaperTradingState } from './types.js';
 import { DEFAULT_CONFIG as DEFAULTS } from './types.js';
-import { analyzeSmcSetup, evaluateEntrySignal } from './smc-strategy.js';
+import { analyzeSmcSetup, evaluateEntrySignal, calculateADX } from './smc-strategy.js';
 import { tryOpenPosition, monitorPositions, checkPendingOrders } from './position-manager.js';
 import { checkHaltCooldown } from './risk-manager.js';
 import { loadState, saveState } from './trade-state.js';
@@ -220,12 +220,14 @@ export async function runPaperTradingCycle(): Promise<void> {
 
     if (!signal) {
       // Debug: log why no signal (helps tune parameters)
-      const { structureBreaks, euphoriaCapitulation: ec } = smc1h;
+      const { structureBreaks } = smc1h;
       const lastBreak = structureBreaks[structureBreaks.length - 1];
+      const adx1h = calculateADX(ohlc1h).toFixed(1);
+      const bosAge = lastBreak ? `BOS@idx${lastBreak.index}/${smc1h.candleCount}(${lastBreak.type})` : 'noBOS';
       const reasons: string[] = [];
       if (structureBreaks.length === 0) reasons.push('no BOS/CHoCH');
-      else if (lastBreak && lastBreak.index < smc1h.candleCount - 20) reasons.push(`BOS too old (idx ${lastBreak.index}/${smc1h.candleCount})`);
-      log(`${asset}: no signal — ${reasons.length ? reasons.join(', ') : 'score/RR/ADX/EC filter'}`);
+      else if (lastBreak && lastBreak.index < smc1h.candleCount - 20) reasons.push(`BOS too old (${bosAge})`);
+      log(`${asset}: no signal — ADX:${adx1h} ${bosAge} ${reasons.length ? reasons.join(', ') : 'score/RR/EC filter'}`);
       continue;
     }
 
