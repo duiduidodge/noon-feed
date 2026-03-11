@@ -1,0 +1,221 @@
+/**
+ * Paper Trading System — Type Definitions
+ */
+
+// ── Configuration ────────────────────────────────────────────────────────────
+
+export interface PaperTradingConfig {
+  /** Assets to trade */
+  assets: string[];
+  /** % of equity to risk per trade (e.g., 1 = 1%) */
+  riskPerTradePct: number;
+  /** Minimum R:R ratio to accept a trade */
+  minRR: number;
+  /** Max concurrent open positions */
+  maxConcurrent: number;
+  /** Max portfolio risk (sum of all position risks) as % */
+  maxPortfolioRiskPct: number;
+  /** Daily loss limit as % of equity */
+  dailyLossLimitPct: number;
+  /** Drawdown circuit breaker as % from peak equity */
+  maxDrawdownPct: number;
+  /** Max leverage */
+  maxLeverage: number;
+  /** Min SL distance as % */
+  minSlPct: number;
+  /** Max SL distance as % */
+  maxSlPct: number;
+  /** Slippage buffer for simulated fills as % */
+  slippagePct: number;
+  /** Starting paper equity in USD */
+  initialEquity: number;
+  /** Cycle interval in seconds */
+  cycleIntervalSeconds: number;
+  /** Max hours a position can stay open before forced exit */
+  maxHoldHours: number;
+  /** ADX minimum to consider market trending (regime filter) */
+  minAdxTrending: number;
+  /** Cooldown hours after SL hit before re-entering same asset */
+  reEntryCooldownHours: number;
+}
+
+export const DEFAULT_CONFIG: PaperTradingConfig = {
+  assets: ['BTC', 'ETH', 'SOL'],
+  riskPerTradePct: 1,
+  minRR: 2.0,
+  maxConcurrent: 3,
+  maxPortfolioRiskPct: 3,
+  dailyLossLimitPct: 3,
+  maxDrawdownPct: 10,
+  maxLeverage: 10,
+  minSlPct: 0.3,
+  maxSlPct: 3.0,
+  slippagePct: 0.05,
+  initialEquity: 10000,
+  cycleIntervalSeconds: 300,
+  maxHoldHours: 72,
+  minAdxTrending: 20,
+  reEntryCooldownHours: 8,
+};
+
+// ── SMC Analysis ─────────────────────────────────────────────────────────────
+
+export interface SmcAnalysis {
+  asset: string;
+  timeframe: string;
+  swings: {
+    indices: number[];
+    directions: number[];
+    levels: number[];
+  };
+  fvgs: {
+    index: number;
+    direction: 1 | -1;
+    top: number;
+    bottom: number;
+    mitigatedIndex: number;
+  }[];
+  orderBlocks: {
+    index: number;
+    direction: 1 | -1;
+    top: number;
+    bottom: number;
+    mitigated: boolean;
+  }[];
+  structureBreaks: {
+    index: number;
+    type: 'BOS' | 'CHoCH';
+    direction: 1 | -1;
+    level: number;
+  }[];
+  euphoriaCapitulation: {
+    index: number;
+    type: 1 | -1;
+    price: number;
+    zScore: number;
+  }[];
+  currentPrice: number;
+  candleCount: number;
+}
+
+// ── Entry Signals ────────────────────────────────────────────────────────────
+
+export type TradeDirection = 'LONG' | 'SHORT';
+
+export interface SmcEntrySignal {
+  asset: string;
+  direction: TradeDirection;
+  entryPrice: number;
+  /** Optimal limit entry at zone edge (may differ from market price) */
+  limitPrice: number;
+  slPrice: number;
+  tp1Price: number;
+  tp2Price: number;
+  slPct: number;
+  rrRatio: number;
+  score: number;
+  /** 'market' = immediate entry, 'limit' = place limit order at zone edge */
+  entryType: 'market' | 'limit';
+  /** Which SMC factors contributed */
+  confluence: {
+    bos: boolean;
+    choch: boolean;
+    fvgRetest: boolean;
+    obRetest: boolean;
+    swingAlignment: boolean;
+    fvgStacking: boolean;
+    mtfAgreement: boolean;
+  };
+  /** Raw SMC context for logging */
+  smcContext: Record<string, unknown>;
+}
+
+// ── Positions & Trades ───────────────────────────────────────────────────────
+
+export type PositionStatus = 'OPEN' | 'PARTIAL' | 'CLOSED' | 'CANCELLED';
+
+export type ExitReason =
+  | 'SL_HIT'
+  | 'TP1_HIT'
+  | 'TP2_HIT'
+  | 'STRUCTURE_INVALIDATED'
+  | 'TIME_EXIT'
+  | 'DRAWDOWN_BREAKER'
+  | 'EC_FORCE_CLOSE'
+  | 'MANUAL';
+
+export interface PaperPosition {
+  id: string;
+  asset: string;
+  direction: TradeDirection;
+  entryPrice: number;
+  currentPrice: number;
+  slPrice: number;
+  tp1Price: number;
+  tp2Price: number;
+  /** Original full size in USD */
+  sizeUsd: number;
+  /** Remaining size (after partial close) */
+  remainingSizeUsd: number;
+  leverage: number;
+  riskPct: number;
+  rrRatio: number;
+  /** Unrealised P&L in USD */
+  unrealisedPnl: number;
+  status: PositionStatus;
+  /** Whether TP1 was hit (partial close done) */
+  tp1Hit: boolean;
+  /** Whether SL has been moved to breakeven after TP1 */
+  slMovedToBreakeven: boolean;
+  openedAt: string; // ISO timestamp
+  closedAt?: string;
+  exitReason?: ExitReason;
+  realisedPnl?: number;
+  smcContext: Record<string, unknown>;
+}
+
+// ── Account State ────────────────────────────────────────────────────────────
+
+export interface PaperAccountState {
+  equity: number;
+  peakEquity: number;
+  drawdownPct: number;
+  totalTrades: number;
+  winCount: number;
+  lossCount: number;
+  totalPnlUsd: number;
+  dailyPnlUsd: number;
+  dailyPnlDate: string; // YYYY-MM-DD
+  isHalted: boolean;
+  haltedAt?: string;
+  haltReason?: string;
+}
+
+export interface PendingLimitOrder {
+  id: string;
+  asset: string;
+  direction: TradeDirection;
+  limitPrice: number;
+  slPrice: number;
+  tp1Price: number;
+  tp2Price: number;
+  sizeUsd: number;
+  leverage: number;
+  riskPct: number;
+  rrRatio: number;
+  score: number;
+  createdAt: string;
+  /** Auto-cancel after this many hours */
+  expiresAfterHours: number;
+  smcContext: Record<string, unknown>;
+}
+
+export interface PaperTradingState {
+  account: PaperAccountState;
+  openPositions: PaperPosition[];
+  pendingOrders: PendingLimitOrder[];
+  recentTrades: PaperPosition[]; // last 100 closed trades
+  /** Tracks last SL time per asset for re-entry cooldown */
+  lastSlByAsset: Record<string, string>; // asset → ISO timestamp
+  lastCycleAt?: string;
+}

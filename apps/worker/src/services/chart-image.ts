@@ -10,6 +10,7 @@ import {
   fairValueGaps,
   orderBlocks,
   breakOfStructure,
+  euphoriaCapitulation,
 } from './smart-money-concepts.js';
 
 interface KlineData {
@@ -74,6 +75,8 @@ const COLORS = {
   swingLow: '#ffffff88',
   bos: '#00e5ff',
   choch: '#ffd740',
+  euphoria: '#ff6d00',
+  capitulation: '#00e676',
 };
 
 function calculateEma(closes: number[], period: number): number[] {
@@ -254,6 +257,36 @@ export async function renderChartImage(options: ChartOptions): Promise<Buffer> {
     ctx.fill();
   }
 
+  // Euphoria & Capitulation markers — triangles at volume exhaustion extremes
+  const ecSignals = euphoriaCapitulation(smcOhlc);
+  for (const sig of ecSignals) {
+    if (sig.index >= n) continue;
+    const cx = candleX(sig.index) + candleW / 2;
+    const isEuphoria = sig.type === 1;
+    const color = isEuphoria ? COLORS.euphoria : COLORS.capitulation;
+    const baseY = priceToY(sig.price);
+    const tipY = isEuphoria ? baseY - 14 : baseY + 14;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    if (isEuphoria) {
+      // Down-pointing triangle above the bar
+      ctx.moveTo(cx, tipY);
+      ctx.lineTo(cx - 5, baseY - 4);
+      ctx.lineTo(cx + 5, baseY - 4);
+    } else {
+      // Up-pointing triangle below the bar
+      ctx.moveTo(cx, tipY);
+      ctx.lineTo(cx - 5, baseY + 4);
+      ctx.lineTo(cx + 5, baseY + 4);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Label
+    ctx.fillStyle = color;
+    ctx.font = 'bold 8px monospace';
+    ctx.fillText(isEuphoria ? 'E' : 'C', cx + 6, isEuphoria ? tipY + 4 : tipY);
+  }
+
   // Pivot lines
   const drawHLine = (price: number, color: string, label: string) => {
     if (price < yMin || price > yMax) return;
@@ -369,6 +402,12 @@ export async function renderChartImage(options: ChartOptions): Promise<Buffer> {
   legendX += 30;
   ctx.fillStyle = COLORS.choch;
   ctx.fillText('CHoCH', legendX, HEIGHT - 10);
+  legendX += 45;
+  ctx.fillStyle = COLORS.euphoria;
+  ctx.fillText('E', legendX, HEIGHT - 10);
+  legendX += 12;
+  ctx.fillStyle = COLORS.capitulation;
+  ctx.fillText('C', legendX, HEIGHT - 10);
 
   return Buffer.from(canvas.toBuffer('image/png'));
 }

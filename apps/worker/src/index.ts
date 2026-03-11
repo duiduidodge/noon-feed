@@ -21,6 +21,7 @@ import {
 } from './services/discord-signals-poster.js';
 import { processWatchlist } from './services/watchlist-manager.js';
 import { enrichSignalWithThesis } from './services/signal-enrichment.js';
+import { runPaperTradingCycle, isPaperTradingEnabled, getPaperTradingIntervalMs } from './services/paper-trading/index.js';
 import { processFetchRSSJob, type FetchRSSJobData } from './jobs/fetch-rss.js';
 import { processFetchAPINewsJob, type FetchAPINewsJobData } from './jobs/fetch-api-news.js';
 import { processFetchArticleJob, type FetchArticleJobData } from './jobs/fetch-article.js';
@@ -914,7 +915,13 @@ async function main() {
   let lastEmergingSignalsPoll = 0;
   let lastOpportunitySignalsPoll = 0;
   let lastWhaleSignalsPoll = 0;
+  let lastPaperTradingPoll = 0;
   const sentWhaleNotificationKeys = new Set<string>(); // tracks 'YYYY-MM-DD-morning/evening' slots
+  const paperTradingEnabled = isPaperTradingEnabled();
+  const paperTradingIntervalMs = paperTradingEnabled ? getPaperTradingIntervalMs() : 0;
+  if (paperTradingEnabled) {
+    logger.info({ intervalMs: paperTradingIntervalMs }, 'Paper trading enabled');
+  }
   logger.info({ intervalMinutes: config.worker.fetchIntervalMinutes }, 'Worker started, entering main loop');
 
   while (true) {
@@ -1107,6 +1114,17 @@ async function main() {
       await checkSummarySchedule();
     } catch (error) {
       logger.error({ error: (error as Error).message }, 'Failed during summary scheduling check');
+    }
+
+    // Paper trading cycle
+    if (paperTradingEnabled && Date.now() - lastPaperTradingPoll >= paperTradingIntervalMs) {
+      try {
+        await runPaperTradingCycle();
+        lastPaperTradingPoll = Date.now();
+      } catch (error) {
+        logger.error({ error: (error as Error).message }, 'Paper trading cycle failed');
+        lastPaperTradingPoll = Date.now();
+      }
     }
 
     // Wait before next iteration

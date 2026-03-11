@@ -58,6 +58,14 @@ export interface StructureBreak {
   level: number;
 }
 
+export interface EuphoriaCapitulation {
+  index: number;
+  /** 1 = euphoria (potential top), -1 = capitulation (potential bottom) */
+  type: 1 | -1;
+  price: number;
+  zScore: number;
+}
+
 // ---------------------------------------------------------------------------
 // 1. Swing Highs & Lows
 // ---------------------------------------------------------------------------
@@ -368,4 +376,57 @@ export function breakOfStructure(
   }
 
   return breaks;
+}
+
+// ---------------------------------------------------------------------------
+// 5. Euphoria & Capitulation
+// ---------------------------------------------------------------------------
+
+export function euphoriaCapitulation(
+  ohlc: OhlcArrays,
+  lookback = 30,
+  zThresh = 2.0,
+  lowWindow = 20,
+  highWindow = 20,
+): EuphoriaCapitulation[] {
+  const { highs, lows, vols } = ohlc;
+  const len = highs.length;
+  if (len < lookback + 1) return [];
+
+  const signals: EuphoriaCapitulation[] = [];
+
+  for (let i = lookback; i < len; i++) {
+    let sum = 0;
+    for (let j = i - lookback; j < i; j++) sum += vols[j];
+    const mean = sum / lookback;
+
+    let sqSum = 0;
+    for (let j = i - lookback; j < i; j++) sqSum += (vols[j] - mean) ** 2;
+    const std = Math.sqrt(sqSum / lookback);
+
+    if (std === 0) continue;
+    const zScore = (vols[i] - mean) / std;
+    if (zScore <= zThresh) continue;
+
+    const lowStart = Math.max(0, i - lowWindow + 1);
+    let lowestLow = Infinity;
+    for (let j = lowStart; j <= i; j++) {
+      if (lows[j] < lowestLow) lowestLow = lows[j];
+    }
+
+    const highStart = Math.max(0, i - highWindow + 1);
+    let highestHigh = -Infinity;
+    for (let j = highStart; j <= i; j++) {
+      if (highs[j] > highestHigh) highestHigh = highs[j];
+    }
+
+    if (lows[i] <= lowestLow) {
+      signals.push({ index: i, type: -1, price: lows[i], zScore });
+    }
+    if (highs[i] >= highestHigh) {
+      signals.push({ index: i, type: 1, price: highs[i], zScore });
+    }
+  }
+
+  return signals;
 }

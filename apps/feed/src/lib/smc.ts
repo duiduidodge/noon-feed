@@ -5,6 +5,13 @@
 
 import type { OHLCPoint } from "./indicators";
 
+// ── Euphoria & Capitulation defaults ──────────────────────────────────────────
+
+const EC_LOOKBACK = 30;     // z-score rolling window
+const EC_Z_THRESH = 2.0;    // volume z-score threshold
+const EC_LOW_WINDOW = 20;   // bars to check lowest low
+const EC_HIGH_WINDOW = 20;  // bars to check highest high
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface SwingPoint {
@@ -42,6 +49,15 @@ export interface StructureBreak {
   type: "BOS" | "CHoCH";
   direction: 1 | -1;
   level: number;
+  time: number;
+}
+
+export interface EuphoriaCapitulation {
+  index: number;
+  /** 1 = euphoria (potential top), -1 = capitulation (potential bottom) */
+  type: 1 | -1;
+  price: number;
+  zScore: number;
   time: number;
 }
 
@@ -259,4 +275,72 @@ export function calcBreakOfStructure(data: OHLCPoint[], swings: SwingPoint[]): S
   }
 
   return breaks;
+}
+
+// ── Euphoria & Capitulation ─────────────────────────────────────────────────
+
+export function calcEuphoriaCapitulation(
+  data: OHLCPoint[],
+  lookback = EC_LOOKBACK,
+  zThresh = EC_Z_THRESH,
+  lowWindow = EC_LOW_WINDOW,
+  highWindow = EC_HIGH_WINDOW,
+): EuphoriaCapitulation[] {
+  const len = data.length;
+  if (len < lookback + 1) return [];
+
+  const signals: EuphoriaCapitulation[] = [];
+
+  for (let i = lookback; i < len; i++) {
+    // Volume z-score: (vol - mean) / stddev over lookback period
+    let sum = 0;
+    for (let j = i - lookback; j < i; j++) sum += data[j].volume;
+    const mean = sum / lookback;
+
+    let sqSum = 0;
+    for (let j = i - lookback; j < i; j++) sqSum += (data[j].volume - mean) ** 2;
+    const std = Math.sqrt(sqSum / lookback);
+
+    if (std === 0) continue;
+    const zScore = (data[i].volume - mean) / std;
+    if (zScore <= zThresh) continue;
+
+    // Check lowest low in the window
+    const lowStart = Math.max(0, i - lowWindow + 1);
+    let lowestLow = Infinity;
+    for (let j = lowStart; j <= i; j++) {
+      if (data[j].low < lowestLow) lowestLow = data[j].low;
+    }
+
+    // Check highest high in the window
+    const highStart = Math.max(0, i - highWindow + 1);
+    let highestHigh = -Infinity;
+    for (let j = highStart; j <= i; j++) {
+      if (data[j].high > highestHigh) highestHigh = data[j].high;
+    }
+
+    // Capitulation: high volume + at/below recent lowest low
+    if (data[i].low <= lowestLow) {
+      signals.push({
+        index: i,
+        type: -1,
+        price: data[i].low,
+        zScore,
+        time: data[i].time,
+      });
+    }
+
+    // Euphoria: high volume + at/above recent highest high
+    if (data[i].high >= highestHigh) {
+      signals.push({
+        index: i,
+        type: 1,
+        price: data[i].high,
+        zScore,
+        time: data[i].time,
+      });
+    }
+  }
+
+  return signals;
 }

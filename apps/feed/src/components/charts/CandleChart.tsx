@@ -13,7 +13,7 @@ import type { CandleMsg } from "@/hooks/useChartStream";
 import type { Timeframe } from "./TimeframeSelector";
 import type { Coin } from "./CoinSelector";
 import { calcSMA, calcEMA, calcRSI, calcVWAP, type OHLCPoint, type IndicatorConfig } from "@/lib/indicators";
-import { calcSwingHighsLows, calcFairValueGaps, calcOrderBlocks, calcBreakOfStructure } from "@/lib/smc";
+import { calcSwingHighsLows, calcFairValueGaps, calcOrderBlocks, calcBreakOfStructure, calcEuphoriaCapitulation } from "@/lib/smc";
 import { ZonePrimitive, LevelPrimitive, type ZoneConfig, type LevelConfig } from "@/lib/chart-primitives";
 
 type Props = {
@@ -180,7 +180,7 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
 
     levelPrimitiveRef.current?.setLevels(levels);
 
-    // Markers: swing highs/lows — small circle markers
+    // Markers: swing highs/lows + euphoria/capitulation
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const markers: any[] = swings.map((sw) => ({
       time: sw.time,
@@ -190,6 +190,19 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
       text: sw.direction === 1 ? "H" : "L",
       size: 0.3,
     }));
+
+    // Euphoria & Capitulation markers
+    const ec = calcEuphoriaCapitulation(data);
+    for (const sig of ec) {
+      markers.push({
+        time: sig.time,
+        position: sig.type === 1 ? "aboveBar" : "belowBar",
+        color: sig.type === 1 ? "#ff6d00" : "#00e676",
+        shape: sig.type === 1 ? "arrowDown" : "arrowUp",
+        text: sig.type === 1 ? "E" : "C",
+        size: 1,
+      });
+    }
 
     // Sort markers by time (required by lightweight-charts)
     markers.sort((a, b) => a.time - b.time);
