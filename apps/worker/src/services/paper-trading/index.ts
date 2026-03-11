@@ -224,7 +224,7 @@ export async function runPaperTradingCycle(): Promise<void> {
       const lastBreak = structureBreaks[structureBreaks.length - 1];
       const reasons: string[] = [];
       if (structureBreaks.length === 0) reasons.push('no BOS/CHoCH');
-      else if (lastBreak && lastBreak.index < smc1h.candleCount - 10) reasons.push(`BOS too old (idx ${lastBreak.index}/${smc1h.candleCount})`);
+      else if (lastBreak && lastBreak.index < smc1h.candleCount - 20) reasons.push(`BOS too old (idx ${lastBreak.index}/${smc1h.candleCount})`);
       log(`${asset}: no signal — ${reasons.length ? reasons.join(', ') : 'score/RR/ADX/EC filter'}`);
       continue;
     }
