@@ -56,7 +56,7 @@ export const DEFAULT_CONFIG: PaperTradingConfig = {
   initialEquity: 10000,
   cycleIntervalSeconds: 300,
   maxHoldHours: 72,
-  minAdxTrending: 18,
+  minAdxTrending: 15,
   minEntryScore: 45,
   reEntryCooldownHours: 8,
 };
