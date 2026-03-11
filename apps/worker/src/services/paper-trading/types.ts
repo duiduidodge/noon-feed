@@ -51,7 +51,7 @@ export const DEFAULT_CONFIG: PaperTradingConfig = {
   maxDrawdownPct: 10,
   maxLeverage: 10,
   minSlPct: 0.3,
-  maxSlPct: 3.0,
+  maxSlPct: 8.0,
   slippagePct: 0.05,
   initialEquity: 10000,
   cycleIntervalSeconds: 300,
