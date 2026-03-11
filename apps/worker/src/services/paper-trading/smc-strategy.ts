@@ -151,8 +151,8 @@ export function evaluateEntrySignal(
 
   // Get most recent BOS/CHoCH
   const lastBreak = structureBreaks[structureBreaks.length - 1];
-  // Only consider recent breaks (within last 20 candles — ~20h on 1H, ~3.3 days on 4H)
-  if (lastBreak.index < smc4h.candleCount - 20) return null;
+  // Only consider recent breaks (within last 30 candles — ~30h on 1H, ~5 days on 4H)
+  if (lastBreak.index < smc4h.candleCount - 30) return null;
 
   const direction: TradeDirection = lastBreak.direction === 1 ? 'LONG' : 'SHORT';
 

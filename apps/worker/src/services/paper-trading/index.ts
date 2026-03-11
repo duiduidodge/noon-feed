@@ -150,7 +150,7 @@ export async function runPaperTradingCycle(): Promise<void> {
       ]);
 
       if (k1h) {
-        const smc = analyzeSmcSetup(k1h, asset, '1h', 8);
+        const smc = analyzeSmcSetup(k1h, asset, '1h', 5);
         smcBy1h.set(asset, smc);
         ohlcBy1h.set(asset, k1h);
         currentPrices.set(asset, smc.currentPrice);
@@ -227,7 +227,7 @@ export async function runPaperTradingCycle(): Promise<void> {
       const bosAge = lastBreak ? `BOS@idx${lastBreak.index}/${smc1h.candleCount}(${lastBreak.type})` : 'noBOS';
       const reasons: string[] = [];
       if (structureBreaks.length === 0) reasons.push('no BOS/CHoCH');
-      else if (lastBreak && lastBreak.index < smc1h.candleCount - 20) reasons.push(`BOS too old (${bosAge})`);
+      else if (lastBreak && lastBreak.index < smc1h.candleCount - 30) reasons.push(`BOS too old (${bosAge})`);
       log(`${asset}: no signal — ADX:${adx1h} ${bosAge} ${reasons.length ? reasons.join(', ') : 'score/RR/EC filter'}`);
       continue;
     }
