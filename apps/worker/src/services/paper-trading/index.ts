@@ -20,6 +20,7 @@ import {
   sendTradeWebhook,
 } from './discord-trade-poster.js';
 import type { OhlcArrays } from '../smart-money-concepts.js';
+import { startDashboardServer, appendLog } from './dashboard-server.js';
 
 // ── Config from env ──────────────────────────────────────────────────────────
 
@@ -99,10 +100,16 @@ function get4hBias(ohlc4h: OhlcArrays): 1 | -1 | 0 {
 let _state: PaperTradingState | null = null;
 let _config: PaperTradingConfig | null = null;
 let _wasHaltedNotified = false;
+let _dashboardStarted = false;
 /** Track last closed 1H candle per asset to avoid re-evaluating same candle */
 const _lastCandleClose = new Map<string, number>();
 
 export async function runPaperTradingCycle(): Promise<void> {
+  if (!_dashboardStarted) {
+    _dashboardStarted = true;
+    startDashboardServer();
+  }
+
   if (!_config) _config = loadConfig();
   if (!_state) {
     _state = await loadState(_config.initialEquity);
@@ -113,7 +120,10 @@ export async function runPaperTradingCycle(): Promise<void> {
   const config = _config;
   const state = _state;
   const webhookUrl = process.env.DISCORD_PAPER_TRADE_WEBHOOK ?? process.env.DISCORD_SIGNAL_WEBHOOK_URL;
-  const log = (msg: string) => console.log(`[paper-trading] ${msg}`);
+  const log = (msg: string) => {
+    console.log(`[paper-trading] ${msg}`);
+    appendLog(msg);
+  };
 
   // Check halt cooldown
   if (state.account.isHalted) {
