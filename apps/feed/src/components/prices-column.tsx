@@ -1,13 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { clsx } from 'clsx';
-import { Flame, ChevronDown, ChevronUp } from 'lucide-react';
+import { Flame, TrendingUp, TrendingDown, Zap } from 'lucide-react';
 import Image from 'next/image';
 import { formatPrice, formatCompactNumber } from '@/lib/utils';
-import { VolumeSurgeWidget, GainersLosersWidget } from './alpha-widget';
-import { CompactTokenRow } from './compact-token-row';
+import { fetchAlpha, type AlphaData, type AlphaItem } from './alpha-widget';
 
 interface CoinPrice {
   id: string;
@@ -58,9 +56,9 @@ async function fetchMarketOverview(): Promise<MarketOverviewResponse> {
 
 // ─── Compact semicircle gauge ───
 function MoodGauge({ value, label }: { value: number; label: string }) {
-  const radius = 52;
-  const cx = 64;
-  const cy = 58;
+  const radius = 38;
+  const cx = 52;
+  const cy = 42;
 
   const needleAngle = (180 - (value / 100) * 180) * (Math.PI / 180);
   const needleX = cx + (radius - 6) * Math.cos(needleAngle);
@@ -77,13 +75,13 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
 
   return (
     <div
-      className="flex flex-col items-center gap-2 pt-2"
+      className="flex flex-col items-center gap-0.5 pt-0.5"
       role="img"
       aria-label={`Fear and Greed Index: ${value}, ${label}`}
     >
       <svg
-        viewBox="0 0 128 72"
-        className="w-full max-w-[130px] overflow-visible"
+        viewBox="0 0 104 52"
+        className="w-full max-w-[102px] overflow-visible"
         aria-hidden="true"
       >
         <defs>
@@ -101,7 +99,7 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
           d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
           fill="none"
           stroke="url(#moodGradient)"
-          strokeWidth="6"
+          strokeWidth="5"
           strokeLinecap="round"
           opacity="0.2"
           strokeDasharray="2 6"
@@ -112,15 +110,15 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
           d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`}
           fill="none"
           stroke="url(#moodGradient)"
-          strokeWidth="6"
+          strokeWidth="5"
           strokeLinecap="round"
           strokeDasharray={`${(value / 100) * Math.PI * radius} ${Math.PI * radius}`}
           className="transition-all duration-1000 ease-out"
         />
 
         {/* Needle reticle */}
-        <circle cx={needleX} cy={needleY} r="6" fill="currentColor" opacity="0.2" className={valueColor} />
-        <circle cx={needleX} cy={needleY} r="3" fill="currentColor" className={valueColor} />
+        <circle cx={needleX} cy={needleY} r="5" fill="currentColor" opacity="0.2" className={valueColor} />
+        <circle cx={needleX} cy={needleY} r="2.5" fill="currentColor" className={valueColor} />
         <line
           x1={cx} y1={cy} x2={needleX} y2={needleY}
           className="text-muted-foreground opacity-30"
@@ -133,13 +131,13 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
           x={cx} y={cy - 10}
           textAnchor="middle"
           className={clsx('font-mono-data font-bold tracking-tighter', valueColor)}
-          style={{ fontSize: '32px', fill: 'currentColor', filter: 'drop-shadow(0px 0px 8px currentColor)' }}
+          style={{ fontSize: '22px', fill: 'currentColor', filter: 'drop-shadow(0px 0px 6px currentColor)' }}
         >
           {value}
         </text>
       </svg>
 
-      <span className={clsx('font-mono-data text-micro font-semibold uppercase tracking-wider -mt-1', valueColor)}>
+      <span className={clsx('font-mono-data text-[9px] font-semibold uppercase tracking-wider -mt-1', valueColor)}>
         {label}
       </span>
     </div>
@@ -147,7 +145,6 @@ function MoodGauge({ value, label }: { value: number; label: string }) {
 }
 
 export function PricesColumn() {
-  const [showExtendedMobile, setShowExtendedMobile] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ['prices'],
     queryFn: fetchPrices,
@@ -156,6 +153,11 @@ export function PricesColumn() {
   const { data: marketOverview } = useQuery({
     queryKey: ['market-overview'],
     queryFn: fetchMarketOverview,
+    refetchInterval: 60_000,
+  });
+  const { data: alphaData } = useQuery<AlphaData>({
+    queryKey: ['alpha'],
+    queryFn: fetchAlpha,
     refetchInterval: 60_000,
   });
 
@@ -169,7 +171,7 @@ export function PricesColumn() {
           <div className="h-16 rounded-lg bg-surface/30" />
           <div className="h-16 rounded-lg bg-surface/30" />
         </div>
-        <div className="space-y-2">
+        <div className="shrink-0 space-y-2">
           <div className="h-10 rounded-lg bg-surface/30" />
           <div className="h-10 rounded-lg bg-surface/30" />
           <div className="h-10 rounded-lg bg-surface/30" />
@@ -198,8 +200,7 @@ export function PricesColumn() {
   );
 
   return (
-    <div className="flex h-full flex-col gap-unit-4">
-      {/* ── Section Header — Market Mood ── */}
+    <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-1">
         <h2 className="font-display text-caption font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-primary/60" aria-hidden="true" />
@@ -215,142 +216,213 @@ export function PricesColumn() {
         )}
       </div>
 
-      {/* ── Mood Gauge Container ── */}
-      <div className="relative flex justify-center py-3 min-h-[120px] rounded-2xl border border-border/40 bg-surface/30 backdrop-blur-md shadow-inner transition-all duration-normal hover:bg-surface/40 hover:border-primary/30 overflow-visible">
-        <div
-          className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/10 to-transparent"
-          aria-hidden="true"
-        />
-        <MoodGauge value={fgValue} label={fgLabel} />
-      </div>
+      <div className="mt-1.5 flex min-h-0 flex-col">
+        <div className="space-y-2">
+          <div className="relative overflow-visible rounded-[20px] border border-border/40 bg-[linear-gradient(180deg,hsl(var(--surface)/0.38),hsl(var(--surface)/0.18))] px-2.5 py-1 shadow-inner transition-all duration-normal hover:bg-surface/40 hover:border-primary/30">
+            <div
+              className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/10 to-transparent"
+              aria-hidden="true"
+            />
+            <div className="mb-1 flex items-center justify-between">
+              <span className="font-mono-data text-[8px] uppercase tracking-[0.18em] text-muted-foreground/48">
+                Sentiment regime
+              </span>
+              <span className="rounded-full border border-border/35 bg-background/35 px-1.5 py-0.5 font-mono-data text-[7px] uppercase tracking-[0.16em] text-muted-foreground/66">
+                Fear & Greed
+              </span>
+            </div>
+            <div className="flex justify-center">
+              <MoodGauge value={fgValue} label={fgLabel} />
+            </div>
+          </div>
 
-      {/* ── Global Metrics ── */}
-      <div className="rounded-xl border border-border/30 bg-surface/20 backdrop-blur-md overflow-hidden">
-        <div className="grid grid-cols-3 divide-x divide-border/25">
-          <MetricCard
-            label="Mcap"
-            value={formatCompactNumber(data.global.totalMcap)}
-            change={data.global.avgChange24h}
-          />
-          <MetricCard label="Volume" value={formatCompactNumber(data.global.totalVolume)} />
-          <MetricCard label="BTC Dom" value={`${data.global.btcDominance.toFixed(1)}%`} />
+          <div className="rounded-xl border border-border/30 bg-surface/20 backdrop-blur-md overflow-hidden">
+            <div className="grid grid-cols-3 divide-x divide-border/25">
+              <MetricCard
+                label="Mcap"
+                value={formatCompactNumber(data.global.totalMcap)}
+                change={data.global.avgChange24h}
+              />
+              <MetricCard label="Volume" value={formatCompactNumber(data.global.totalVolume)} />
+              <MetricCard label="BTC Dom" value={`${data.global.btcDominance.toFixed(1)}%`} />
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div
-        className="h-px bg-gradient-to-r from-transparent via-border/35 to-transparent shrink-0 my-1"
-        aria-hidden="true"
-      />
-
-      {/* ── Majors List ── */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="font-display text-caption font-bold uppercase tracking-widest text-muted-foreground">
-            Majors
-          </h3>
-          <div className="flex items-center gap-1.5">
-            <span
-              className={clsx(
-                NUMERIC_TEXT_CLASS,
-                'rounded-full border border-border/45 bg-card/50 px-2 py-0.5 text-micro uppercase tracking-[0.14em] text-muted-foreground/85 whitespace-nowrap leading-none'
-              )}
-            >
-              24h
-            </span>
-            {asOfLabel && (
+        <div className="mt-1.5 flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="font-display text-caption font-bold uppercase tracking-widest text-muted-foreground">
+              Majors
+            </h3>
+            <div className="flex items-center gap-1">
               <span
                 className={clsx(
                   NUMERIC_TEXT_CLASS,
-                  'rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-micro uppercase tracking-[0.14em] text-primary/90 whitespace-nowrap leading-none'
+                  'rounded-full border border-border/45 bg-card/50 px-1.5 py-0.5 text-micro uppercase tracking-[0.12em] text-muted-foreground/85 whitespace-nowrap leading-none'
                 )}
               >
-                Updated {asOfLabel}
+                24h
               </span>
-            )}
+              {asOfLabel && (
+                <span
+                  className={clsx(
+                    NUMERIC_TEXT_CLASS,
+                    'rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-micro uppercase tracking-[0.12em] text-primary/90 whitespace-nowrap leading-none'
+                  )}
+                >
+                  Updated {asOfLabel}
+                </span>
+              )}
+            </div>
           </div>
-        </div>
-        <div
-          className="rounded-xl border border-border/25 bg-surface/10 overflow-hidden"
-          role="list"
-          aria-label="Major cryptocurrencies"
-        >
-          {data.majors.map((coin) => (
-            <CoinRow key={coin.id} coin={coin} showSparkline />
-          ))}
-        </div>
-      </div>
+          <div
+            className="mt-0.5 shrink-0 rounded-xl border border-border/25 bg-surface/10 overflow-hidden"
+            role="list"
+            aria-label="Major cryptocurrencies"
+          >
+            {data.majors.slice(0, 5).map((coin) => (
+              <CoinRow key={coin.id} coin={coin} showSparkline />
+            ))}
+          </div>
 
-      <button
-        type="button"
-        onClick={() => setShowExtendedMobile((prev) => !prev)}
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-border/55 bg-card/70 px-4 font-mono-data text-caption font-semibold uppercase tracking-[0.18em] text-foreground/85 transition-colors duration-fast hover:border-primary/40 hover:text-primary focus-ring"
-        aria-expanded={showExtendedMobile}
-        aria-controls="extended-signals"
-      >
-        {showExtendedMobile ? (
-          <ChevronUp className="h-3.5 w-3.5" />
-        ) : (
-          <ChevronDown className="h-3.5 w-3.5" />
-        )}
-        {showExtendedMobile ? 'Hide Alpha Signals' : 'Show Alpha Signals'}
-      </button>
-
-      <div id="extended-signals" className={clsx(showExtendedMobile ? 'block' : 'hidden')}>
-        <div
-          className="h-px bg-gradient-to-r from-transparent via-border/35 to-transparent shrink-0 my-2"
-          aria-hidden="true"
-        />
-
-        {/* ── Gainers & Losers ── */}
-        <div>
-          <GainersLosersWidget />
-        </div>
-
-        <div
-          className="h-px bg-gradient-to-r from-transparent via-border/35 to-transparent shrink-0 my-2"
-          aria-hidden="true"
-        />
-
-        {/* ── Trending & Vol Surge ── */}
-        <div className="grid grid-cols-1 gap-3 pb-4 md:grid-cols-2 md:gap-2">
-          {/* Trending */}
-          <div className="flex flex-col gap-2 min-h-0">
-            <div className="flex items-center gap-1 px-1">
-              <div className="p-0.5 rounded bg-orange-500/10 border border-orange-500/20">
-                <Flame
-                  className="h-2.5 w-2.5 text-orange-500 fill-orange-500/20"
-                  style={{ animationDelay: '2s' }}
-                  aria-hidden="true"
+          <div className="flex min-h-0 flex-1 flex-col pt-1.5">
+            <div className="mb-1 flex items-center justify-between px-1">
+              <h3 className="font-display text-caption font-bold uppercase tracking-widest text-muted-foreground">
+                Alpha Signals
+              </h3>
+              <span className="rounded-full border border-border/35 bg-background/35 px-2 py-0.5 font-mono-data text-[8px] uppercase tracking-[0.14em] text-muted-foreground/68">
+                live
+              </span>
+            </div>
+            <div className="flex min-h-0 flex-1 rounded-[18px] border border-border/18 bg-[linear-gradient(180deg,hsl(var(--surface)/0.12),hsl(var(--surface)/0.05))] p-1.5">
+              <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-1.5">
+                <MiniAlphaSection
+                  title="Gainers"
+                  icon={TrendingUp}
+                  accent="text-bullish"
+                  items={alphaData?.gainers.slice(0, 5) ?? []}
+                />
+                <MiniAlphaSection
+                  title="Losers"
+                  icon={TrendingDown}
+                  accent="text-bearish"
+                  items={alphaData?.losers.slice(0, 5) ?? []}
+                />
+                <MiniAlphaSection
+                  title="Trending"
+                  icon={Flame}
+                  accent="text-orange-400"
+                  items={trendingItems.slice(0, 5).map((coin) => ({
+                    id: coin.id,
+                    symbol: coin.symbol,
+                    image: coin.image ?? '',
+                    change24h: coin.changePercent24Hr,
+                    name: coin.name,
+                    price: coin.priceUsd,
+                    volume: coin.marketCapUsd,
+                    marketCap: coin.marketCapUsd,
+                    rank: coin.rank,
+                  }))}
+                />
+                <MiniAlphaSection
+                  title="Vol"
+                  icon={Zap}
+                  accent="text-emerald-400"
+                  items={alphaData?.volumeSurge.slice(0, 5) ?? []}
                 />
               </div>
-              <h3 className="font-display text-caption font-bold uppercase tracking-[0.12em] text-orange-500/90">
-                Trending
-              </h3>
             </div>
-            <div
-              className="space-y-0.5 p-1 rounded-xl bg-surface/12 border border-border/30 backdrop-blur-sm overflow-hidden overflow-x-hidden"
-              role="list"
-              aria-label="Trending cryptocurrencies"
-            >
-              {trendingItems.map((coin) => (
-                <CompactTokenRow
-                  key={coin.id}
-                  symbol={coin.symbol}
-                  image={coin.image}
-                  change={coin.changePercent24Hr}
-                  maxAbsChange={trendingMaxAbsChange}
-                  ariaLabel={`${coin.name} ${formatMovePercent(coin.changePercent24Hr)} ${coin.changePercent24Hr >= 0 ? 'up' : 'down'}`}
-                />
-              ))}
-            </div>
-          </div>
-
-          {/* Vol Surge */}
-          <div className="flex flex-col gap-2 min-h-0">
-            <VolumeSurgeWidget />
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function MiniAlphaSection({
+  title,
+  icon: Icon,
+  accent,
+  items,
+}: {
+  title: string;
+  icon: React.ElementType;
+  accent: string;
+  items: AlphaItem[];
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col rounded-[10px] bg-background/10 px-1.5 py-1.5">
+      <div className="mb-1.5 flex items-center gap-1 px-0.25">
+        <Icon className={clsx('h-2.5 w-2.5', accent)} aria-hidden="true" />
+        <span className={clsx('font-display text-[10px] font-bold uppercase tracking-[0.12em]', accent)}>
+          {title}
+        </span>
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col justify-evenly gap-0.5">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <AlphaBoardRow
+              key={item.id}
+              label={item.symbol}
+              name={item.name}
+              image={item.image}
+              change={item.change24h}
+              positive={item.change24h >= 0}
+            />
+          ))
+        ) : (
+          <div className="px-2 py-2 font-mono-data text-[8px] uppercase tracking-[0.14em] text-muted-foreground/35">
+            No signal
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AlphaBoardRow({
+  label,
+  name,
+  image,
+  change,
+  positive,
+}: {
+  label: string;
+  name: string;
+  image?: string | null;
+  change: number;
+  positive: boolean;
+}) {
+  return (
+    <div
+      className="grid grid-cols-[14px_34px_minmax(0,1fr)_46px] items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-surface/14 transition-colors duration-fast"
+      role="listitem"
+      aria-label={`${name} ${formatMovePercent(change)} ${positive ? 'up' : 'down'}`}
+      title={`${name} (${label})`}
+    >
+      <div className="h-3.5 w-3.5 overflow-hidden rounded-full bg-muted/30">
+        {image ? (
+          <Image src={image} alt="" width={14} height={14} unoptimized className="object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-[7px] font-bold text-muted-foreground">
+            {label.slice(0, 1)}
+          </div>
+        )}
+      </div>
+      <span className="truncate font-mono-data text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/72">
+        {label}
+      </span>
+      <span className="truncate text-[9px] font-medium tracking-tight leading-none text-foreground/92">
+        {name}
+      </span>
+      <span
+        className={clsx(
+          'text-right font-mono-data text-[9px] font-bold tabular-nums',
+          positive ? 'text-bullish' : 'text-bearish'
+        )}
+      >
+        {formatMovePercent(change)}
+      </span>
     </div>
   );
 }
@@ -431,7 +503,7 @@ function CoinRow({
   return (
     <div
       className={clsx(
-        'group relative grid grid-cols-[32px_76px_1fr_auto] items-center gap-2 px-2 py-2.5 cursor-default',
+        'group relative grid grid-cols-[22px_50px_1fr_auto] items-center gap-2 px-2 py-1.5 cursor-default',
         'border-b border-border/15 last:border-0',
         'transition-colors duration-fast',
         isPositive ? 'hover:bg-bullish/[0.04]' : 'hover:bg-bearish/[0.04]'
@@ -462,12 +534,13 @@ function CoinRow({
           <Image
             src={coin.image}
             alt=""
-            width={30}
-            height={30}
-            className="relative h-[30px] w-[30px] rounded-full grayscale-[40%] opacity-75 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-slow"
+            width={20}
+            height={20}
+            unoptimized
+            className="relative h-[20px] w-[20px] rounded-full grayscale-[40%] opacity-75 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-slow"
           />
         ) : (
-          <div className="relative h-[30px] w-[30px] rounded-full bg-surface/50 flex items-center justify-center">
+          <div className="relative h-[20px] w-[20px] rounded-full bg-surface/50 flex items-center justify-center">
             <span className="text-micro font-bold text-muted-foreground">
               {coin.symbol.slice(0, 2)}
             </span>
@@ -477,28 +550,26 @@ function CoinRow({
 
       {/* Symbol + full name */}
       <div className="min-w-0">
-        <div className="font-mono-data text-small font-bold text-foreground tracking-tight leading-none">
+        <div className="font-mono-data text-[10px] font-bold text-foreground tracking-tight leading-none">
           {coin.symbol}
         </div>
-        <div className="text-micro text-muted-foreground/85 mt-1 truncate uppercase tracking-[0.1em]">
+        <div className="mt-0.5 truncate text-[6px] text-muted-foreground/85 uppercase tracking-[0.1em]">
           {coin.name}
         </div>
       </div>
 
-      {/* Gradient sparkline */}
-      <div className="min-w-0 h-7 opacity-80 group-hover:opacity-100 transition-opacity duration-normal">
+      <div className="min-w-0 h-4 opacity-80 group-hover:opacity-100 transition-opacity duration-normal">
         {sparklineSvg}
       </div>
 
-      {/* Price + change stacked in a single right column */}
       <div className="flex flex-col items-end gap-1 shrink-0">
-        <div className={clsx(NUMERIC_TEXT_CLASS, 'text-small font-bold text-foreground leading-none whitespace-nowrap')}>
+        <div className={clsx(NUMERIC_TEXT_CLASS, 'text-[10px] font-bold text-foreground leading-none whitespace-nowrap')}>
           {formatPrice(coin.priceUsd)}
         </div>
         <div
           className={clsx(
-            'inline-flex items-center px-1.5 py-[3px] rounded-full',
-            `${NUMERIC_TEXT_CLASS} text-[10px] font-semibold whitespace-nowrap`,
+            'inline-flex items-center rounded-full px-1.5 py-[2px]',
+            `${NUMERIC_TEXT_CLASS} text-[8px] font-semibold whitespace-nowrap`,
             'border transition-colors duration-fast',
             isPositive
               ? 'text-bullish/95 bg-bullish/10 border-bullish/25 group-hover:bg-bullish/15'
@@ -523,21 +594,11 @@ function MetricCard({ label, value, change }: { label: string; value: string; ch
       <span className="font-mono-data text-[8.5px] text-muted-foreground/50 uppercase tracking-[0.12em] mb-1">
         {label}
       </span>
-      <span
-        className={clsx(
-          NUMERIC_TEXT_CLASS,
-          'text-[13px] font-bold text-foreground leading-none group-hover:text-primary transition-colors duration-fast'
-        )}
-      >
+      <span className={clsx(NUMERIC_TEXT_CLASS, 'text-[12px] font-bold text-foreground leading-none group-hover:text-primary transition-colors duration-fast')}>
         {value}
       </span>
       {change !== undefined && (
-        <span
-          className={clsx(
-            `${NUMERIC_TEXT_CLASS} text-[9px] font-semibold mt-1`,
-            change >= 0 ? 'text-bullish' : 'text-bearish'
-          )}
-        >
+        <span className={clsx(`${NUMERIC_TEXT_CLASS} mt-0.5 text-[8px] font-semibold`, change >= 0 ? 'text-bullish' : 'text-bearish')}>
           {formatMovePercent(change)}
         </span>
       )}
