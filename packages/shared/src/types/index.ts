@@ -190,6 +190,7 @@ export interface AppConfig {
     skipEnrichment: boolean;
     enableSwingTradeNotifications: boolean;
     enableHighImpactPosting: boolean;
+    enableApiNews: boolean;
     enableEmergingMoversSignals: boolean;
     emergingMoversCommand?: string;
     emergingMoversIntervalSeconds: number;

@@ -33,6 +33,7 @@ import type { LLMProviderInterface } from '@crypto-news/shared';
 const logger = createLogger('worker');
 const config = buildConfig();
 const prisma = new PrismaClient();
+const apiNewsEnabled = config.worker.enableApiNews;
 
 // Initialize services
 const rssFetcher = new RSSFetcher({
@@ -45,10 +46,12 @@ const articleFetcher = new ArticleFetcher({
   timeoutMs: config.fetcher.timeoutMs,
 });
 
-const apiNewsFetcher = new APINewsFetcher({
-  userAgent: config.fetcher.userAgent,
-  timeoutMs: config.fetcher.timeoutMs,
-});
+const apiNewsFetcher = apiNewsEnabled
+  ? new APINewsFetcher({
+      userAgent: config.fetcher.userAgent,
+      timeoutMs: config.fetcher.timeoutMs,
+    })
+  : null;
 
 // Get the appropriate API key based on provider
 function getLlmApiKey(): string {
@@ -135,7 +138,9 @@ const redisConnection = buildRedisConnection(config.redis.url);
 
 // Queues
 const rssQueue = new Queue('rss-fetch', { connection: redisConnection });
-const apiNewsQueue = new Queue('api-news-fetch', { connection: redisConnection });
+const apiNewsQueue = apiNewsEnabled
+  ? new Queue('api-news-fetch', { connection: redisConnection })
+  : null;
 const articleQueue = new Queue('article-fetch', { connection: redisConnection });
 const enrichQueue = new Queue('enrich', { connection: redisConnection });
 const discordQueue = new Queue('discord-post', { connection: redisConnection });
@@ -182,16 +187,21 @@ const rssWorker = new Worker<FetchRSSJobData>(
   }
 );
 
-const apiNewsWorker = new Worker<FetchAPINewsJobData>(
-  'api-news-fetch',
-  async (job: Job<FetchAPINewsJobData>) => {
-    return processFetchAPINewsJob(job.data, prisma, apiNewsFetcher);
-  },
-  {
-    connection: redisConnection,
-    concurrency: 1, // Respect rate limit: 1 req/sec
-  }
-);
+const apiNewsWorker = apiNewsEnabled
+  ? new Worker<FetchAPINewsJobData>(
+      'api-news-fetch',
+      async (job: Job<FetchAPINewsJobData>) => {
+        if (!apiNewsFetcher) {
+          throw new Error('API news ingestion is disabled');
+        }
+        return processFetchAPINewsJob(job.data, prisma, apiNewsFetcher);
+      },
+      {
+        connection: redisConnection,
+        concurrency: 1, // Respect rate limit: 1 req/sec
+      }
+    )
+  : null;
 
 const articleWorker = new Worker<FetchArticleJobData>(
   'article-fetch',
@@ -238,7 +248,9 @@ const summaryWorker = new Worker<GenerateSummaryJobData>(
 );
 
 // Error handlers
-[rssWorker, apiNewsWorker, articleWorker, enrichWorker, discordWorker, summaryWorker].forEach((worker) => {
+[rssWorker, apiNewsWorker, articleWorker, enrichWorker, discordWorker, summaryWorker]
+  .filter((worker): worker is Worker => worker !== null)
+  .forEach((worker) => {
   worker.on('completed', (job) => {
     logger.info({ jobId: job.id, queue: worker.name }, 'Job completed');
   });
@@ -246,7 +258,7 @@ const summaryWorker = new Worker<GenerateSummaryJobData>(
   worker.on('failed', (job, error) => {
     logger.error({ jobId: job?.id, queue: worker.name, error: error.message }, 'Job failed');
   });
-});
+  });
 
 // Scheduler: Add RSS fetch jobs periodically
 async function scheduleRSSFetches() {
@@ -284,6 +296,11 @@ async function scheduleRSSFetches() {
 
 // Scheduler: Add API news fetch jobs periodically
 async function scheduleAPINewsFetches() {
+  if (!apiNewsEnabled || !apiNewsQueue) {
+    logger.info('API news ingestion disabled; skipping API news fetch scheduling');
+    return;
+  }
+
   const sources = await prisma.source.findMany({
     where: { enabled: true, type: 'API' },
   });
@@ -306,6 +323,9 @@ async function scheduleAPINewsFetches() {
     } catch (error) {
       if (isQueueUnavailableError(error)) {
         logger.warn({ sourceId: source.id }, 'API queue unavailable; running fetch inline');
+        if (!apiNewsFetcher) {
+          throw new Error('API news ingestion is disabled');
+        }
         await processFetchAPINewsJob(payload, prisma, apiNewsFetcher);
       } else {
         throw error;
@@ -849,6 +869,7 @@ async function main() {
     skipEnrichment: config.worker.skipEnrichment,
     autoPostToDiscord: config.worker.autoPostToDiscord,
     enableSwingTradeNotifications: config.worker.enableSwingTradeNotifications,
+    enableApiNews: apiNewsEnabled,
   }, 'Worker starting...');
 
   // Initial backfill - RSS sources
@@ -880,33 +901,39 @@ async function main() {
     }
   }
 
-  // Initial backfill - API sources
-  logger.info('Running initial API backfill...');
-  const apiSources = await prisma.source.findMany({
-    where: { enabled: true, type: 'API' },
-  });
+  if (apiNewsEnabled && apiNewsQueue) {
+    logger.info('Running initial API backfill...');
+    const apiSources = await prisma.source.findMany({
+      where: { enabled: true, type: 'API' },
+    });
 
-  for (const source of apiSources) {
-    const payload = {
-      sourceId: source.id,
-      sourceName: source.name,
-      apiBaseUrl: source.url,
-      backfillHours: 24, // Last 24 hours on startup
-    };
-    try {
-      await apiNewsQueue.add(
-        `backfill-api-${source.id}`,
-        payload,
-        { removeOnComplete: 100, removeOnFail: 50 }
-      );
-    } catch (error) {
-      if (isQueueUnavailableError(error)) {
-        logger.warn({ sourceId: source.id }, 'API backfill queue unavailable; running inline');
-        await processFetchAPINewsJob(payload, prisma, apiNewsFetcher);
-      } else {
-        throw error;
+    for (const source of apiSources) {
+      const payload = {
+        sourceId: source.id,
+        sourceName: source.name,
+        apiBaseUrl: source.url,
+        backfillHours: 24, // Last 24 hours on startup
+      };
+      try {
+        await apiNewsQueue.add(
+          `backfill-api-${source.id}`,
+          payload,
+          { removeOnComplete: 100, removeOnFail: 50 }
+        );
+      } catch (error) {
+        if (isQueueUnavailableError(error)) {
+          logger.warn({ sourceId: source.id }, 'API backfill queue unavailable; running inline');
+          if (!apiNewsFetcher) {
+            throw new Error('API news ingestion is disabled');
+          }
+          await processFetchAPINewsJob(payload, prisma, apiNewsFetcher);
+        } else {
+          throw error;
+        }
       }
     }
+  } else {
+    logger.info('API news ingestion disabled; skipping initial API backfill');
   }
 
   // Scheduler loop
@@ -936,7 +963,7 @@ async function main() {
       }
     }
 
-    if (Date.now() - lastAPIFetch >= intervalMs) {
+    if (apiNewsEnabled && Date.now() - lastAPIFetch >= intervalMs) {
       try {
         await scheduleAPINewsFetches();
         lastAPIFetch = Date.now();
@@ -1142,14 +1169,18 @@ async function shutdown() {
   logger.info('Shutting down worker...');
 
   await rssWorker.close();
-  await apiNewsWorker.close();
+  if (apiNewsWorker) {
+    await apiNewsWorker.close();
+  }
   await articleWorker.close();
   await enrichWorker.close();
   await discordWorker.close();
   await summaryWorker.close();
 
   await rssQueue.close();
-  await apiNewsQueue.close();
+  if (apiNewsQueue) {
+    await apiNewsQueue.close();
+  }
   await articleQueue.close();
   await enrichQueue.close();
   await discordQueue.close();

@@ -183,6 +183,7 @@ export function buildConfig(): AppConfig {
       enableSwingTradeNotifications:
         getEnvOptional('ENABLE_SWING_TRADE_NOTIFICATIONS', 'false') === 'true',
       enableHighImpactPosting: getEnvOptional('ENABLE_HIGH_IMPACT_POSTING', 'false') === 'true',
+      enableApiNews: getEnvOptional('ENABLE_API_NEWS', 'false') === 'true',
       enableEmergingMoversSignals:
         getEnvOptional('ENABLE_EMERGING_MOVERS_SIGNALS', 'false') === 'true',
       emergingMoversCommand: getEnvOptional('EMERGING_MOVERS_COMMAND'),

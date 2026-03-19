@@ -21,13 +21,17 @@ async function runSourceFetches(config: ReturnType<typeof buildConfig>) {
     timeoutMs: config.fetcher.timeoutMs,
   });
 
-  const apiNewsFetcher = new APINewsFetcher({
-    userAgent: config.fetcher.userAgent,
-    timeoutMs: config.fetcher.timeoutMs,
-  });
+  const apiNewsFetcher = config.worker.enableApiNews
+    ? new APINewsFetcher({
+        userAgent: config.fetcher.userAgent,
+        timeoutMs: config.fetcher.timeoutMs,
+      })
+    : null;
 
   const rssSources = await prisma.source.findMany({ where: { enabled: true, type: 'RSS' } });
-  const apiSources = await prisma.source.findMany({ where: { enabled: true, type: 'API' } });
+  const apiSources = config.worker.enableApiNews
+    ? await prisma.source.findMany({ where: { enabled: true, type: 'API' } })
+    : [];
 
   logger.info({ rssSources: rssSources.length, apiSources: apiSources.length, backfillHours }, 'Running one-shot source fetch');
 
@@ -48,20 +52,22 @@ async function runSourceFetches(config: ReturnType<typeof buildConfig>) {
     }
   }
 
-  for (const source of apiSources) {
-    try {
-      await processFetchAPINewsJob(
-        {
-          sourceId: source.id,
-          sourceName: source.name,
-          apiBaseUrl: source.url,
-          backfillHours,
-        },
-        prisma,
-        apiNewsFetcher
-      );
-    } catch (error) {
-      logger.error({ sourceId: source.id, error: (error as Error).message }, 'API fetch failed in one-shot run');
+  if (apiNewsFetcher) {
+    for (const source of apiSources) {
+      try {
+        await processFetchAPINewsJob(
+          {
+            sourceId: source.id,
+            sourceName: source.name,
+            apiBaseUrl: source.url,
+            backfillHours,
+          },
+          prisma,
+          apiNewsFetcher
+        );
+      } catch (error) {
+        logger.error({ sourceId: source.id, error: (error as Error).message }, 'API fetch failed in one-shot run');
+      }
     }
   }
 }
@@ -152,7 +158,7 @@ async function enrichFetchedArticles() {
           cautions: [],
           mustQuote: [],
           llmProvider: 'external',
-          llmModel: 'cryptocurrency.cv',
+          llmModel: 'heuristic-mapper',
           // removed explicit nulls to satisfy linter
         },
       });
