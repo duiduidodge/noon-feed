@@ -164,6 +164,8 @@ export function buildConfig(): AppConfig {
       fetchIntervalMinutes: getEnvNumber('FETCH_INTERVAL_MINUTES', 15),
       autoPostToDiscord: getEnvOptional('AUTO_POST_TO_DISCORD', 'false') === 'true',
       skipEnrichment: getEnvOptional('SKIP_ENRICHMENT', 'true') === 'true',
+      enableSwingTradeNotifications:
+        getEnvOptional('ENABLE_SWING_TRADE_NOTIFICATIONS', 'false') === 'true',
       enableHighImpactPosting: getEnvOptional('ENABLE_HIGH_IMPACT_POSTING', 'false') === 'true',
       enableEmergingMoversSignals:
         getEnvOptional('ENABLE_EMERGING_MOVERS_SIGNALS', 'false') === 'true',

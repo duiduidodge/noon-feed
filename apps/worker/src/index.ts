@@ -848,6 +848,7 @@ async function main() {
   logger.info({
     skipEnrichment: config.worker.skipEnrichment,
     autoPostToDiscord: config.worker.autoPostToDiscord,
+    enableSwingTradeNotifications: config.worker.enableSwingTradeNotifications,
   }, 'Worker starting...');
 
   // Initial backfill - RSS sources
@@ -989,19 +990,23 @@ async function main() {
             }
           }
 
-          const signalsWebhook = getSignalsWebhookUrl();
-          if (signalsWebhook) {
-            postWatchlistEvents(signalsWebhook, postableEvents).catch((err) =>
-              logger.error({ error: (err as Error).message }, 'Failed to post watchlist events to Discord')
-            );
-          }
+          if (config.worker.enableSwingTradeNotifications) {
+            const signalsWebhook = getSignalsWebhookUrl();
+            if (signalsWebhook) {
+              postWatchlistEvents(signalsWebhook, postableEvents).catch((err) =>
+                logger.error({ error: (err as Error).message }, 'Failed to post watchlist events to Discord')
+              );
+            }
 
-          const tgToken = process.env.TELEGRAM_BOT_TOKEN;
-          const tgChatId = process.env.TELEGRAM_CHAT_ID;
-          if (tgToken && tgChatId) {
-            postWatchlistEventsToTelegram(tgToken, tgChatId, postableEvents).catch((err) =>
-              logger.error({ error: (err as Error).message }, 'Failed to post watchlist events to Telegram')
-            );
+            const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+            const tgChatId = process.env.TELEGRAM_CHAT_ID;
+            if (tgToken && tgChatId) {
+              postWatchlistEventsToTelegram(tgToken, tgChatId, postableEvents).catch((err) =>
+                logger.error({ error: (err as Error).message }, 'Failed to post watchlist events to Telegram')
+              );
+            }
+          } else {
+            logger.info({ count: postableEvents.length }, 'Swing trade notifications paused; skipped watchlist dispatch');
           }
         }
 

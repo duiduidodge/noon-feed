@@ -188,6 +188,7 @@ export interface AppConfig {
     fetchIntervalMinutes: number;
     autoPostToDiscord: boolean;
     skipEnrichment: boolean;
+    enableSwingTradeNotifications: boolean;
     enableHighImpactPosting: boolean;
     enableEmergingMoversSignals: boolean;
     emergingMoversCommand?: string;
