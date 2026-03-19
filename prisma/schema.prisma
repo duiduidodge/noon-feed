@@ -335,6 +335,15 @@ model WhaleTrader {
   @@map("WhaleTrader")
 }
 
+model PaperTradingStore {
+  key       String   @id
+  state     Json
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("PaperTradingStore")
+}
+
 model SignalWatchlist {
   id          String    @id @default(cuid())
   asset       String    @unique

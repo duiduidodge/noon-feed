@@ -6,6 +6,7 @@
  * Monitoring:        1H candle highs/lows for SL/TP fill simulation
  */
 
+import type { PrismaClient } from '@prisma/client';
 import type { PaperTradingConfig, PaperTradingState } from './types.js';
 import { DEFAULT_CONFIG as DEFAULTS } from './types.js';
 import { analyzeSmcSetup, evaluateEntrySignal, calculateADX } from './smc-strategy.js';
@@ -104,15 +105,15 @@ let _dashboardStarted = false;
 /** Track last closed 1H candle per asset to avoid re-evaluating same candle */
 const _lastCandleClose = new Map<string, number>();
 
-export async function runPaperTradingCycle(): Promise<void> {
+export async function runPaperTradingCycle(prisma?: PrismaClient): Promise<void> {
   if (!_dashboardStarted) {
     _dashboardStarted = true;
-    startDashboardServer();
+    startDashboardServer(prisma);
   }
 
   if (!_config) _config = loadConfig();
   if (!_state) {
-    _state = await loadState(_config.initialEquity);
+    _state = await loadState(_config.initialEquity, prisma);
     if (!_state.pendingOrders) _state.pendingOrders = [];
     if (!_state.lastSlByAsset) _state.lastSlByAsset = {};
   }
@@ -202,7 +203,7 @@ export async function runPaperTradingCycle(): Promise<void> {
   if (state.account.isHalted && webhookUrl && !_wasHaltedNotified) {
     await sendTradeWebhook(webhookUrl, buildDrawdownAlertEmbed(state.account));
     _wasHaltedNotified = true;
-    await saveState(state);
+    await saveState(state, prisma);
     return;
   }
 
@@ -280,7 +281,7 @@ export async function runPaperTradingCycle(): Promise<void> {
   );
 
   state.lastCycleAt = new Date().toISOString();
-  await saveState(state);
+  await saveState(state, prisma);
 }
 
 // ── Exports ──────────────────────────────────────────────────────────────────

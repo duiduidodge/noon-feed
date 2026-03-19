@@ -10,6 +10,7 @@
  */
 
 import * as http from 'node:http';
+import type { PrismaClient } from '@prisma/client';
 import type { PaperTradingState } from './types.js';
 import { loadState } from './trade-state.js';
 
@@ -26,10 +27,12 @@ export function appendLog(msg: string): void {
 // ── Server singleton guard ────────────────────────────────────────────────────
 
 let _serverStarted = false;
+let _prisma: PrismaClient | undefined;
 
-export function startDashboardServer(port = 8080): void {
+export function startDashboardServer(prisma?: PrismaClient, port = 8080): void {
   if (_serverStarted) return;
   _serverStarted = true;
+  _prisma = prisma;
 
   try {
     const secret = process.env.DASHBOARD_AUTH_SECRET ?? '';
@@ -75,7 +78,7 @@ export function startDashboardServer(port = 8080): void {
 
 async function handleApiState(res: http.ServerResponse): Promise<void> {
   try {
-    const state: PaperTradingState = await loadState(1000);
+    const state: PaperTradingState = await loadState(1000, _prisma);
     const logs = [..._logBuffer].reverse(); // newest first
     res.writeHead(200, {
       'Content-Type': 'application/json',

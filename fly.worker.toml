@@ -4,6 +4,9 @@ primary_region = "sin"
 [build]
   dockerfile = "Dockerfile.worker"
 
+[deploy]
+  release_command = "npm run db:migrate:prod"
+
 [env]
   NODE_ENV = "production"
   LOG_LEVEL = "info"

@@ -5,9 +5,11 @@
 
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
+import type { PrismaClient } from '@prisma/client';
 import type { PaperTradingState } from './types.js';
 
 const STATE_FILE = join(process.cwd(), 'artifacts', '.paper-trading-state.json');
+const STATE_KEY = 'default';
 
 function defaultState(initialEquity: number): PaperTradingState {
   return {
@@ -30,23 +32,30 @@ function defaultState(initialEquity: number): PaperTradingState {
   };
 }
 
-export async function loadState(initialEquity: number): Promise<PaperTradingState> {
+function normalizeState(state: PaperTradingState, initialEquity: number): PaperTradingState {
+  if (!state.account) return defaultState(initialEquity);
+  if (!state.openPositions) state.openPositions = [];
+  if (!state.pendingOrders) state.pendingOrders = [];
+  if (!state.recentTrades) state.recentTrades = [];
+  if (!state.lastSlByAsset) state.lastSlByAsset = {};
+  return state;
+}
+
+function toJsonState(state: PaperTradingState): Record<string, unknown> {
+  return JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+}
+
+async function readStateFromFile(initialEquity: number): Promise<PaperTradingState> {
   try {
     const raw = await readFile(STATE_FILE, 'utf-8');
     const parsed = JSON.parse(raw) as PaperTradingState;
-    // Ensure all fields exist (forward-compat)
-    if (!parsed.account) return defaultState(initialEquity);
-    if (!parsed.openPositions) parsed.openPositions = [];
-    if (!parsed.pendingOrders) parsed.pendingOrders = [];
-    if (!parsed.recentTrades) parsed.recentTrades = [];
-    if (!parsed.lastSlByAsset) parsed.lastSlByAsset = {};
-    return parsed;
+    return normalizeState(parsed, initialEquity);
   } catch {
     return defaultState(initialEquity);
   }
 }
 
-export async function saveState(state: PaperTradingState): Promise<void> {
+async function writeStateToFile(state: PaperTradingState): Promise<void> {
   // Trim recent trades to last 100
   if (state.recentTrades.length > 100) {
     state.recentTrades = state.recentTrades.slice(-100);
@@ -58,4 +67,71 @@ export async function saveState(state: PaperTradingState): Promise<void> {
   } catch (err) {
     console.error('[paper-trading] Failed to save state:', err);
   }
+}
+
+async function readStateFromDatabase(
+  prisma: PrismaClient,
+  initialEquity: number,
+): Promise<PaperTradingState | null> {
+  try {
+    const store = (prisma as any).paperTradingStore;
+    const row = await store.findUnique({
+      where: { key: STATE_KEY },
+    });
+    if (!row) return null;
+    return normalizeState(row.state as unknown as PaperTradingState, initialEquity);
+  } catch (err) {
+    console.error('[paper-trading] Failed to load state from database:', err);
+    return null;
+  }
+}
+
+async function writeStateToDatabase(
+  prisma: PrismaClient,
+  state: PaperTradingState,
+): Promise<void> {
+  try {
+    const store = (prisma as any).paperTradingStore;
+    await store.upsert({
+      where: { key: STATE_KEY },
+      create: {
+        key: STATE_KEY,
+        state: toJsonState(state),
+      },
+      update: {
+        state: toJsonState(state),
+      },
+    });
+  } catch (err) {
+    console.error('[paper-trading] Failed to save state to database:', err);
+  }
+}
+
+export async function loadState(
+  initialEquity: number,
+  prisma?: PrismaClient,
+): Promise<PaperTradingState> {
+  if (prisma) {
+    const dbState = await readStateFromDatabase(prisma, initialEquity);
+    if (dbState) {
+      await writeStateToFile(dbState);
+      return dbState;
+    }
+  }
+
+  const fileState = await readStateFromFile(initialEquity);
+  if (prisma) {
+    await writeStateToDatabase(prisma, fileState);
+  }
+  return fileState;
+}
+
+export async function saveState(
+  state: PaperTradingState,
+  prisma?: PrismaClient,
+): Promise<void> {
+  if (prisma) {
+    await writeStateToDatabase(prisma, state);
+  }
+  await writeStateToFile(state);
 }

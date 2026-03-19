@@ -1124,7 +1124,7 @@ async function main() {
     // Paper trading cycle
     if (paperTradingEnabled && Date.now() - lastPaperTradingPoll >= paperTradingIntervalMs) {
       try {
-        await runPaperTradingCycle();
+        await runPaperTradingCycle(prisma);
         lastPaperTradingPoll = Date.now();
       } catch (error) {
         logger.error({ error: (error as Error).message }, 'Paper trading cycle failed');
