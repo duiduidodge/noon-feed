@@ -1,125 +1,108 @@
-import { NewsFeed } from '@/components/news-feed';
-import { BiDailySummary } from '@/components/bi-daily-summary';
-import { PricesColumn } from '@/components/prices-column';
-import { PanelShell } from '@/components/panel-shell';
-import { MarketChatterPanel } from '@/components/market-chatter-panel';
-import { SignalPulseStrip } from '@/components/signal-pulse-strip';
-import { TradeSetupsPanel } from '@/components/trade-setups-panel';
-import type { FeedArticle } from '@/components/news-card';
+import { HubCommandCenter } from '@/components/hub-command-center';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-async function getInitialArticles(): Promise<FeedArticle[]> {
-  try {
-    const { prisma } = await import('@/lib/prisma');
-    const articles = await prisma.article.findMany({
+export default async function HubPage() {
+  const now = Date.now();
+  const staleCutoff = new Date(now - 10 * 60 * 1000);
+  const dayCutoff = new Date(now - 24 * 60 * 60 * 1000);
+
+  const [bots, events, articleCount24h, latestOpportunity, latestEmerging, latestWhales] = await Promise.all([
+    prisma.botAgent.findMany({
+      include: {
+        metrics: {
+          orderBy: { observedAt: 'desc' },
+          take: 1,
+        },
+        positions: {
+          where: { status: 'OPEN' },
+          orderBy: { snapshotTime: 'desc' },
+          take: 5,
+        },
+      },
+      orderBy: [{ isEnabled: 'desc' }, { updatedAt: 'desc' }],
+    }),
+    prisma.botEvent.findMany({
+      include: {
+        bot: {
+          select: { slug: true, name: true },
+        },
+      },
+      orderBy: { eventAt: 'desc' },
+      take: 10,
+    }),
+    prisma.article.count({
       where: {
+        publishedAt: { gte: dayCutoff },
         status: { in: ['FETCHED', 'ENRICHED'] },
-        enrichment: {
-          marketImpact: { in: ['MEDIUM', 'HIGH'] },
-        },
       },
-      select: {
-        id: true,
-        titleOriginal: true,
-        url: true,
-        publishedAt: true,
-        extractedText: true,
-        originalSourceName: true,
-        source: { select: { name: true } },
-        enrichment: {
-          select: {
-            sentiment: true,
-            marketImpact: true,
-            tags: true,
-          },
-        },
-      },
-      orderBy: { publishedAt: 'desc' },
-      take: 20,
-    });
+    }),
+    prisma.opportunitySnapshot.findFirst({ orderBy: { scanTime: 'desc' } }),
+    prisma.emergingMoverSnapshot.findFirst({ orderBy: { signalTime: 'desc' } }),
+    prisma.whaleSnapshot.findFirst({ orderBy: { scanTime: 'desc' } }),
+  ]);
 
-    const seenHeadlineKeys = new Set<string>();
-    const dedupedArticles = [];
-    for (const article of articles) {
-      const sourceName = article.originalSourceName || article.source.name;
-      const headlineKey = `${sourceName.toLowerCase()}|${article.titleOriginal
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()}`;
-      if (seenHeadlineKeys.has(headlineKey)) continue;
-      seenHeadlineKeys.add(headlineKey);
-      dedupedArticles.push(article);
-    }
+  const fleet = bots.map((bot) => {
+    const latestMetric = bot.metrics[0] ?? null;
+    const openPositions = bot.positions.length;
 
-    return dedupedArticles.map((article) => ({
-      id: article.id,
-      title: article.titleOriginal,
-      snippet: article.extractedText
-        ? article.extractedText.substring(0, 220).replace(/\s+\S*$/, '') + '...'
-        : '',
-      sourceName: article.originalSourceName || article.source.name,
-      publishedAt: article.publishedAt?.toISOString() || null,
-      url: article.url,
-      sentiment: article.enrichment?.sentiment || 'NEUTRAL',
-      marketImpact: article.enrichment?.marketImpact || 'LOW',
-      tags: (article.enrichment?.tags as string[]) || [],
-    }));
-  } catch (error) {
-    console.error('Failed to fetch initial feed articles:', error);
-    return [];
-  }
-}
+    return {
+      id: bot.id,
+      slug: bot.slug,
+      name: bot.name,
+      environment: bot.environment,
+      category: bot.category,
+      strategyFamily: bot.strategyFamily,
+      venue: bot.venue,
+      status: bot.status,
+      isEnabled: bot.isEnabled,
+      lastHeartbeatAt: bot.lastHeartbeatAt,
+      freshness: bot.lastHeartbeatAt && bot.lastHeartbeatAt >= staleCutoff ? 'LIVE' as const : 'STALE' as const,
+      latestMetric: latestMetric
+        ? {
+            equityUsd: latestMetric.equityUsd?.toNumber() ?? null,
+            dailyPnlUsd: latestMetric.dailyPnlUsd?.toNumber() ?? null,
+            drawdownPct: latestMetric.drawdownPct?.toNumber() ?? null,
+            openPositions: latestMetric.openPositions ?? openPositions,
+            observedAt: latestMetric.observedAt,
+          }
+        : null,
+      openPositions,
+    };
+  });
 
-export default async function FeedPage() {
-  const initialArticles = await getInitialArticles();
+  const summary = {
+    totalBots: fleet.length,
+    liveBots: fleet.filter((bot) => bot.freshness === 'LIVE').length,
+    staleBots: fleet.filter((bot) => bot.freshness === 'STALE').length,
+    enabledBots: fleet.filter((bot) => bot.isEnabled).length,
+    openPositions: fleet.reduce((sum, bot) => sum + bot.openPositions, 0),
+    aggregateDailyPnlUsd: fleet.reduce((sum, bot) => sum + (bot.latestMetric?.dailyPnlUsd ?? 0), 0),
+    aggregateEquityUsd: fleet.reduce((sum, bot) => sum + (bot.latestMetric?.equityUsd ?? 0), 0),
+    articleCount24h,
+    signals: {
+      opportunitiesAt: latestOpportunity?.scanTime ?? null,
+      emergingAt: latestEmerging?.signalTime ?? null,
+      whalesAt: latestWhales?.scanTime ?? null,
+    },
+  };
 
   return (
-    <div className="min-h-[100dvh] lg:h-[100dvh] lg:overflow-hidden bg-background">
-      <main className="mx-auto flex h-full w-full max-w-[1640px] flex-col px-3 pb-2 pt-2 md:px-unit-4 md:pb-3 lg:px-unit-4">
-        <div className="flex flex-col gap-unit-3 lg:grid lg:h-[calc(100dvh-112px)] lg:grid-cols-[448px_minmax(0,1fr)_192px] lg:gap-unit-3">
-
-          {/* LEFT COLUMN: Market Mood */}
-          <div id="section-markets" role="region" aria-label="Market data and signals" className="order-2 lg:order-none flex flex-col lg:min-h-0">
-            <PanelShell variant="secondary" className="flex-1 flex flex-col">
-              <div className="flex-1 px-unit-3 pb-unit-3 pt-unit-2">
-                <PricesColumn />
-              </div>
-            </PanelShell>
-          </div>
-
-          {/* CENTER COLUMN: Main Feed */}
-          <div role="region" aria-label="News feed and briefing" className="order-1 lg:order-none flex flex-col gap-unit-2 lg:overflow-hidden">
-
-            {/* Briefing (Compact) */}
-            <PanelShell id="section-briefing" className="order-2 lg:order-1 shrink-0 bg-transparent border-0 p-0 shadow-none overflow-visible !bg-none">
-              <BiDailySummary />
-            </PanelShell>
-
-            {/* News Feed */}
-            <PanelShell id="section-latest-intel" variant="primary" className="order-1 lg:order-2 flex-1 min-h-0 overflow-hidden relative">
-              <NewsFeed initialArticles={initialArticles} />
-            </PanelShell>
-          </div>
-
-          {/* RIGHT COLUMN: Signals + Chatter */}
-          <div id="section-posts" role="region" aria-label="Market chatter and setups" className="order-3 lg:order-none flex flex-col gap-unit-3 lg:overflow-hidden">
-            <div className="shrink-0">
-              <SignalPulseStrip />
-            </div>
-            <div className="shrink-0 lg:max-h-[246px] overflow-hidden">
-              <PanelShell variant="secondary" className="overflow-hidden">
-                <TradeSetupsPanel />
-              </PanelShell>
-            </div>
-            <div className="flex-1 min-h-[260px] overflow-hidden">
-              <MarketChatterPanel className="h-full" />
-            </div>
-          </div>
-
-        </div>
-      </main>
-    </div>
+    <HubCommandCenter
+      summary={summary}
+      fleet={fleet}
+      events={events.map((event) => ({
+        id: event.id,
+        botSlug: event.bot.slug,
+        botName: event.bot.name,
+        eventType: event.eventType,
+        severity: event.severity,
+        title: event.title,
+        body: event.body,
+        symbol: event.symbol,
+        eventAt: event.eventAt,
+      }))}
+    />
   );
 }

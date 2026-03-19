@@ -123,6 +123,22 @@ function getEnvNumber(key: string, defaultValue: number): number {
   return num;
 }
 
+function getFirstEnvNumber(keys: string[], defaultValue: number): number {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value === undefined) {
+      continue;
+    }
+    const num = parseInt(value, 10);
+    if (isNaN(num)) {
+      throw new Error(`Environment variable ${key} must be a number`);
+    }
+    return num;
+  }
+
+  return defaultValue;
+}
+
 // Build app configuration from environment
 export function buildConfig(): AppConfig {
   const llmProvider = (getEnvOptional('LLM_PROVIDER', 'openai') as LLMProvider) || 'openai';
@@ -202,7 +218,7 @@ export function buildConfig(): AppConfig {
       },
     },
     api: {
-      port: getEnvNumber('API_PORT', 3001),
+      port: getFirstEnvNumber(['PORT', 'API_PORT'], 3001),
       host: getEnvOptional('API_HOST', '0.0.0.0') || '0.0.0.0',
     },
     dashboard: {

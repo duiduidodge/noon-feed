@@ -22,7 +22,6 @@ artifacts
 cryptofeed-charts
 
 apps/dashboard
-apps/api
 apps/bot
 
 *.log

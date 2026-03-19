@@ -14,7 +14,7 @@ COPY package.json package-lock.json ./
 COPY apps/worker/package.json apps/worker/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY prisma/schema.prisma prisma/schema.prisma
-RUN npm ci
+RUN npm install
 
 # Install MCP runtime used by whale signals service
 RUN npm install -g mcporter mcp-remote
@@ -22,8 +22,8 @@ RUN npm install -g mcporter mcp-remote
 # Copy source and build only required workspaces
 COPY . .
 RUN npm run db:generate \
-  && npm run build --workspace=@crypto-news/shared \
-  && npm run build --workspace=@crypto-news/worker
+  && npm --prefix packages/shared run build \
+  && npm --prefix apps/worker run build
 
 COPY scripts/start-worker.sh /app/scripts/start-worker.sh
 RUN chmod +x /app/scripts/start-worker.sh

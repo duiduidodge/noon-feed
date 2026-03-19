@@ -10,13 +10,13 @@ COPY package.json package-lock.json ./
 COPY apps/feed/package.json apps/feed/package.json
 COPY packages/shared/package.json packages/shared/package.json
 COPY prisma/schema.prisma prisma/schema.prisma
-RUN npm ci
+RUN npm install
 
 COPY . .
 
 RUN npm run db:generate \
-  && npm run build --workspace=@crypto-news/shared \
-  && npm run build --workspace=@crypto-news/feed
+  && npm --prefix packages/shared run build \
+  && npm --prefix apps/feed run build
 
 ENV NODE_ENV=production
 ENV PORT=3002

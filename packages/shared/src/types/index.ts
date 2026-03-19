@@ -225,3 +225,107 @@ export interface AppConfig {
     level: string;
   };
 }
+
+export interface NoonHubBotRegistration {
+  slug: string;
+  name: string;
+  environment?: string;
+  category?: string;
+  strategyFamily?: string;
+  venue?: string;
+  repoUrl?: string;
+  dashboardUrl?: string;
+  status?: string;
+  isEnabled?: boolean;
+  metadata?: Record<string, unknown>;
+  lastHeartbeatAt?: string;
+}
+
+export interface NoonHubHeartbeatPayload {
+  botSlug: string;
+  name: string;
+  status?: string;
+  message?: string;
+  version?: string;
+  latencyMs?: number;
+  uptimeSec?: number;
+  observedAt?: string;
+  environment?: string;
+  category?: string;
+  strategyFamily?: string;
+  venue?: string;
+  repoUrl?: string;
+  dashboardUrl?: string;
+  isEnabled?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NoonHubMetricsPayload {
+  botSlug: string;
+  name: string;
+  status?: string;
+  observedAt?: string;
+  environment?: string;
+  category?: string;
+  strategyFamily?: string;
+  venue?: string;
+  equityUsd?: number;
+  cashUsd?: number;
+  realizedPnlUsd?: number;
+  unrealizedPnlUsd?: number;
+  dailyPnlUsd?: number;
+  drawdownPct?: number;
+  winRatePct?: number;
+  openPositions?: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NoonHubPosition {
+  symbol: string;
+  side: string;
+  status?: string;
+  quantity?: number;
+  entryPrice?: number;
+  markPrice?: number;
+  pnlUsd?: number;
+  pnlPct?: number;
+  openedAt?: string;
+  closedAt?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NoonHubPositionsPayload {
+  botSlug: string;
+  name: string;
+  status?: string;
+  snapshotTime?: string;
+  environment?: string;
+  category?: string;
+  strategyFamily?: string;
+  venue?: string;
+  positions: NoonHubPosition[];
+}
+
+export interface NoonHubEventPayload {
+  botSlug: string;
+  name: string;
+  status?: string;
+  environment?: string;
+  category?: string;
+  strategyFamily?: string;
+  venue?: string;
+  eventType: string;
+  severity?: string;
+  title: string;
+  body?: string;
+  symbol?: string;
+  eventAt?: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface NoonHubClientOptions {
+  baseUrl: string;
+  ingestKey?: string;
+  defaultBot?: Omit<NoonHubBotRegistration, 'lastHeartbeatAt'>;
+  fetchImpl?: typeof fetch;
+}

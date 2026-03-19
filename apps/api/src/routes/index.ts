@@ -4,6 +4,7 @@ import { articlesRoutes } from './articles.js';
 import { ingestRoutes } from './ingest.js';
 import { exportRoutes } from './export.js';
 import { reliabilityRoutes } from './reliability.js';
+import { hubRoutes } from './hub.js';
 
 export async function registerRoutes(fastify: FastifyInstance) {
   await fastify.register(sourcesRoutes, { prefix: '/sources' });
@@ -11,4 +12,5 @@ export async function registerRoutes(fastify: FastifyInstance) {
   await fastify.register(ingestRoutes, { prefix: '/ingest' });
   await fastify.register(exportRoutes, { prefix: '/export' });
   await fastify.register(reliabilityRoutes, { prefix: '/reliability' });
+  await fastify.register(hubRoutes, { prefix: '/hub' });
 }

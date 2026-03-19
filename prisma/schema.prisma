@@ -362,3 +362,111 @@ model SignalWatchlist {
   @@index([asset])
   @@map("SignalWatchlist")
 }
+
+model BotAgent {
+  id              String              @id @default(cuid())
+  slug            String              @unique
+  name            String
+  environment     String              @default("production")
+  category        String?
+  strategyFamily  String?             @map("strategy_family")
+  venue           String?
+  repoUrl         String?             @map("repo_url")
+  dashboardUrl    String?             @map("dashboard_url")
+  status          String              @default("UNKNOWN")
+  isEnabled       Boolean             @default(true) @map("is_enabled")
+  lastHeartbeatAt DateTime?           @map("last_heartbeat_at")
+  metadata        Json?
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  heartbeats      BotHeartbeat[]
+  events          BotEvent[]
+  metrics         BotMetricSnapshot[]
+  positions       BotPositionSnapshot[]
+
+  @@index([status])
+  @@index([environment])
+  @@index([category])
+  @@index([lastHeartbeatAt])
+  @@map("BotAgent")
+}
+
+model BotHeartbeat {
+  id         String    @id @default(cuid())
+  botId      String    @map("bot_id")
+  bot        BotAgent  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  status     String
+  message    String?
+  version    String?
+  latencyMs  Int?      @map("latency_ms")
+  uptimeSec  Int?      @map("uptime_sec")
+  metadata   Json?
+  observedAt DateTime  @default(now()) @map("observed_at")
+
+  @@index([botId, observedAt])
+  @@index([status])
+  @@map("BotHeartbeat")
+}
+
+model BotMetricSnapshot {
+  id               String    @id @default(cuid())
+  botId            String    @map("bot_id")
+  bot              BotAgent  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  equityUsd        Decimal?  @map("equity_usd") @db.Decimal(20, 4)
+  cashUsd          Decimal?  @map("cash_usd") @db.Decimal(20, 4)
+  realizedPnlUsd   Decimal?  @map("realized_pnl_usd") @db.Decimal(20, 4)
+  unrealizedPnlUsd Decimal?  @map("unrealized_pnl_usd") @db.Decimal(20, 4)
+  dailyPnlUsd      Decimal?  @map("daily_pnl_usd") @db.Decimal(20, 4)
+  drawdownPct      Decimal?  @map("drawdown_pct") @db.Decimal(8, 4)
+  winRatePct       Decimal?  @map("win_rate_pct") @db.Decimal(8, 4)
+  openPositions    Int?      @map("open_positions")
+  metadata         Json?
+  observedAt       DateTime  @default(now()) @map("observed_at")
+
+  @@index([botId, observedAt])
+  @@map("BotMetricSnapshot")
+}
+
+model BotPositionSnapshot {
+  id           String    @id @default(cuid())
+  botId        String    @map("bot_id")
+  bot          BotAgent  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  symbol       String
+  side         String
+  status       String    @default("OPEN")
+  quantity     Decimal?  @db.Decimal(20, 8)
+  entryPrice   Decimal?  @map("entry_price") @db.Decimal(20, 8)
+  markPrice    Decimal?  @map("mark_price") @db.Decimal(20, 8)
+  pnlUsd       Decimal?  @map("pnl_usd") @db.Decimal(20, 4)
+  pnlPct       Decimal?  @map("pnl_pct") @db.Decimal(8, 4)
+  openedAt     DateTime? @map("opened_at")
+  closedAt     DateTime? @map("closed_at")
+  metadata     Json?
+  snapshotTime DateTime  @default(now()) @map("snapshot_time")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([botId, snapshotTime])
+  @@index([symbol])
+  @@index([status])
+  @@map("BotPositionSnapshot")
+}
+
+model BotEvent {
+  id        String    @id @default(cuid())
+  botId     String    @map("bot_id")
+  bot       BotAgent  @relation(fields: [botId], references: [id], onDelete: Cascade)
+  eventType String    @map("event_type")
+  severity  String    @default("INFO")
+  title     String
+  body      String?
+  symbol    String?
+  payload   Json?
+  eventAt   DateTime  @default(now()) @map("event_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([botId, eventAt])
+  @@index([severity])
+  @@index([eventType])
+  @@map("BotEvent")
+}

@@ -1,4 +1,5 @@
 import pino from 'pino';
+export * from './noon-hub-client.js';
 
 // Logger setup
 export function createLogger(name: string, level?: string) {

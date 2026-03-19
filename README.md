@@ -1,20 +1,14 @@
-# Crypto News Bot
+# Noon Hub
 
-A production-ready system that fetches, processes, and distributes crypto news with AI-powered Thai translations and summaries.
+A production-ready hub for market intelligence, bot operations, charts, signals, and the original Noon editorial feed.
 
-## Features
+## Hub Modules
 
-- **Multi-source RSS Ingestion**: Fetches news from 8+ crypto news sources
-- **AI-Powered Processing**: Translates and summarizes articles to Thai using OpenAI or Anthropic
-- **Smart Deduplication**: URL normalization + title similarity detection
-- **Discord Integration**: Posts formatted news to channels with automatic routing by topic
-- **Telegram Integration**: Optional alert hub for high-impact news and bi-daily summaries
-- **Breaking News Mode**: Rule-based urgent alerts using keywords + impact thresholds (no extra LLM calls)
-- **Duplicate Story Clustering**: URL/title similarity clustering for cross-source duplicate detection
-- **Reliability Console**: Operational health view for stale sources, failed jobs, and delivery success
-- **Web Dashboard**: Browse, search, filter, and export articles
-- **Social Content Generation**: Creates Thai social hooks and thread drafts
-- **Export Capabilities**: CSV and JSON export for repurposing content
+- **News and Feed**: Multi-source ingestion, Thai summaries, enrichment, and distribution
+- **Bot Hub**: Registry, heartbeats, fleet metrics, positions, and event stream for external bot repos
+- **Signals and Strategy Surfaces**: Opportunity, emerging movers, whale, and paper-trading data
+- **Charts API**: Shared live chart and market-stream service for all Noon surfaces
+- **Reliability and Ops**: Duplicate clustering, stale-source monitoring, delivery health, and export tools
 
 ## Architecture
 
@@ -30,13 +24,19 @@ A production-ready system that fetches, processes, and distributes crypto news w
                     │(OpenAI/Ant) │            │
                     └─────────────┘            │
                                                │
-      ┌────────────────────────────────────────┼────────────────┐
-      │                                        │                │
-      ▼                                        ▼                ▼
-┌─────────────┐                         ┌─────────────┐  ┌─────────────┐
-│  Discord    │                         │   Fastify   │  │   Next.js   │
-│    Bot      │                         │    API      │  │  Dashboard  │
-└─────────────┘                         └─────────────┘  └─────────────┘
+      ┌────────────────────────────────────────┼─────────────────────────────┐
+      │                                        │                             │
+      ▼                                        ▼                             ▼
+┌─────────────┐                         ┌─────────────┐               ┌─────────────┐
+│  Discord    │                         │   Fastify   │               │  Next.js    │
+│ / Telegram  │                         │ API + Hub   │               │  Noon Hub   │
+└─────────────┘                         └─────────────┘               └─────────────┘
+                                                │
+                                                ▼
+                                        ┌─────────────┐
+                                        │ Charts API  │
+                                        │ cryptofeed  │
+                                        └─────────────┘
 ```
 
 ## Tech Stack
@@ -44,9 +44,10 @@ A production-ready system that fetches, processes, and distributes crypto news w
 - **Backend/API**: Node.js + TypeScript + Fastify
 - **Worker/Scheduler**: BullMQ + Redis
 - **Database**: PostgreSQL with Prisma ORM
-- **Dashboard**: Next.js 14 (App Router) + Tailwind CSS
+- **Hub UI**: Next.js 14 (App Router) + Tailwind CSS
 - **Discord**: discord.js v14
 - **LLM**: OpenAI GPT-4 / Anthropic Claude (configurable)
+- **Charts Service**: FastAPI + cryptofeed + Binance/Binance Futures streams
 
 ## Prerequisites
 
@@ -100,7 +101,7 @@ npm run --workspace=@crypto-news/bot deploy-commands
 ### 6. Start Development
 
 ```bash
-# Start all services
+# Start all Node services
 npm run dev
 
 # Or start individually:
@@ -108,6 +109,17 @@ npm run dev --workspace=@crypto-news/api      # API on :3001
 npm run dev --workspace=@crypto-news/worker   # Worker
 npm run dev --workspace=@crypto-news/bot      # Discord bot
 npm run dev --workspace=@crypto-news/dashboard # Dashboard on :3000
+npm run dev --workspace=@crypto-news/feed     # Noon Hub web on :3002
+```
+
+### 7. Start Charts API
+
+```bash
+cd services/charts-api
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8080
 ```
 
 ## Environment Variables
@@ -160,6 +172,10 @@ BREAKING_NEWS_MIN_IMPACT_SCORE="0.75"
 BREAKING_NEWS_MIN_KEYWORD_MATCHES="1"
 RELIABILITY_STALE_SOURCE_HOURS="12"
 
+# Hub ingest + charts
+NOON_HUB_INGEST_KEY="shared-secret-for-external-bot-ingest"
+NEXT_PUBLIC_CHARTS_API_URL="ws://localhost:8080"
+
 # Logging
 LOG_LEVEL="info"
 NODE_ENV="development"
@@ -171,9 +187,12 @@ NODE_ENV="development"
 crypto-news-bot/
 ├── apps/
 │   ├── api/           # Fastify REST API
+│   ├── feed/          # Noon Hub web app
 │   ├── worker/        # RSS fetching, article processing, LLM enrichment
-│   ├── dashboard/     # Next.js web dashboard
+│   ├── dashboard/     # Internal editorial dashboard
 │   └── bot/           # Discord bot
+├── services/
+│   └── charts-api/    # Shared cryptofeed charts service
 ├── packages/
 │   └── shared/        # Types, schemas, config, utilities
 ├── prisma/
@@ -212,6 +231,15 @@ crypto-news-bot/
 ### Reliability
 - `GET /reliability/health` - Pipeline and delivery health metrics
 - `GET /reliability/duplicate-clusters` - Duplicate story clusters by URL/title similarity
+
+### Hub
+- `GET /hub/overview` - Noon Hub fleet overview for the operator surface
+- `GET /hub/bots` - Registered bots with latest heartbeat and metrics
+- `POST /hub/bots/register` - Register or update an external bot
+- `POST /hub/heartbeat` - Push bot health and runtime status
+- `POST /hub/metrics` - Push equity, drawdown, and PnL snapshots
+- `POST /hub/positions` - Push open-position snapshots
+- `POST /hub/events` - Push fills, alerts, and execution events
 
 ## Discord Commands
 
@@ -323,6 +351,14 @@ npm run test --workspace=@crypto-news/shared
 ```bash
 npm run build
 ```
+
+## Release Model
+
+- GitHub is the source of truth
+- Railway is the runtime
+- manual Railway CLI deploys are for emergency debugging only
+
+See [release-workflow.md](/Users/dodge/Desktop/Vibe%20Code%20Project/Content%20Creator%20Bot/crypto-news-bot/docs/release-workflow.md).
 
 ### Serverless Scheduler (No Local Docker)
 If you want feed ingestion + bi-daily summaries without running Redis/worker locally:

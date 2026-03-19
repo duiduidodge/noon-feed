@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 
 export const metadata: Metadata = {
-  title: 'noon — Crypto Intelligence',
-  description: 'Premium cryptocurrency news feed with market insights and real-time analysis',
+  title: 'Noon Hub',
+  description: 'Hub for market intelligence, bot operations, charts, signals, and the Noon news feed',
 };
 
 import { FeedHeader } from '@/components/feed-header';
@@ -36,7 +36,7 @@ export default function RootLayout({
       <body className="min-h-[100dvh] overflow-x-hidden bg-background font-body antialiased">
         <Providers>
           <a
-            href="#section-latest-intel"
+            href="#hub-main"
             className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:text-sm focus:font-medium"
           >
             Skip to main content

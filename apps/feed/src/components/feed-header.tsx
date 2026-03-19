@@ -10,35 +10,38 @@ import { motion } from 'framer-motion';
 import SearchModal from './SearchModal';
 
 const NAV_ITEMS = [
-  { label: 'Latest Intel', sectionId: 'section-latest-intel', path: '/' },
-  { label: 'Briefing', sectionId: 'section-briefing', path: '/briefing' },
-  { label: 'Posts', sectionId: 'section-posts', path: '/posts' },
-  { label: 'Signals', sectionId: null, path: '/signals' },
-  { label: 'Markets', sectionId: 'section-markets', path: '/markets' },
-  { label: 'Charts', sectionId: null, path: '/charts' },
+  { label: 'Hub', path: '/' },
+  { label: 'Feed', path: '/feed' },
+  { label: 'Signals', path: '/signals' },
+  { label: 'Briefing', path: '/briefing' },
+  { label: 'Markets', path: '/markets' },
+  { label: 'Charts', path: '/charts' },
+  { label: 'Posts', path: '/posts' },
 ];
 
 export function FeedHeader() {
   const pathname = usePathname();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('Latest Intel');
+  const [activeTab, setActiveTab] = useState('Hub');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Sync active tab with pathname on mount/change
   useEffect(() => {
     if (pathname === '/') {
-      setActiveTab('Latest Intel');
+      setActiveTab('Hub');
+    } else if (pathname.startsWith('/feed')) {
+      setActiveTab('Feed');
     } else if (pathname.includes('/briefing')) {
       setActiveTab('Briefing');
-    } else if (pathname.includes('/posts')) {
-      setActiveTab('Posts');
-    } else if (pathname.includes('/signals')) {
-      setActiveTab('Signals');
     } else if (pathname.includes('/markets')) {
       setActiveTab('Markets');
     } else if (pathname.includes('/charts')) {
       setActiveTab('Charts');
+    } else if (pathname.includes('/posts')) {
+      setActiveTab('Posts');
+    } else if (pathname.includes('/signals')) {
+      setActiveTab('Signals');
     }
   }, [pathname]);
 
@@ -69,22 +72,10 @@ export function FeedHeader() {
   const handleNavClick = useCallback((item: typeof NAV_ITEMS[0]) => {
     setIsMenuOpen(false);
 
-    if (!item.sectionId && !item.path) return;
-
     setActiveTab(item.label);
 
-    if (pathname === '/') {
-      const el = document.getElementById(item.sectionId || '');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-        return;
-      }
-    }
-
-    if (item.path) {
-      router.push(item.path);
-    }
-  }, [pathname, router]);
+    router.push(item.path);
+  }, [router]);
 
   return (
     <header className="sticky top-0 z-50">
@@ -117,32 +108,22 @@ export function FeedHeader() {
           >
             {NAV_ITEMS.map((item) => {
               const isActive = activeTab === item.label;
-              const isDisabled = !item.sectionId && !item.path;
               return (
                 <button
                   key={item.label}
                   onClick={() => handleNavClick(item)}
-                  disabled={isDisabled}
                   role="tab"
                   aria-selected={isActive}
-                  aria-disabled={isDisabled}
                   className={`
                     relative py-2 text-small font-medium tracking-tight transition-colors duration-fast
                     ${isActive
                       ? 'text-foreground font-semibold'
                       : 'text-muted-foreground hover:text-foreground/85'
                     }
-                    ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer focus-ring'}
+                    cursor-pointer focus-ring
                   `}
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    {item.label}
-                    {isDisabled && (
-                      <span className="rounded-full border border-border/60 bg-card/70 px-1.5 py-0.5 font-mono-data text-micro font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
-                        Soon
-                      </span>
-                    )}
-                  </span>
+                  <span className="inline-flex items-center gap-1.5">{item.label}</span>
 
                   {/* Animated active indicator */}
                   {isActive && (
@@ -199,17 +180,15 @@ export function FeedHeader() {
           <div className="flex flex-col gap-1" role="tablist">
             {NAV_ITEMS.map((item, idx) => {
               const isActive = activeTab === item.label;
-              const isDisabled = !item.sectionId && !item.path;
               return (
                 <button
                   key={item.label}
                   onClick={() => handleNavClick(item)}
-                  disabled={isDisabled}
                   role="tab"
                   aria-selected={isActive}
                   className={`
                      group flex items-center justify-between py-5 border-b border-border/20 text-left focus-ring
-                     ${isDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}
+                     cursor-pointer
                    `}
                   style={{ transitionDelay: `${150 + idx * 50}ms` }}
                 >
@@ -217,11 +196,6 @@ export function FeedHeader() {
                     {item.label}
                   </span>
                   {isActive && <div className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />}
-                  {isDisabled && (
-                    <span className="px-2 py-0.5 rounded-full bg-surface text-caption font-mono-data uppercase tracking-wider text-muted-foreground">
-                      Soon
-                    </span>
-                  )}
                 </button>
               );
             })}

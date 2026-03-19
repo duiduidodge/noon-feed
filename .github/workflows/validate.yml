@@ -1,0 +1,59 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/crypto_news
+
+      - name: Typecheck shared
+        run: npm run typecheck --workspace @crypto-news/shared
+
+      - name: Typecheck api
+        run: npm run typecheck --workspace @crypto-news/api
+
+      - name: Typecheck feed
+        run: npm run typecheck --workspace @crypto-news/feed
+
+      - name: Typecheck worker
+        run: npm run typecheck --workspace @crypto-news/worker
+
+      - name: Build shared
+        run: npm run build --workspace @crypto-news/shared
+
+      - name: Build api
+        run: npm --prefix apps/api run build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/crypto_news
+
+      - name: Build feed
+        run: npm --prefix apps/feed run build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/crypto_news
+
+      - name: Build worker
+        run: npm --prefix apps/worker run build
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/crypto_news
+
