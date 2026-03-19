@@ -51,6 +51,18 @@ export function formatCompactNumber(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
+export function formatSignedUsd(value: number): string {
+  const sign = value > 0 ? '+' : value < 0 ? '-' : '';
+  return `${sign}${formatCompactNumber(Math.abs(value)).replace(/^\$/, '$')}`;
+}
+
+export function formatDecimal(value: number, digits = 1): string {
+  return value.toLocaleString('en-US', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
+}
+
 export function truncateText(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength).replace(/\s+\S*$/, '') + '...';
