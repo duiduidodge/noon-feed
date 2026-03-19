@@ -6,9 +6,6 @@ export async function getInitialArticles(): Promise<FeedArticle[]> {
     const articles = await prisma.article.findMany({
       where: {
         status: { in: ['FETCHED', 'ENRICHED'] },
-        enrichment: {
-          marketImpact: { in: ['MEDIUM', 'HIGH'] },
-        },
       },
       select: {
         id: true,

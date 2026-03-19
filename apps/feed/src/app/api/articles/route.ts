@@ -57,8 +57,6 @@ export async function GET(request: NextRequest) {
 
     if (impactFilter && ['LOW', 'MEDIUM', 'HIGH'].includes(impactFilter)) {
       enrichmentWhere.marketImpact = impactFilter as 'LOW' | 'MEDIUM' | 'HIGH';
-    } else {
-      enrichmentWhere.marketImpact = { in: ['MEDIUM', 'HIGH'] };
     }
     if (tag) enrichmentWhere.tags = { array_contains: [tag] };
 
