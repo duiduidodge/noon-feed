@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback, useState } from "react";
+import { getChartsRuntimeConfig } from "@/lib/charts-runtime";
 
 export type CandleMsg = {
   time: number; open: number; high: number; low: number; close: number; volume: number;
@@ -29,36 +30,42 @@ export function useChartStream(coin: string, handlers: StreamHandlers) {
   useEffect(() => { handlersRef.current = handlers; });
 
   const connect = useCallback(() => {
-    const base =
-      process.env.NEXT_PUBLIC_CHARTS_API_URL ?? "ws://localhost:8080";
-    const url = `${base}/ws/${coin}`;
-    const ws = new WebSocket(url);
-    wsRef.current = ws;
+    getChartsRuntimeConfig()
+      .then(({ wsBase }) => {
+        const url = `${wsBase}/ws/${coin}`;
+        const ws = new WebSocket(url);
+        wsRef.current = ws;
 
-    ws.onopen = () => setConnected(true);
+        ws.onopen = () => setConnected(true);
 
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data as string) as { type: string; data: unknown };
-        const h = handlersRef.current;
-        switch (msg.type) {
-          case "candle":      h.onCandle?.(msg.data as CandleMsg); break;
-          case "trade":       h.onTrade?.(msg.data as TradeMsg); break;
-          case "book":        h.onBook?.(msg.data as BookMsg); break;
-          case "funding":     h.onFunding?.(msg.data as FundingMsg); break;
-          case "liquidation": h.onLiquidation?.(msg.data as LiquidationMsg); break;
-          case "oi":          h.onOI?.(msg.data as OIMsg); break;
-        }
-      } catch { /* ignore parse errors */ }
-    };
+        ws.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(ev.data as string) as { type: string; data: unknown };
+            const h = handlersRef.current;
+            switch (msg.type) {
+              case "candle":      h.onCandle?.(msg.data as CandleMsg); break;
+              case "trade":       h.onTrade?.(msg.data as TradeMsg); break;
+              case "book":        h.onBook?.(msg.data as BookMsg); break;
+              case "funding":     h.onFunding?.(msg.data as FundingMsg); break;
+              case "liquidation": h.onLiquidation?.(msg.data as LiquidationMsg); break;
+              case "oi":          h.onOI?.(msg.data as OIMsg); break;
+            }
+          } catch {
+            // ignore parse errors
+          }
+        };
 
-    ws.onclose = () => {
-      setConnected(false);
-      // Reconnect after 3s
-      setTimeout(connect, 3000);
-    };
+        ws.onclose = () => {
+          setConnected(false);
+          setTimeout(connect, 3000);
+        };
 
-    ws.onerror = () => ws.close();
+        ws.onerror = () => ws.close();
+      })
+      .catch(() => {
+        setConnected(false);
+        setTimeout(connect, 3000);
+      });
   }, [coin]);
 
   useEffect(() => {

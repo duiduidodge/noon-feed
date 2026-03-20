@@ -15,6 +15,7 @@ import type { Coin } from "./CoinSelector";
 import { calcSMA, calcEMA, calcRSI, calcVWAP, type OHLCPoint, type IndicatorConfig } from "@/lib/indicators";
 import { calcSwingHighsLows, calcFairValueGaps, calcOrderBlocks, calcBreakOfStructure, calcEuphoriaCapitulation } from "@/lib/smc";
 import { ZonePrimitive, LevelPrimitive, type ZoneConfig, type LevelConfig } from "@/lib/chart-primitives";
+import { getChartsRuntimeConfig } from "@/lib/charts-runtime";
 
 type Props = {
   coin: Coin;
@@ -346,13 +347,12 @@ function CandleChart({ coin, timeframe, latestCandle, indicators, showRSI, showS
       ro.observe(rsiEl);
 
       // ── Fetch historical candles ─────────────────────────────────────────
-      const base = (process.env.NEXT_PUBLIC_CHARTS_API_URL ?? "http://localhost:8080")
-        .replace(/^wss:\/\//, "https://")
-        .replace(/^ws:\/\//, "http://");
-
       setStatus(`fetching ${coin}…`);
 
-      fetch(`${base}/candles/${coin}?tf=${timeframe}&limit=300`)
+      getChartsRuntimeConfig()
+        .then(({ httpBase }) =>
+          fetch(`${httpBase}/candles/${coin}?tf=${timeframe}&limit=300`)
+        )
         .then((r) => r.json())
         .then((data: OHLCPoint[]) => {
           if (destroyed || !seriesRef.current) return;
