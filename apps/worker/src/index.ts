@@ -13,6 +13,7 @@ import { EnrichmentMapper } from './services/enrichment-mapper.js';
 import { EmergingMoversSignalsService } from './services/emerging-movers-signals.js';
 import { OpportunitySignalsService } from './services/opportunity-signals.js';
 import { WhaleSignalsService } from './services/whale-signals.js';
+import { runRetentionCleanup } from './services/data-retention.js';
 import {
   postWhaleSnapshot,
   postWhaleSnapshotToTelegram,
@@ -162,6 +163,23 @@ const whaleSignalsService = new WhaleSignalsService({
 function getSignalsWebhookUrl(): string | null {
   return process.env.DISCORD_SIGNALS_WEBHOOK_URL || process.env.DISCORD_WEBHOOK_URL || null;
 }
+
+function getEnvNumber(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const retentionConfig = {
+  cleanupIntervalHours: getEnvNumber('CLEANUP_INTERVAL_HOURS', 6),
+  articleRetentionDays: getEnvNumber('ARTICLE_RETENTION_DAYS', 3),
+  heartbeatRetentionDays: getEnvNumber('BOT_HEARTBEAT_RETENTION_DAYS', 3),
+  emergingRetentionDays: getEnvNumber('EMERGING_SIGNAL_RETENTION_DAYS', 7),
+  whaleRetentionDays: getEnvNumber('WHALE_SIGNAL_RETENTION_DAYS', 14),
+  marketSummaryRetentionDays: getEnvNumber('MARKET_SUMMARY_RETENTION_DAYS', 30),
+  jobAuditRetentionDays: getEnvNumber('JOB_AUDIT_RETENTION_DAYS', 14),
+};
 
 
 function isQueueUnavailableError(error: unknown): boolean {
@@ -755,6 +773,7 @@ const BANGKOK_OFFSET_MS = 7 * 60 * 60 * 1000;
 const SUMMARY_WINDOW_MS = 12 * 60 * 60 * 1000;
 const SUMMARY_RECOVERY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const scheduledSummaryKeys = new Set<string>();
+const summarySchedulerEnabled = (process.env.ENABLE_BI_DAILY_SUMMARY_SCHEDULER ?? 'true') === 'true';
 
 function formatBangkokDateKey(dateBangkokProxy: Date): string {
   const y = dateBangkokProxy.getUTCFullYear();
@@ -947,9 +966,12 @@ async function main() {
   const sentWhaleNotificationKeys = new Set<string>(); // tracks 'YYYY-MM-DD-morning/evening' slots
   const paperTradingEnabled = isPaperTradingEnabled();
   const paperTradingIntervalMs = paperTradingEnabled ? getPaperTradingIntervalMs() : 0;
+  const cleanupIntervalMs = retentionConfig.cleanupIntervalHours * 60 * 60 * 1000;
+  let lastCleanupRun = 0;
   if (paperTradingEnabled) {
     logger.info({ intervalMs: paperTradingIntervalMs }, 'Paper trading enabled');
   }
+  logger.info({ enabled: summarySchedulerEnabled }, 'Bi-daily summary scheduler status');
   logger.info({ intervalMinutes: config.worker.fetchIntervalMinutes }, 'Worker started, entering main loop');
 
   while (true) {
@@ -1142,10 +1164,25 @@ async function main() {
       logger.error({ error: (error as Error).message }, 'Failed to process high-impact articles');
     }
 
-    try {
-      await checkSummarySchedule();
-    } catch (error) {
-      logger.error({ error: (error as Error).message }, 'Failed during summary scheduling check');
+    if (summarySchedulerEnabled) {
+      try {
+        await checkSummarySchedule();
+      } catch (error) {
+        logger.error({ error: (error as Error).message }, 'Failed during summary scheduling check');
+      }
+    } else {
+      scheduledSummaryKeys.clear();
+    }
+
+    if (Date.now() - lastCleanupRun >= cleanupIntervalMs) {
+      try {
+        const cleanup = await runRetentionCleanup(prisma, retentionConfig);
+        lastCleanupRun = Date.now();
+        logger.info(cleanup, 'Retention cleanup completed');
+      } catch (error) {
+        logger.error({ error: (error as Error).message }, 'Retention cleanup failed');
+        lastCleanupRun = Date.now();
+      }
     }
 
     // Paper trading cycle
