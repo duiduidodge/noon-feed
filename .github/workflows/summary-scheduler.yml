@@ -85,6 +85,22 @@ jobs:
         run: |
           [ -n "$DATABASE_URL" ] || (echo "DATABASE_URL is missing"; exit 1)
           [[ "$DATABASE_URL" == postgresql://* || "$DATABASE_URL" == postgres://* ]] || (echo "DATABASE_URL must start with postgresql:// or postgres://"; exit 1)
+          [[ "$DATABASE_URL" != *railway.internal* ]] || (echo "DATABASE_URL must be reachable from GitHub Actions; railway.internal hosts only work inside Railway" && exit 1)
+
+      - name: Preflight database connectivity
+        run: |
+          node --input-type=module <<'NODE'
+          import { PrismaClient } from '@prisma/client';
+
+          const prisma = new PrismaClient();
+
+          try {
+            await prisma.$queryRaw`SELECT 1`;
+            console.log('Database connectivity ok');
+          } finally {
+            await prisma.$disconnect();
+          }
+          NODE
 
       - name: Run one-shot summary
         run: npm run summary:once --workspace=@crypto-news/worker
