@@ -178,6 +178,13 @@ export function buildConfig(): AppConfig {
     worker: {
       concurrency: getEnvNumber('WORKER_CONCURRENCY', 3),
       fetchIntervalMinutes: getEnvNumber('FETCH_INTERVAL_MINUTES', 15),
+      cleanupIntervalHours: getEnvNumber('CLEANUP_INTERVAL_HOURS', 6),
+      articleRetentionDays: getEnvNumber('ARTICLE_RETENTION_DAYS', 3),
+      heartbeatRetentionDays: getEnvNumber('BOT_HEARTBEAT_RETENTION_DAYS', 3),
+      emergingRetentionDays: getEnvNumber('EMERGING_SIGNAL_RETENTION_DAYS', 7),
+      whaleRetentionDays: getEnvNumber('WHALE_SIGNAL_RETENTION_DAYS', 14),
+      marketSummaryRetentionDays: getEnvNumber('MARKET_SUMMARY_RETENTION_DAYS', 30),
+      jobAuditRetentionDays: getEnvNumber('JOB_AUDIT_RETENTION_DAYS', 14),
       autoPostToDiscord: getEnvOptional('AUTO_POST_TO_DISCORD', 'false') === 'true',
       skipEnrichment: getEnvOptional('SKIP_ENRICHMENT', 'true') === 'true',
       enableSwingTradeNotifications:

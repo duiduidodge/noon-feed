@@ -20,16 +20,16 @@ export function CoinSelector({
   onChange: (c: Coin) => void;
 }) {
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 rounded-full border border-border/35 bg-card/42 p-1">
       {COINS.map((coin) => (
         <button
           key={coin}
           onClick={() => onChange(coin)}
           className={clsx(
-            "px-3 py-1.5 rounded text-xs font-mono font-semibold transition-all",
+            "rounded-full px-3.5 py-2 text-[12px] font-mono font-bold tracking-[0.04em] transition-all",
             selected === coin
               ? "text-background"
-              : "text-foreground/50 hover:text-foreground bg-surface hover:bg-surface/80"
+              : "bg-surface text-foreground/68 hover:bg-surface/80 hover:text-foreground"
           )}
           style={
             selected === coin

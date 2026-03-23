@@ -47,23 +47,23 @@ export function IndicatorSelector({
       <button
         ref={btnRef}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-[10px] font-mono px-2.5 py-1 rounded-md border transition-all duration-150"
+        className="flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[11px] font-mono font-bold uppercase tracking-[0.14em] transition-all duration-150"
         style={{
-          borderColor: open ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)",
-          color:       open ? "rgba(255,255,255,0.6)"  : "rgba(255,255,255,0.35)",
-          background:  open ? "rgba(255,255,255,0.04)" : "transparent",
+          borderColor: open ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.11)",
+          color:       open ? "rgba(255,255,255,0.82)" : "rgba(255,255,255,0.64)",
+          background:  open ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.02)",
         }}
       >
         <span>Indicators</span>
         {count > 0 && (
           <span
-            className="text-[8px] tabular-nums px-1 py-0.5 rounded-full"
-            style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}
+            className="rounded-full px-1.5 py-0.5 text-[8px] tabular-nums font-bold"
+            style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
           >
             {count}
           </span>
         )}
-        <span style={{ fontSize: 7, opacity: 0.35 }}>{open ? "▲" : "▼"}</span>
+        <span style={{ fontSize: 7, opacity: 0.6 }}>{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (

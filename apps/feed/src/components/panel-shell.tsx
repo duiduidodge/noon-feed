@@ -19,7 +19,8 @@ export function PanelShell({ children, className, id, variant = 'secondary' }: P
       className={cn(
         'flex flex-col min-h-0',
         'rounded-2xl',
-        'bg-card/72 backdrop-blur-sm',
+        'bg-[hsl(var(--card)/0.84)] backdrop-blur-md',
+        'border border-[hsl(var(--border)/0.72)]',
         variant === 'primary' ? 'panel-primary' : 'panel-secondary',
         className
       )}

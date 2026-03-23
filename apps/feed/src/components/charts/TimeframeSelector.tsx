@@ -13,16 +13,16 @@ export function TimeframeSelector({
   onChange: (tf: Timeframe) => void;
 }) {
   return (
-    <div className="flex gap-0.5">
+    <div className="flex gap-1 rounded-full border border-border/35 bg-card/42 p-1">
       {TIMEFRAMES.map((tf) => (
         <button
           key={tf}
           onClick={() => onChange(tf)}
           className={clsx(
-            "px-2.5 py-1 rounded text-xs font-mono transition-all",
+            "rounded-full px-3 py-2 text-[12px] font-mono font-bold tracking-[0.04em] transition-all",
             selected === tf
-              ? "bg-primary/20 text-primary font-semibold"
-              : "text-foreground/40 hover:text-foreground/70 hover:bg-surface"
+              ? "bg-primary/20 text-primary"
+              : "text-foreground/62 hover:bg-surface hover:text-foreground/88"
           )}
         >
           {tf}

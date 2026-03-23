@@ -16,8 +16,8 @@ import clsx from "clsx";
 const CandleChart = dynamic(() => import("@/components/charts/CandleChart"), {
   ssr: false,
   loading: () => (
-    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <span style={{ fontFamily: "monospace", fontSize: 11, color: "#4a7a4a" }}>
+    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(10, 11, 14, 0.9)" }}>
+      <span style={{ fontFamily: "monospace", fontSize: 11, color: "rgba(198, 205, 216, 0.66)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
         loading chart…
       </span>
     </div>
@@ -121,18 +121,19 @@ export default function ChartsPage() {
   }, [trades]);
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-64px)] md:h-[calc(100dvh-108px)] bg-background text-foreground overflow-hidden">
+    <div className="flex flex-col h-[calc(100dvh-110px)] md:h-[calc(100dvh-126px)] bg-background text-foreground overflow-hidden">
 
       {/* ── Controls bar ─────────────────────────────── */}
-      <div className="flex items-center gap-3 px-3 py-2 border-b border-border/25 shrink-0 bg-background/80">
+      <div className="shrink-0 border-b border-border/40 bg-[hsl(var(--background)/0.94)] px-3 py-2.5">
+      <div className="flex items-center gap-3">
         {/* Coin tabs */}
         <CoinSelector selected={coin} onChange={setCoin} />
 
         {/* Divider */}
-        <div className="h-4 w-px bg-border/30" />
+        <div className="h-4 w-px bg-border/45" />
 
         {/* Live price */}
-        <div className="flex items-baseline gap-1.5">
+        <div className="flex items-baseline gap-1.5 rounded-full border border-border/60 bg-[hsl(var(--card)/0.9)] px-3 py-1.5 shadow-card">
           <span
             className={clsx(
               "text-lg font-mono font-bold tabular-nums leading-none transition-colors duration-150",
@@ -159,7 +160,7 @@ export default function ChartsPage() {
         <TimeframeSelector selected={timeframe} onChange={setTimeframe} />
 
         {/* Divider */}
-        <div className="h-4 w-px bg-border/30" />
+        <div className="h-4 w-px bg-border/45" />
 
         {/* Indicators */}
         <IndicatorSelector
@@ -174,22 +175,23 @@ export default function ChartsPage() {
         />
 
         {/* Divider */}
-        <div className="h-4 w-px bg-border/30" />
+        <div className="h-4 w-px bg-border/45" />
 
         {/* Connection pill */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface/50">
+        <div className="flex items-center gap-1.5 rounded-full border border-border/55 bg-[hsl(var(--card)/0.88)] px-2.5 py-1 shadow-card">
           <div className={clsx(
             "w-1.5 h-1.5 rounded-full transition-colors",
             connected ? "bg-bullish animate-pulse" : "bg-foreground/20"
           )} />
-          <span className="text-[9px] font-mono uppercase tracking-widest text-foreground/40">
+          <span className="text-[9px] font-mono uppercase tracking-widest text-foreground/50">
             {connected ? "Live" : "…"}
           </span>
         </div>
       </div>
+      </div>
 
       {/* ── Main layout ──────────────────────────────── */}
-      <div className="flex flex-1 min-h-0 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
 
         {/* Chart column */}
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
@@ -207,7 +209,7 @@ export default function ChartsPage() {
         </div>
 
         {/* Right panel */}
-        <div className="w-[220px] shrink-0 border-l border-border/25 flex flex-col gap-2 p-2 overflow-y-auto bg-background/30">
+        <div className="w-[220px] shrink-0 border-l border-border/40 bg-[hsl(var(--card)/0.46)] p-2 flex flex-col gap-2 overflow-y-auto">
           <OrderBookPanel book={book} />
           <FundingPanel funding={funding} oi={oi} liquidations={liquidations} />
         </div>

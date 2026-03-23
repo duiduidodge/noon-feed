@@ -186,6 +186,13 @@ export interface AppConfig {
   worker: {
     concurrency: number;
     fetchIntervalMinutes: number;
+    cleanupIntervalHours: number;
+    articleRetentionDays: number;
+    heartbeatRetentionDays: number;
+    emergingRetentionDays: number;
+    whaleRetentionDays: number;
+    marketSummaryRetentionDays: number;
+    jobAuditRetentionDays: number;
     autoPostToDiscord: boolean;
     skipEnrichment: boolean;
     enableSwingTradeNotifications: boolean;

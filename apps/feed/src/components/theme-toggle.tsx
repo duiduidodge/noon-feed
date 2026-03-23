@@ -19,7 +19,7 @@ export function ThemeToggle() {
     return (
         <button
             onClick={handleToggle}
-            className="relative flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-surface/60 transition-all duration-normal overflow-hidden md:h-9 md:w-9 focus-ring"
+            className="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-border/55 bg-card/68 text-muted-foreground transition-all duration-normal hover:border-primary/35 hover:bg-card/78 hover:text-foreground md:h-11 md:w-11 focus-ring"
             aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
             title={`${isDark ? 'Light' : 'Dark'} mode`}
         >

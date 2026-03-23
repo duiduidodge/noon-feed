@@ -1,14 +1,11 @@
 import { HubCommandCenter } from '@/components/hub-command-center';
 import { prisma } from '@/lib/prisma';
+import { getBotDescription } from '@/lib/bot-descriptions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HubPage() {
-  const now = Date.now();
-  const staleCutoff = new Date(now - 10 * 60 * 1000);
-  const dayCutoff = new Date(now - 24 * 60 * 60 * 1000);
-
-  const [bots, events, articleCount24h, latestOpportunity, latestEmerging, latestWhales] = await Promise.all([
+async function loadHubData(dayCutoff: Date) {
+  return Promise.all([
     prisma.botAgent.findMany({
       include: {
         metrics: {
@@ -42,6 +39,26 @@ export default async function HubPage() {
     prisma.emergingMoverSnapshot.findFirst({ orderBy: { signalTime: 'desc' } }),
     prisma.whaleSnapshot.findFirst({ orderBy: { scanTime: 'desc' } }),
   ]);
+}
+
+export default async function HubPage() {
+  const now = Date.now();
+  const staleCutoff = new Date(now - 10 * 60 * 1000);
+  const dayCutoff = new Date(now - 24 * 60 * 60 * 1000);
+  let loadWarning: string | null = null;
+  let bots: Awaited<ReturnType<typeof loadHubData>>[0] = [];
+  let events: Awaited<ReturnType<typeof loadHubData>>[1] = [];
+  let articleCount24h = 0;
+  let latestOpportunity: Awaited<ReturnType<typeof loadHubData>>[3] = null;
+  let latestEmerging: Awaited<ReturnType<typeof loadHubData>>[4] = null;
+  let latestWhales: Awaited<ReturnType<typeof loadHubData>>[5] = null;
+
+  try {
+    [bots, events, articleCount24h, latestOpportunity, latestEmerging, latestWhales] = await loadHubData(dayCutoff);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Database connection unavailable.';
+    loadWarning = message.split('\n')[0];
+  }
 
   const fleet = bots.map((bot) => {
     const latestMetric = bot.metrics[0] ?? null;
@@ -53,7 +70,7 @@ export default async function HubPage() {
       name: bot.name,
       environment: bot.environment,
       category: bot.category,
-      strategyFamily: bot.strategyFamily,
+      strategyFamily: bot.strategyFamily ?? getBotDescription(bot.slug)?.tags.join(' · ') ?? null,
       venue: bot.venue,
       status: bot.status,
       isEnabled: bot.isEnabled,
@@ -92,6 +109,7 @@ export default async function HubPage() {
     <HubCommandCenter
       summary={summary}
       fleet={fleet}
+      loadWarning={loadWarning}
       events={events.map((event) => ({
         id: event.id,
         botSlug: event.bot.slug,

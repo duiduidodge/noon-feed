@@ -27,9 +27,10 @@ export function TradesPanel({ trades }: { trades: TradeMsg[] }) {
   const buyPct = totalVol > 0 ? (buyVol / totalVol) * 100 : 50;
 
   return (
-    <div className="border-t border-border/25 bg-background/60 shrink-0">
-      {/* Flow ratio row */}
-      <div className="flex items-center gap-3 px-4 pt-2 pb-1.5">
+    <div className="shrink-0 border-t border-border/25 bg-background/60">
+      <div className="px-4 pt-3 pb-3">
+        {/* Flow ratio row */}
+      <div className="flex items-center gap-3">
         {/* Buy label + vol */}
         <div className="flex items-center gap-1.5 w-20 shrink-0">
           <span className="text-[10px] font-mono font-semibold text-bullish tabular-nums">
@@ -41,9 +42,9 @@ export function TradesPanel({ trades }: { trades: TradeMsg[] }) {
         </div>
 
         {/* Bar */}
-        <div className="flex-1 h-2 rounded-full overflow-hidden bg-surface/80 flex">
+        <div className="flex h-2.5 flex-1 overflow-hidden rounded-full bg-surface/80">
           <div
-            className="h-full rounded-full bg-bullish/60 transition-all duration-500"
+            className="h-full rounded-full bg-bullish/70 transition-all duration-500"
             style={{ width: `${buyPct}%` }}
           />
           <div className="h-full flex-1 bg-bearish/50" />
@@ -59,9 +60,11 @@ export function TradesPanel({ trades }: { trades: TradeMsg[] }) {
           </span>
         </div>
       </div>
+      </div>
 
       {/* Trade chips */}
-      <div className="flex items-center gap-1 px-4 pb-2.5 overflow-x-auto no-scrollbar">
+      <div className="border-t border-border/15 px-4 py-2.5">
+      <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
         {trades.length === 0 ? (
           <span className="text-[10px] font-mono text-foreground/20">waiting for stream…</span>
         ) : (
@@ -96,6 +99,7 @@ export function TradesPanel({ trades }: { trades: TradeMsg[] }) {
             );
           })
         )}
+      </div>
       </div>
     </div>
   );

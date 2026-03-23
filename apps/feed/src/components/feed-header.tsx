@@ -80,11 +80,11 @@ export function FeedHeader() {
   return (
     <header className="sticky top-0 z-50">
       {/* Main navigation bar */}
-      <div className="bg-background/90 backdrop-blur-xl border-b border-border/45 transition-all duration-normal relative z-50">
-        <div className="mx-auto flex h-14 max-w-[1640px] items-center justify-between px-3 md:px-unit-4 lg:px-unit-6">
+      <div className="relative z-50 border-b border-border/55 bg-[hsl(var(--background)/0.97)] backdrop-blur-xl transition-all duration-normal">
+        <div className="mx-auto grid h-[74px] max-w-[1680px] grid-cols-[auto_1fr_auto] items-center gap-4 px-3 md:h-[88px] md:px-5 lg:px-6">
           {/* Logo */}
           <div
-            className="flex items-center cursor-pointer opacity-90 hover:opacity-100 transition-opacity duration-fast"
+            className="flex items-center cursor-pointer rounded-full border border-border/70 bg-[hsl(var(--card)/0.94)] px-3.5 py-2.5 opacity-100 shadow-card transition-all duration-fast hover:border-primary/30 hover:bg-[hsl(var(--card)/0.98)]"
             onClick={() => router.push('/')}
             role="link"
             tabIndex={0}
@@ -95,17 +95,18 @@ export function FeedHeader() {
               alt="noon — Crypto Intelligence"
               width={160}
               height={46}
-              className="h-7 md:h-8 w-auto logo-light select-none"
+              className="h-8 w-auto select-none logo-light md:h-9"
               priority
             />
           </div>
 
           {/* Navigation tabs — center */}
           <nav
-            className="hidden md:flex items-center gap-6 lg:gap-7"
+            className="hidden min-w-0 items-center justify-center md:flex"
             role="tablist"
             aria-label="Main navigation"
           >
+            <div className="flex items-center gap-2 rounded-full border border-border/70 bg-[hsl(var(--card)/0.92)] px-2.5 py-2 shadow-card">
             {NAV_ITEMS.map((item) => {
               const isActive = activeTab === item.label;
               return (
@@ -115,46 +116,49 @@ export function FeedHeader() {
                   role="tab"
                   aria-selected={isActive}
                   className={`
-                    relative py-2 text-small font-medium tracking-tight transition-colors duration-fast
+                    relative rounded-full px-3.5 py-2.5 font-mono-data text-[12px] font-bold uppercase tracking-[0.12em] transition-colors duration-fast
                     ${isActive
-                      ? 'text-foreground font-semibold'
-                      : 'text-muted-foreground hover:text-foreground/85'
+                      ? 'text-primary-foreground'
+                      : 'text-foreground/82 hover:bg-[hsl(var(--surface)/0.88)] hover:text-foreground'
                     }
                     cursor-pointer focus-ring
                   `}
                 >
-                  <span className="inline-flex items-center gap-1.5">{item.label}</span>
+                  <span className="relative z-10 inline-flex items-center gap-1.5">{item.label}</span>
 
                   {/* Animated active indicator */}
                   {isActive && (
                     <motion.span
                       layoutId="nav-active-indicator"
-                      className="absolute -bottom-[18px] left-0 right-0 h-[2px] bg-primary rounded-t-full"
+                      className="absolute inset-0 rounded-full bg-[hsl(var(--primary)/0.92)]"
                       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     />
                   )}
                 </button>
               );
             })}
+            </div>
           </nav>
 
           {/* Right controls */}
-          <div className="flex items-center gap-1 md:gap-2">
+          <div className="flex items-center justify-end gap-2 md:gap-2.5">
             <button
               onClick={() => setIsSearchOpen(true)}
-              className="group flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface/50 transition-colors duration-fast md:h-10 md:w-10 focus-ring"
+              className="group flex h-11 items-center justify-center gap-2 rounded-full border border-border/70 bg-[hsl(var(--card)/0.94)] px-3.5 shadow-card transition-colors duration-fast hover:border-primary/30 hover:bg-[hsl(var(--card)/0.98)] md:h-11 focus-ring"
               aria-label="Search articles (Cmd+K)"
             >
               <Search className="h-[17px] w-[17px] text-muted-foreground group-hover:text-primary transition-colors duration-fast" />
+              <span className="hidden font-mono-data text-[11px] font-bold uppercase tracking-[0.16em] text-foreground/86 md:inline">Search</span>
+              <span className="hidden rounded-full border border-border/60 bg-background/55 px-2 py-0.5 font-mono-data text-[9px] font-bold text-foreground/56 md:inline">CMD+K</span>
             </button>
 
-            <div className="h-4 w-px bg-border/40 mx-1" aria-hidden="true" />
+            <div className="mx-1 h-4 w-px bg-border/50" aria-hidden="true" />
 
             <ThemeToggle />
 
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="group relative z-50 flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface/50 transition-colors duration-fast md:h-10 md:w-10 focus-ring"
+              className="group relative z-50 flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-[hsl(var(--card)/0.94)] shadow-card transition-colors duration-fast hover:border-primary/30 hover:bg-[hsl(var(--card)/0.98)] md:h-11 md:w-11 focus-ring"
               aria-label={isMenuOpen ? 'Close menu' : 'Open menu'}
               aria-expanded={isMenuOpen}
             >
@@ -211,10 +215,14 @@ export function FeedHeader() {
       </div>
 
       {/* Market ticker strip (Desktop) */}
-      <div className="ticker-pause relative hidden h-[30px] items-center overflow-hidden border-b border-border/30 bg-background/70 backdrop-blur-md md:flex" role="marquee" aria-label="Market prices ticker">
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-background via-background/80 to-transparent z-10" aria-hidden="true" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background via-background/80 to-transparent z-10" aria-hidden="true" />
-        <MarketTicker />
+      <div className="border-b border-border/40 bg-[hsl(var(--background)/0.9)] backdrop-blur-md">
+        <div className="ticker-pause relative mx-auto hidden h-[38px] max-w-[1680px] items-center overflow-hidden px-3 md:flex md:px-5 lg:px-6" role="marquee" aria-label="Market prices ticker">
+          <div className="pointer-events-none absolute inset-y-0 left-3 z-10 w-12 bg-gradient-to-r from-background via-background/92 to-transparent md:left-5 lg:left-6" aria-hidden="true" />
+          <div className="pointer-events-none absolute inset-y-0 right-3 z-10 w-12 bg-gradient-to-l from-background via-background/92 to-transparent md:right-5 lg:right-6" aria-hidden="true" />
+          <div className="w-full overflow-hidden rounded-full border border-border/60 bg-[hsl(var(--card)/0.88)] px-3 shadow-card">
+            <MarketTicker />
+          </div>
+        </div>
       </div>
 
       {/* Search Modal */}

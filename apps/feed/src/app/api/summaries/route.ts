@@ -6,9 +6,6 @@ export async function GET() {
   try {
     const { prisma } = await import('@/lib/prisma');
     const summaries = await prisma.marketSummary.findMany({
-      where: {
-        discordPosted: true,
-      },
       orderBy: {
         createdAt: 'desc',
       },

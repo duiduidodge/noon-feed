@@ -64,32 +64,34 @@ export function MarketTicker({ marquee = true, compact = false }: MarketTickerPr
   const isPositive = data.global.avgChange24h >= 0;
 
   const tickerContent = (
-    <div className={clsx('flex items-center whitespace-nowrap', compact ? 'gap-2 px-2' : 'gap-2 px-3 md:gap-3 md:px-4')}>
+    <div className={clsx('flex items-center whitespace-nowrap', compact ? 'gap-2 px-2 py-1.5' : 'gap-2 px-3 py-1.5 md:gap-3 md:px-4')}>
       {/* Global stats — grouped in a subtle card */}
-      <div className="inline-flex items-center gap-2 md:gap-3 rounded-full bg-surface/50 border border-border/30 px-2.5 md:px-3 py-0.5">
+      <div className="inline-flex items-center gap-2 rounded-full border border-border/40 bg-surface/62 px-2.5 py-1 md:gap-3 md:px-3">
         <span
           className={clsx(
-            'font-mono-data text-[11px] font-bold',
+            'font-mono-data text-[12px] font-bold tracking-[0.06em]',
             isPositive ? 'text-bullish' : 'text-bearish'
           )}
         >
           24h {formatPercent(data.global.avgChange24h)}
         </span>
         <span className="h-3 w-px bg-border/30" />
-        <span className="inline-flex items-center gap-1 font-mono-data text-[11px]">
-          <Globe className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0" />
-          <span className="font-semibold text-foreground">{formatCompactNumber(data.global.totalMcap)}</span>
+        <span className="inline-flex items-center gap-1 font-mono-data text-[12px] font-semibold">
+          <Globe className="h-2.5 w-2.5 shrink-0 text-foreground/45" />
+          <span className="text-foreground/75">$</span>
+          <span className="font-bold text-foreground">{formatCompactNumber(data.global.totalMcap).replace(/^\$/, '')}</span>
         </span>
         <span className="h-3 w-px bg-border/30" />
-        <span className="inline-flex items-center gap-1 font-mono-data text-[11px]">
-          <BarChart2 className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0" />
-          <span className="font-semibold text-foreground">{formatCompactNumber(data.global.totalVolume)}</span>
+        <span className="inline-flex items-center gap-1 font-mono-data text-[12px] font-semibold">
+          <BarChart2 className="h-2.5 w-2.5 shrink-0 text-foreground/45" />
+          <span className="text-foreground/75">$</span>
+          <span className="font-bold text-foreground">{formatCompactNumber(data.global.totalVolume).replace(/^\$/, '')}</span>
         </span>
         <span className="h-3 w-px bg-border/30" />
-        <span className="inline-flex items-center gap-1 font-mono-data text-[11px]">
-          <PieChart className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0" />
-          <span className="text-muted-foreground/60">Dom</span>
-          <span className="font-semibold text-foreground">{data.global.btcDominance.toFixed(1)}%</span>
+        <span className="inline-flex items-center gap-1 font-mono-data text-[12px] font-semibold">
+          <PieChart className="h-2.5 w-2.5 shrink-0 text-foreground/45" />
+          <span className="text-foreground/55">Dom</span>
+          <span className="font-bold text-foreground">{data.global.btcDominance.toFixed(1)}%</span>
         </span>
       </div>
 
@@ -100,9 +102,9 @@ export function MarketTicker({ marquee = true, compact = false }: MarketTickerPr
           <div
             key={coin.id}
             className={clsx(
-              'inline-flex items-center gap-2 rounded-full border py-0.5 font-mono-data text-[11px] transition-colors',
+              'inline-flex items-center gap-2 rounded-full border py-1.5 font-mono-data text-[12px] transition-colors',
               compact ? 'px-2.5' : 'px-3',
-              'bg-surface/40 border-border/30'
+              'bg-surface/56 border-border/40'
             )}
           >
             {coin.image ? (
@@ -118,10 +120,10 @@ export function MarketTicker({ marquee = true, compact = false }: MarketTickerPr
                 {coin.symbol[0]}
               </span>
             )}
-            <span className="font-bold text-foreground">{coin.symbol}</span>
-            <span className="text-muted-foreground/80">{formatPrice(coin.priceUsd)}</span>
+            <span className="font-bold tracking-[0.04em] text-foreground">{coin.symbol}</span>
+            <span className="font-semibold text-foreground/76">{formatPrice(coin.priceUsd)}</span>
             <span className={clsx(
-              'font-bold',
+              'font-bold tracking-[0.04em]',
               coinPositive ? 'text-bullish' : 'text-bearish'
             )}>
               {formatPercent(coin.changePercent24Hr)}
