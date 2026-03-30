@@ -369,6 +369,8 @@ If you want feed ingestion + bi-daily summaries without running Redis/worker loc
    - `DIRECT_URL`
    - `REDIS_URL`
    - `DISCORD_WEBHOOK_URL`
+   - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_CHAT_ID`
    - `LLM_PROVIDER`
    - `LLM_MODEL`
    - one key based on provider: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` or `OPENROUTER_API_KEY`

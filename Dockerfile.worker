@@ -3,7 +3,7 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 
 # Runtime deps:
-# - redis-server: local queue backend inside the same Fly machine
+# - redis-server: local queue backend inside the same worker container
 # - python3: support existing emerging-movers script if enabled
 RUN apt-get update \
   && apt-get install -y --no-install-recommends redis-server python3 ca-certificates \
