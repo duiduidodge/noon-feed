@@ -29,6 +29,8 @@ jobs:
       REDIS_URL: ${{ secrets.REDIS_URL }}
       SUMMARY_TYPE: ${{ github.event_name == 'workflow_dispatch' && inputs.schedule_type || 'auto' }}
       DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
       LLM_MODEL: ${{ secrets.LLM_MODEL }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
