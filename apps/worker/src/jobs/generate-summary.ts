@@ -30,6 +30,27 @@ interface PriceData {
   fearGreedLabel: string;
 }
 
+const HAN_SCRIPT_REGEX = /\p{Script=Han}+/gu;
+
+function stripHanScript(text: string): string {
+  return text.replace(HAN_SCRIPT_REGEX, ' ');
+}
+
+function sanitizeSummaryField(text: string): string {
+  return stripHanScript(text)
+    .split('\n')
+    .map((line) => line.replace(/[ \t]{2,}/g, ' ').trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function sanitizeHeadlineTranslation(titleTh: string | undefined, fallbackTitle: string): string | undefined {
+  if (!titleTh) return undefined;
+  const cleaned = stripHanScript(titleTh);
+  return cleaned || fallbackTitle;
+}
+
 // Fetch prices from CoinGecko
 async function fetchPrices(): Promise<PriceData> {
   // Fetch coin prices
@@ -190,6 +211,7 @@ Write a JSON response with exactly these fields:
 ## Language Rules (apply to ALL bullet fields)
 - Write predominantly Thai. Use English ONLY for: crypto/finance jargon + specific proper names
 - KEEP all proper names in English — NEVER transliterate: "Bitcoin" not "บิทคอยน์", "Binance" not "ไบแนนซ์"
+- NEVER output Chinese characters or Han script anywhere in the response
 - Common Thai vocabulary must stay Thai: "สะท้อน" not "reflect", "ครอง" not "dominate", "ส่งสัญญาณ" not "signal"
 - Aim for ~80% Thai, ~20% English (jargon + names only)
 - Each bullet: max 120 characters. Start with a strong subject or verb phrase. No trailing punctuation.
@@ -452,17 +474,26 @@ export async function processGenerateSummaryJob(
     });
 
     const parsed = JSON.parse(llmResponse);
-    sectionTitle = parsed.section_title || `สรุปตลาดคริปโต`;
+    sectionTitle = sanitizeSummaryField(parsed.section_title || `สรุปตลาดคริปโต`);
 
-    const overview: string[] = Array.isArray(parsed.overview) ? parsed.overview : [];
-    const drivers: string[]  = Array.isArray(parsed.drivers)  ? parsed.drivers  : [];
-    const watch: string[]    = Array.isArray(parsed.watch)     ? parsed.watch    : [];
+    const overview: string[] = Array.isArray(parsed.overview)
+      ? parsed.overview.map((item: string) => sanitizeSummaryField(item)).filter(Boolean)
+      : [];
+    const drivers: string[] = Array.isArray(parsed.drivers)
+      ? parsed.drivers.map((item: string) => sanitizeSummaryField(item)).filter(Boolean)
+      : [];
+    const watch: string[] = Array.isArray(parsed.watch)
+      ? parsed.watch.map((item: string) => sanitizeSummaryField(item)).filter(Boolean)
+      : [];
 
     // Merge Thai headline translations into headlines array
     const headlinesTh: string[] = Array.isArray(parsed.headlines_th) ? parsed.headlines_th : [];
     headlinesTh.forEach((titleTh, i) => {
       if (headlines[i] && typeof titleTh === 'string' && titleTh.trim()) {
-        headlines[i] = { ...headlines[i], titleTh: titleTh.trim() };
+        headlines[i] = {
+          ...headlines[i],
+          titleTh: sanitizeHeadlineTranslation(titleTh.trim(), headlines[i].title),
+        };
       }
     });
 
@@ -483,6 +514,9 @@ export async function processGenerateSummaryJob(
     summaryText = `📊 สรุปข่าวคริปโตรอบ ${scheduleType === 'morning' ? 'เช้า' : 'เย็น'} — มีข่าว ${headlines.length} ข่าวในช่วง 12 ชั่วโมงที่ผ่านมา`;
     sectionTitle = `สรุปตลาดคริปโต ${scheduleType === 'morning' ? 'เช้า' : 'เย็น'}`;
   }
+
+  sectionTitle = sanitizeSummaryField(sectionTitle) || `สรุปตลาดคริปโต ${scheduleType === 'morning' ? 'เช้า' : 'เย็น'}`;
+  summaryText = sanitizeSummaryField(summaryText);
 
   // 4. Store summary in database
   const summary = await prisma.marketSummary.create({
