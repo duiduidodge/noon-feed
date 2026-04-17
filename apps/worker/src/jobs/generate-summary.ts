@@ -10,6 +10,8 @@ export interface GenerateSummaryJobData {
   webhookUrl?: string;
   telegramBotToken?: string;
   telegramChatId?: string;
+  articleWindowStartUtc?: string;
+  articleWindowEndUtc?: string;
 }
 
 interface HeadlineItem {
@@ -28,6 +30,21 @@ interface PriceData {
   marketCapChange24h: number;
   fearGreedIndex: number;
   fearGreedLabel: string;
+}
+
+interface SummarySections {
+  sectionTitle: string;
+  overview: string[];
+  drivers: string[];
+  watch: string[];
+}
+
+interface SummaryPayload extends SummarySections {
+  headlines: HeadlineItem[];
+  prices: PriceData;
+  scheduleType: 'morning' | 'evening';
+  articleCount: number;
+  summaryText: string;
 }
 
 const HAN_SCRIPT_REGEX = /\p{Script=Han}+/gu;
@@ -49,6 +66,212 @@ function sanitizeHeadlineTranslation(titleTh: string | undefined, fallbackTitle:
   if (!titleTh) return undefined;
   const cleaned = stripHanScript(titleTh);
   return cleaned || fallbackTitle;
+}
+
+function sanitizeBullet(text: string, maxLength = 120): string {
+  return sanitizeSummaryField(text)
+    .replace(/^[-•*]\s*/, '')
+    .replace(/\s*[—-]\s*/g, ' ')
+    .replace(/\b(sentiment|market|price action)\b/gi, (match) => match.toLowerCase())
+    .replace(/\s+/g, ' ')
+    .replace(/[。.!?]+$/g, '')
+    .trim()
+    .slice(0, maxLength)
+    .trim();
+}
+
+function dedupeStrings(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    const normalized = value.toLowerCase();
+    if (!value || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(value);
+  }
+  return result;
+}
+
+function getScheduleMeta(scheduleType: 'morning' | 'evening') {
+  return scheduleType === 'morning'
+    ? {
+        thaiLabel: 'เช้า',
+        englishLabel: 'Morning Brief (07:00 ICT)',
+        timeEmoji: '🌅',
+        promptFocus: 'Frame the session ahead. Emphasize setup, positioning, and what traders should watch next.',
+      }
+    : {
+        thaiLabel: 'เย็น',
+        englishLabel: 'Evening Wrap (19:00 ICT)',
+        timeEmoji: '🌆',
+        promptFocus: 'Frame what changed during the session. Emphasize what held, what failed, and what carries into the next session.',
+      };
+}
+
+function classifyHeadline(title: string): 'institutional' | 'policy' | 'risk' | 'market' | 'other' {
+  const normalized = title.toLowerCase();
+  if (/(schwab|morgan stanley|blackrock|citi|goldman|jpmorgan|bank|etf|institution|reserve)/i.test(normalized)) return 'institutional';
+  if (/(sec|cftc|fca|law|regulat|policy|senate|congress|tax|stablecoin|government)/i.test(normalized)) return 'policy';
+  if (/(hack|exploit|liquidat|outflow|sell|pressure|fear|crime|fraud|halt|withdrawal|pushback)/i.test(normalized)) return 'risk';
+  if (/(bitcoin|btc|ethereum|eth|solana|sol|doge|xrp|market|price|funding|rally|resistance)/i.test(normalized)) return 'market';
+  return 'other';
+}
+
+function scoreHeadline(item: HeadlineItem, index: number): number {
+  const normalized = item.title.toLowerCase();
+  let score = Math.max(0, 100 - index);
+  const category = classifyHeadline(item.title);
+
+  if (category === 'institutional') score += 35;
+  if (category === 'policy') score += 28;
+  if (category === 'risk') score += 24;
+  if (category === 'market') score += 18;
+
+  if (/(bitcoin|btc)/i.test(normalized)) score += 10;
+  if (/(ethereum|eth|solana|sol|xrp|doge|hype)/i.test(normalized)) score += 6;
+  if (/(launch|opens|launches|pilot|approve|deal|rescue|recovery|outflow|liquidation)/i.test(normalized)) score += 8;
+  if (/coindesk/i.test(item.source)) score += 4;
+  if (/cointelegraph/i.test(item.source)) score += 3;
+  if (/decrypt/i.test(item.source)) score += 2;
+
+  return score;
+}
+
+function rankHeadlines(headlines: HeadlineItem[]): HeadlineItem[] {
+  return headlines
+    .map((headline, index) => ({ headline, index, score: scoreHeadline(headline, index) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.headline);
+}
+
+function buildStructuredSummaryText(sections: SummarySections): string {
+  const parts: string[] = [];
+  if (sections.overview.length > 0) {
+    parts.push(`🌐 ภาพรวม\n${sections.overview.map((b) => `• ${b}`).join('\n')}`);
+  }
+  if (sections.drivers.length > 0) {
+    parts.push(`⚡ ปัจจัยขับเคลื่อน\n${sections.drivers.map((b) => `• ${b}`).join('\n')}`);
+  }
+  if (sections.watch.length > 0) {
+    parts.push(`⚠️ จับตา\n${sections.watch.map((b) => `• ${b}`).join('\n')}`);
+  }
+  return parts.join('\n\n');
+}
+
+function parseStoredSections(summaryText: string, fallbackTitle: string): SummarySections {
+  const sections: SummarySections = {
+    sectionTitle: fallbackTitle,
+    overview: [],
+    drivers: [],
+    watch: [],
+  };
+
+  for (const block of summaryText.split('\n\n')) {
+    const lines = block.split('\n').map((line) => line.trim()).filter(Boolean);
+    if (lines.length === 0) continue;
+    const [header, ...bullets] = lines;
+    const cleanedBullets = bullets.map((bullet) => sanitizeBullet(bullet)).filter(Boolean);
+    if (header.includes('ภาพรวม')) sections.overview = cleanedBullets;
+    if (header.includes('ปัจจัย')) sections.drivers = cleanedBullets;
+    if (header.includes('จับตา')) sections.watch = cleanedBullets;
+  }
+
+  return sections;
+}
+
+function padBullets(items: string[], minimum: number, fillers: string[]): string[] {
+  const result = dedupeStrings(items).slice(0, minimum);
+  for (const filler of fillers) {
+    if (result.length >= minimum) break;
+    if (!result.includes(filler)) result.push(filler);
+  }
+  return result;
+}
+
+function buildFallbackSections(
+  headlines: HeadlineItem[],
+  prices: PriceData,
+  scheduleType: 'morning' | 'evening'
+): SummarySections {
+  const ranked = rankHeadlines(headlines);
+  const topTitles = ranked.slice(0, 3).map((item) => item.titleTh || item.title);
+  const btcBias = prices.btc.change24h >= 0 ? 'เริ่มฟื้นตัว' : 'ยังถูกกดดัน';
+  const altBias = prices.sol.change24h >= 0 ? 'SOL เด่นกว่า majors' : 'altcoins ยังฟื้นไม่พร้อมกัน';
+  const mood = prices.fearGreedIndex <= 25 ? 'ความกลัวสูง' : 'sentiment ยังระวังตัว';
+  const meta = getScheduleMeta(scheduleType);
+
+  return {
+    sectionTitle: `${meta.thaiLabel === 'เช้า' ? 'ตลาดเช้ายัง' : 'ตลาดเย็นยัง'}เน้นระวังแรงเหวี่ยง`,
+    overview: [
+      sanitizeBullet(`ตลาดเคลื่อนไหว sideways ภายใต้ ${mood}`),
+      sanitizeBullet(`BTC ${btcBias} ขณะที่ spot demand ยังไม่กลับมาเต็มที่`),
+      sanitizeBullet(`${altBias} แต่ภาพรวมยังไม่ใช่ broad-based rally`),
+    ],
+    drivers: padBullets(
+      topTitles.map((title) => sanitizeBullet(title, 120)),
+      3,
+      [
+        sanitizeBullet('แรงข่าวฝั่งสถาบันและ policy ยังเป็นตัวกำหนด sentiment ระยะสั้น'),
+        sanitizeBullet('กระแส funding, liquidation และ supply pressure ยังบังคับทิศทาง majors'),
+        sanitizeBullet('นักลงทุนยังให้น้ำหนักกับข่าวที่กระทบ Bitcoin และ Ethereum โดยตรง'),
+      ]
+    ),
+    watch: padBullets(
+      [
+        sanitizeBullet('ติดตามแรง follow-through หลัง headline หลักว่ามี spot demand รองรับหรือไม่'),
+        sanitizeBullet('จับตา sentiment รอบถัดไปผ่าน funding, ETF flow และข่าว policy ใหม่'),
+      ],
+      2,
+      [
+        sanitizeBullet('ระวังแรงขายทำกำไรเมื่อราคาเข้าใกล้แนวต้านสำคัญของ BTC'),
+        sanitizeBullet('ติดตามว่าเม็ดเงินจะกระจายจาก BTC ไปสู่ altcoins หรือไม่'),
+      ]
+    ),
+  };
+}
+
+function buildValidatedSections(
+  raw: Partial<SummarySections>,
+  headlines: HeadlineItem[],
+  prices: PriceData,
+  scheduleType: 'morning' | 'evening'
+): SummarySections {
+  const fallback = buildFallbackSections(headlines, prices, scheduleType);
+  const sectionTitle = sanitizeSummaryField(raw.sectionTitle || fallback.sectionTitle).slice(0, 50) || fallback.sectionTitle;
+  const overview = padBullets(
+    (raw.overview || []).map((item) => sanitizeBullet(item, 110)).filter(Boolean),
+    3,
+    fallback.overview
+  );
+  const drivers = padBullets(
+    (raw.drivers || []).map((item) => sanitizeBullet(item, 110)).filter(Boolean),
+    3,
+    fallback.drivers
+  );
+  const watch = padBullets(
+    (raw.watch || []).map((item) => sanitizeBullet(item, 100)).filter(Boolean),
+    2,
+    fallback.watch
+  );
+
+  return { sectionTitle, overview, drivers, watch };
+}
+
+function buildSummaryPayload(
+  sections: SummarySections,
+  headlines: HeadlineItem[],
+  prices: PriceData,
+  scheduleType: 'morning' | 'evening'
+): SummaryPayload {
+  const ranked = rankHeadlines(headlines);
+  return {
+    ...sections,
+    headlines: ranked,
+    prices,
+    scheduleType,
+    articleCount: headlines.length,
+    summaryText: buildStructuredSummaryText(sections),
+  };
 }
 
 // Fetch prices from CoinGecko
@@ -150,7 +373,8 @@ function buildSummaryPrompt(
   prices: PriceData,
   scheduleType: 'morning' | 'evening'
 ): string {
-  const period = scheduleType === 'morning' ? 'เช้า (รอบ 7:00 น.)' : 'เย็น (รอบ 19:00 น.)';
+  const meta = getScheduleMeta(scheduleType);
+  const period = `${meta.thaiLabel} (รอบ ${scheduleType === 'morning' ? '7:00' : '19:00'} น.)`;
   const now = new Date();
   const bangkokDate = new Date(now.getTime() + 7 * 60 * 60 * 1000);
   const dateStr = bangkokDate.toLocaleDateString('th-TH', {
@@ -164,15 +388,22 @@ function buildSummaryPrompt(
     .map((h, i) => `${i + 1}. "${h.title}" — ${h.source}`)
     .join('\n');
 
-  return `You are a senior Thai crypto analyst providing a bi-daily market outlook for a Discord community of Thai crypto traders and investors.
+  return `You are a senior Thai crypto editor writing a premium bi-daily market recap for Thai crypto traders and investors.
 
-## Context
-This is the ${period} summary for ${dateStr}.
-Your analysis will be displayed alongside a price table and a headline list — so do NOT repeat price numbers or list news headlines. They are already shown separately.
+## Mission
+Write a concise market brief for the ${period} session on ${dateStr}.
+This brief will appear in chat beside a headline list and market prices.
 
-**IMPORTANT**: The headlines below are PRE-FILTERED to show only HIGH and MEDIUM impact news. Use HIGH impact stories as the core of your analysis and MEDIUM stories to support broader trends.
+Your job is NOT to restate headlines.
+Your job is to:
+- identify the market state
+- explain the real drivers
+- tell readers what matters next
 
-## Market Data (reference only — do NOT quote these numbers directly)
+${meta.promptFocus}
+
+## Input Context
+### Market Data
 - BTC: ${formatPrice(prices.btc.price)} (${formatChange(prices.btc.change24h)})
 - ETH: ${formatPrice(prices.eth.price)} (${formatChange(prices.eth.change24h)})
 - SOL: ${formatPrice(prices.sol.price)} (${formatChange(prices.sol.change24h)})
@@ -180,59 +411,125 @@ Your analysis will be displayed alongside a price table and a headline list — 
 - Total Market Cap: ${formatMarketCap(prices.totalMarketCap)} (${formatChange(prices.marketCapChange24h)})
 - Fear & Greed Index: ${prices.fearGreedIndex} (${prices.fearGreedLabel})
 
-## HIGH & MEDIUM IMPACT News Headlines (${headlines.length} major stories since last summary):
+### Major Headlines (${headlines.length})
 ${headlinesList || '(No major headlines in this period)'}
 
-## Output Format
-Write a JSON response with exactly these fields:
+## Editorial Workflow
+Before writing the final JSON, internally do this:
+1. Rank the headlines by market impact
+2. Prioritize:
+   - institutional adoption / large allocators
+   - regulation / policy / sovereign or banking signals
+   - market structure / funding / liquidation / supply pressure
+   - major token-specific moves only if they affect broader sentiment
+3. Ignore novelty stories unless they materially affect market tone
+4. Separate your thinking into:
+   - market state
+   - causes
+   - next triggers
 
-1. "section_title": A punchy Thai title capturing today's market mood (max 50 chars, no emoji)
+Do not output this reasoning. Output JSON only.
 
-2. "overview": Array of exactly 3 bullet strings — macro market direction and sentiment
-   - What is the overall market structure right now? Trending, sideways, recovering, or distributing?
-   - Use Fear & Greed and price action as context clues (without quoting exact numbers)
-   - Each bullet = one distinct, concrete observation about the market state
+## Writing Rules
+- Write in Thai by default
+- Use English only for:
+  - proper names
+  - company names
+  - protocol names
+  - token symbols
+  - unavoidable market jargon
+- Keep proper names in English exactly as written
+- Never output Chinese characters or Han script
+- Prefer natural Thai phrasing over direct translation from English
+- Avoid overly academic or robotic wording
+- Avoid generic filler such as:
+  - "โดยรวม"
+  - "ทั้งนี้"
+  - "อย่างไรก็ตาม"
+- Avoid generic titles like:
+  - "ตลาดยังผันผวน"
+  - "ตลาดคริปโตยังน่าจับตา"
+- Avoid repeating the same idea across sections
+- Do not repeat exact price numbers
+- Do not give trading advice
+- Do not simply rewrite a headline without stating why it matters
 
-3. "drivers": Array of 2–3 bullet strings — specific catalysts moving the market this session
-   - What are the 2–3 most important stories actually driving price action?
-   - Be specific: name the project, institution, or event AND explain the implication
-   - Weave the most impactful headlines in naturally as evidence, not as a recap
+## Section Rules
 
-4. "watch": Array of 1–2 bullet strings — what traders should monitor in the next session
-   - Forward-looking: key levels, upcoming events, emerging risks, or structural shifts
-   - Be concrete — vague warnings are not useful
+### section_title
+- One sharp Thai title
+- Max 42 characters
+- No emoji
+- Must describe the market state clearly
+- Must sound publishable and specific
 
-5. "headlines_th": Array of Thai-translated headline titles — translate the FIRST 15 headlines from the list above (same order)
-   - Translate only the title text, keep it natural Thai — not word-for-word
-   - Keep proper names, project names, company names, and token symbols in English (e.g. "Bitcoin", "BlackRock", "SEC", "ETH")
-   - Max 100 characters per translated title
-   - Return exactly 15 strings (or fewer if there are fewer than 15 headlines)
+### overview
+- Exactly 3 bullets
+- Describe current market structure, sentiment, and breadth
+- This section is about "what the market looks like right now"
+- Do NOT focus on individual headlines unless needed for context
+- Each bullet must say something different
 
-## Language Rules (apply to ALL bullet fields)
-- Write predominantly Thai. Use English ONLY for: crypto/finance jargon + specific proper names
-- KEEP all proper names in English — NEVER transliterate: "Bitcoin" not "บิทคอยน์", "Binance" not "ไบแนนซ์"
-- NEVER output Chinese characters or Han script anywhere in the response
-- Common Thai vocabulary must stay Thai: "สะท้อน" not "reflect", "ครอง" not "dominate", "ส่งสัญญาณ" not "signal"
-- Aim for ~80% Thai, ~20% English (jargon + names only)
-- Each bullet: max 120 characters. Start with a strong subject or verb phrase. No trailing punctuation.
-- No filler openers ("ทั้งนี้", "อย่างไรก็ตาม", "โดยรวม")
-- No trading advice (no "buy", "sell", "entry", "stop-loss")
-- Tone: sharp and analytical — observe and interpret, do not advise
+### drivers
+- Exactly 3 bullets
+- Each bullet must include:
+  - the event / actor
+  - why markets care
+- Prefer causal structure:
+  - "event -> implication"
+- This section is about "why the market is behaving this way"
 
-Respond ONLY with valid JSON. No markdown code blocks.`;
+### watch
+- Exactly 2 bullets
+- Forward-looking only
+- State what to monitor next and why it matters
+- This section is about "what could change the next session"
+
+### headlines_th
+- Translate the first 15 headlines only
+- Same order as input
+- Keep names, companies, protocols, and symbols in English
+- Natural Thai, not literal translation
+- Max 100 characters each
+
+## Bullet Quality Rules
+- Each bullet should be about 45-95 characters, max 110
+- Start with a strong subject or verb phrase
+- No trailing punctuation
+- No duplicate bullets
+- No vague bullets
+- No empty abstractions
+- Every bullet must add new information
+
+## Self-check Before Output
+- Ensure section_title is specific, not generic
+- Ensure overview/drivers/watch have exact counts
+- Ensure no repeated idea appears across sections
+- Ensure drivers explain implication, not just event
+- Ensure watch is forward-looking
+- Ensure Thai reads naturally
+- Ensure output is valid JSON
+
+## Output JSON Schema
+{
+  "section_title": string,
+  "overview": [string, string, string],
+  "drivers": [string, string, string],
+  "watch": [string, string],
+  "headlines_th": string[]
+}
+
+Respond ONLY with valid JSON. No markdown.`;
 }
 
 // Format and send Discord webhook
 // Discord limits: embed description 4096 chars, field value 1024 chars, total 6000 chars
 async function postSummaryToDiscord(
   webhookUrl: string,
-  summaryText: string,
-  sectionTitle: string,
-  headlines: HeadlineItem[],
-  prices: PriceData,
-  scheduleType: 'morning' | 'evening'
+  payload: SummaryPayload
 ): Promise<void> {
-  const timeEmoji = scheduleType === 'morning' ? '🌅' : '🌆';
+  const { summaryText, sectionTitle, headlines, prices, scheduleType } = payload;
+  const meta = getScheduleMeta(scheduleType);
 
   // Format bullets for Discord — bold section headers + bullet lines
   const analysisLines: string[] = [];
@@ -241,7 +538,7 @@ async function postSummaryToDiscord(
     if (lines.length === 0) continue;
     const [header, ...bullets] = lines;
     if (header) analysisLines.push(`**${header}**`);
-    bullets.forEach(b => analysisLines.push(b));
+    bullets.forEach((b) => analysisLines.push(b));
     analysisLines.push('');
   }
   const analysisBlock = analysisLines.join('\n').trim();
@@ -250,7 +547,6 @@ async function postSummaryToDiscord(
     ? analysisBlock.substring(0, maxAnalysisLen).replace(/\s+\S*$/, '') + '...'
     : analysisBlock;
 
-  // Price field — vertical layout with green/red indicators
   const coinLines = [
     { name: 'BTC', price: prices.btc.price, change: prices.btc.change24h },
     { name: 'ETH', price: prices.eth.price, change: prices.eth.change24h },
@@ -273,7 +569,7 @@ async function postSummaryToDiscord(
     priceLines,
     '',
     `${mcapIcon} MCap: **${formatMarketCap(prices.totalMarketCap)}** (${formatChange(prices.marketCapChange24h)})`,
-    `${fgEmoji} Fear & Greed: **${prices.fearGreedIndex}** — ${prices.fearGreedLabel}`,
+    `${fgEmoji} Fear & Greed: **${prices.fearGreedIndex}** — ${escapeMarkdown(prices.fearGreedLabel)}`,
   ].join('\n');
 
   // Headlines — use description space (4096 char limit) instead of fields (1024)
@@ -281,8 +577,8 @@ async function postSummaryToDiscord(
   const headlineLines: string[] = [];
 
   for (const h of headlineItems) {
-    const displayTitle = (h.titleTh || h.title).substring(0, 80);
-    const line = `• [${displayTitle}](${h.url}) — *${h.source}*`;
+    const displayTitle = escapeMarkdown((h.titleTh || h.title).substring(0, 80));
+    const line = `• [${displayTitle}](${h.url}) — *${escapeMarkdown(h.source)}*`;
     headlineLines.push(line);
   }
 
@@ -303,9 +599,8 @@ async function postSummaryToDiscord(
     },
   ];
 
-  // Build the embed
   const embed = {
-    title: `${timeEmoji} ${sectionTitle}`,
+    title: `${meta.timeEmoji} ${sectionTitle}`,
     description: safeDescription,
     color: 0x00e5cc,
     fields,
@@ -330,15 +625,11 @@ async function postSummaryToDiscord(
 async function postSummaryToTelegram(
   telegramBotToken: string,
   telegramChatId: string,
-  summaryText: string,
-  sectionTitle: string,
-  headlines: HeadlineItem[],
-  prices: PriceData,
-  scheduleType: 'morning' | 'evening'
+  payload: SummaryPayload
 ): Promise<void> {
-  const timeEmoji = scheduleType === 'morning' ? '🌅' : '🌆';
+  const { sectionTitle, overview, drivers, watch, headlines, prices, scheduleType } = payload;
+  const meta = getScheduleMeta(scheduleType);
   const telegramService = new TelegramService(telegramBotToken, telegramChatId);
-  const summaryLabel = scheduleType === 'morning' ? 'Morning Brief (07:00 ICT)' : 'Evening Wrap (19:00 ICT)';
 
   const escapeUrlForHtmlAttr = (url: string): string =>
     url
@@ -355,31 +646,28 @@ async function postSummaryToTelegram(
   ];
 
   const headlineLines = headlines
-    .slice(0, 8)
+    .slice(0, 10)
     .map((h, i) => {
-      const displayTitle = (h.titleTh || h.title).substring(0, 100);
+      const displayTitle = (h.titleTh || h.title).substring(0, 96);
       return `${i + 1}. <a href="${escapeUrlForHtmlAttr(h.url)}">${escapeHtml(displayTitle)}</a>`;
     })
     .join('\n');
 
-  // Format bullets for Telegram — bold section headers in HTML
-  const analysisHtmlLines: string[] = [];
-  for (const section of summaryText.split('\n\n')) {
-    const lines = section.split('\n').filter(Boolean);
-    if (lines.length === 0) continue;
-    const [header, ...bullets] = lines;
-    if (header) analysisHtmlLines.push(`<b>${escapeHtml(header)}</b>`);
-    bullets.forEach(b => analysisHtmlLines.push(escapeHtml(b)));
-    analysisHtmlLines.push('');
-  }
-  const analysisHtml = analysisHtmlLines.join('\n').trim();
+  const renderBulletGroup = (header: string, bullets: string[]) =>
+    [
+      `<b>${escapeHtml(header)}</b>`,
+      ...bullets.map((bullet) => `• ${escapeHtml(bullet)}`),
+      '\u200B',
+    ].filter(Boolean);
 
   const message = [
-    `${timeEmoji} <b>${escapeHtml(sectionTitle)}</b>`,
-    `<i>${summaryLabel}</i>`,
+    `${meta.timeEmoji} <b>${escapeHtml(sectionTitle)}</b>`,
+    `<i>${meta.englishLabel}</i>`,
     '━━━━━━━━━━',
     '',
-    analysisHtml.substring(0, 1700),
+    ...renderBulletGroup('🌐 ภาพรวม', overview),
+    ...renderBulletGroup('⚡ ปัจจัยขับเคลื่อน', drivers),
+    ...renderBulletGroup('⚠️ จับตา', watch),
     '',
     '━━━━━━━━━━',
     headlineLines ? `<b>📰 ข่าวเด่น ${headlineLines.split('\n').length} ข่าว</b>` : '',
@@ -401,14 +689,34 @@ export async function processGenerateSummaryJob(
   prisma: PrismaClient,
   llmProvider: LLMProviderInterface
 ): Promise<{ success: boolean; summaryId: string }> {
-  const { scheduleType, webhookUrl, telegramBotToken, telegramChatId } = data;
+  const {
+    scheduleType,
+    webhookUrl,
+    telegramBotToken,
+    telegramChatId,
+    articleWindowStartUtc,
+    articleWindowEndUtc,
+  } = data;
 
   logger.info({ scheduleType }, 'Generating bi-daily market summary');
 
   // 1. Get articles since the last summary (fallback: 14 hours if no previous summary)
   const overrideHours = Number(process.env.SUMMARY_LOOKBACK_HOURS) || 0;
   let cutoff: Date;
-  if (overrideHours > 0) {
+  let windowEnd: Date | undefined;
+
+  if (articleWindowStartUtc) {
+    cutoff = new Date(articleWindowStartUtc);
+    if (Number.isNaN(cutoff.getTime())) {
+      throw new Error(`Invalid articleWindowStartUtc: ${articleWindowStartUtc}`);
+    }
+    if (articleWindowEndUtc) {
+      windowEnd = new Date(articleWindowEndUtc);
+      if (Number.isNaN(windowEnd.getTime())) {
+        throw new Error(`Invalid articleWindowEndUtc: ${articleWindowEndUtc}`);
+      }
+    }
+  } else if (overrideHours > 0) {
     cutoff = new Date(Date.now() - overrideHours * 60 * 60 * 1000);
   } else {
     const lastSummary = await prisma.marketSummary.findFirst({
@@ -420,12 +728,21 @@ export async function processGenerateSummaryJob(
       : new Date(Date.now() - 14 * 60 * 60 * 1000);
   }
 
-  logger.info({ cutoff: cutoff.toISOString() }, 'Article lookback cutoff');
+  logger.info(
+    {
+      cutoff: cutoff.toISOString(),
+      windowEnd: windowEnd?.toISOString(),
+    },
+    'Article lookback cutoff'
+  );
 
   const articles = await prisma.article.findMany({
     where: {
       status: { in: ['FETCHED', 'ENRICHED'] },
-      publishedAt: { gte: cutoff },
+      publishedAt: {
+        gte: cutoff,
+        ...(windowEnd ? { lt: windowEnd } : {}),
+      },
       // Include HIGH and MEDIUM impact articles for bi-daily summary
       enrichment: {
         marketImpact: { in: ['HIGH', 'MEDIUM'] },
@@ -447,11 +764,12 @@ export async function processGenerateSummaryJob(
     take: 50,
   });
 
-  const headlines: HeadlineItem[] = articles.map((a) => ({
+  const rawHeadlines: HeadlineItem[] = articles.map((a) => ({
     title: a.titleOriginal,
     url: a.url,
     source: a.originalSourceName || a.source.name,
   }));
+  let headlines = rankHeadlines(rawHeadlines);
 
   logger.info({ articleCount: headlines.length }, 'Gathered headlines for summary');
 
@@ -464,8 +782,7 @@ export async function processGenerateSummaryJob(
 
   // 3. Generate Thai summary via LLM
   const prompt = buildSummaryPrompt(headlines, prices, scheduleType);
-  let summaryText = '';
-  let sectionTitle = '';
+  let payload: SummaryPayload;
 
   try {
     const llmResponse = await llmProvider.complete(prompt, {
@@ -474,19 +791,6 @@ export async function processGenerateSummaryJob(
     });
 
     const parsed = JSON.parse(llmResponse);
-    sectionTitle = sanitizeSummaryField(parsed.section_title || `สรุปตลาดคริปโต`);
-
-    const overview: string[] = Array.isArray(parsed.overview)
-      ? parsed.overview.map((item: string) => sanitizeSummaryField(item)).filter(Boolean)
-      : [];
-    const drivers: string[] = Array.isArray(parsed.drivers)
-      ? parsed.drivers.map((item: string) => sanitizeSummaryField(item)).filter(Boolean)
-      : [];
-    const watch: string[] = Array.isArray(parsed.watch)
-      ? parsed.watch.map((item: string) => sanitizeSummaryField(item)).filter(Boolean)
-      : [];
-
-    // Merge Thai headline translations into headlines array
     const headlinesTh: string[] = Array.isArray(parsed.headlines_th) ? parsed.headlines_th : [];
     headlinesTh.forEach((titleTh, i) => {
       if (headlines[i] && typeof titleTh === 'string' && titleTh.trim()) {
@@ -497,33 +801,30 @@ export async function processGenerateSummaryJob(
       }
     });
 
-    // Build flat section text — compatible with feed UI and Discord/Telegram rendering
-    const parts: string[] = [];
-    if (overview.length > 0) {
-      parts.push(`🌐 ภาพรวม\n${overview.map(b => `• ${b}`).join('\n')}`);
-    }
-    if (drivers.length > 0) {
-      parts.push(`⚡ ปัจจัยขับเคลื่อน\n${drivers.map(b => `• ${b}`).join('\n')}`);
-    }
-    if (watch.length > 0) {
-      parts.push(`⚠️ จับตา\n${watch.map(b => `• ${b}`).join('\n')}`);
-    }
-    summaryText = parts.join('\n\n');
+    const sections = buildValidatedSections(
+      {
+        sectionTitle: parsed.section_title,
+        overview: Array.isArray(parsed.overview) ? parsed.overview : [],
+        drivers: Array.isArray(parsed.drivers) ? parsed.drivers : [],
+        watch: Array.isArray(parsed.watch) ? parsed.watch : [],
+      },
+      headlines,
+      prices,
+      scheduleType
+    );
+    payload = buildSummaryPayload(sections, headlines, prices, scheduleType);
   } catch (error) {
     logger.error({ error: (error as Error).message }, 'LLM summary generation failed');
-    summaryText = `📊 สรุปข่าวคริปโตรอบ ${scheduleType === 'morning' ? 'เช้า' : 'เย็น'} — มีข่าว ${headlines.length} ข่าวในช่วง 12 ชั่วโมงที่ผ่านมา`;
-    sectionTitle = `สรุปตลาดคริปโต ${scheduleType === 'morning' ? 'เช้า' : 'เย็น'}`;
+    const fallbackSections = buildFallbackSections(headlines, prices, scheduleType);
+    payload = buildSummaryPayload(fallbackSections, headlines, prices, scheduleType);
   }
-
-  sectionTitle = sanitizeSummaryField(sectionTitle) || `สรุปตลาดคริปโต ${scheduleType === 'morning' ? 'เช้า' : 'เย็น'}`;
-  summaryText = sanitizeSummaryField(summaryText);
 
   // 4. Store summary in database
   const summary = await prisma.marketSummary.create({
     data: {
       scheduleType,
-      summaryText,
-      headlines: headlines as any,
+      summaryText: payload.summaryText,
+      headlines: payload.headlines as any,
       prices: prices as any,
       articleCount: headlines.length,
     },
@@ -534,14 +835,7 @@ export async function processGenerateSummaryJob(
 
   if (webhookUrl) {
     try {
-      await postSummaryToDiscord(
-        webhookUrl,
-        summaryText,
-        sectionTitle,
-        headlines,
-        prices,
-        scheduleType
-      );
+      await postSummaryToDiscord(webhookUrl, payload);
 
       await prisma.marketSummary.update({
         where: { id: summary.id },
@@ -560,15 +854,7 @@ export async function processGenerateSummaryJob(
 
   if (telegramBotToken && telegramChatId) {
     try {
-      await postSummaryToTelegram(
-        telegramBotToken,
-        telegramChatId,
-        summaryText,
-        sectionTitle,
-        headlines,
-        prices,
-        scheduleType
-      );
+      await postSummaryToTelegram(telegramBotToken, telegramChatId, payload);
       logger.info({ summaryId: summary.id, scheduleType }, 'Bi-daily summary posted to Telegram');
     } catch (error) {
       postErrors.push(`telegram: ${(error as Error).message}`);
