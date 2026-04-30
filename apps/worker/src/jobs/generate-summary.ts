@@ -32,6 +32,10 @@ interface PriceData {
   fearGreedLabel: string;
 }
 
+type AssetKey = 'btc' | 'eth' | 'sol' | 'hype';
+
+type AssetPriceMap = Record<AssetKey, { price: number; change24h: number }>;
+
 interface SummarySections {
   sectionTitle: string;
   overview: string[];
@@ -274,18 +278,216 @@ function buildSummaryPayload(
   };
 }
 
-// Fetch prices from CoinGecko
-async function fetchPrices(): Promise<PriceData> {
-  // Fetch coin prices
+const ASSET_CONFIG: Record<AssetKey, { coingeckoId: string; hyperliquidSymbol: string }> = {
+  btc: { coingeckoId: 'bitcoin', hyperliquidSymbol: 'BTC' },
+  eth: { coingeckoId: 'ethereum', hyperliquidSymbol: 'ETH' },
+  sol: { coingeckoId: 'solana', hyperliquidSymbol: 'SOL' },
+  hype: { coingeckoId: 'hyperliquid', hyperliquidSymbol: 'HYPE' },
+};
+
+const EMPTY_ASSET_PRICES: AssetPriceMap = {
+  btc: { price: 0, change24h: 0 },
+  eth: { price: 0, change24h: 0 },
+  sol: { price: 0, change24h: 0 },
+  hype: { price: 0, change24h: 0 },
+};
+
+function toFiniteNumber(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function mergeAssetPrices(primary: AssetPriceMap, fallback: Partial<AssetPriceMap>): AssetPriceMap {
+  const merged: AssetPriceMap = { ...primary };
+  for (const key of Object.keys(ASSET_CONFIG) as AssetKey[]) {
+    const current = merged[key];
+    const next = fallback[key];
+    if (current.price > 0 || !next || next.price <= 0) continue;
+    merged[key] = next;
+  }
+  return merged;
+}
+
+function missingPriceAssets(prices: AssetPriceMap): AssetKey[] {
+  return (Object.keys(ASSET_CONFIG) as AssetKey[]).filter((key) => prices[key].price <= 0);
+}
+
+async function fetchCoinGeckoSimplePrices(): Promise<AssetPriceMap> {
   const priceRes = await fetch(
     'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,hyperliquid&vs_currencies=usd&include_24hr_change=true',
     { headers: { Accept: 'application/json' } }
   );
 
-  let coins: any = {};
-  if (priceRes.ok) {
-    coins = await priceRes.json();
+  if (!priceRes.ok) {
+    throw new Error(`CoinGecko simple price failed: ${priceRes.status}`);
   }
+
+  const coins = await priceRes.json() as Record<string, Record<string, unknown>>;
+  const prices: AssetPriceMap = { ...EMPTY_ASSET_PRICES };
+
+  for (const key of Object.keys(ASSET_CONFIG) as AssetKey[]) {
+    const coin = coins[ASSET_CONFIG[key].coingeckoId] || {};
+    prices[key] = {
+      price: toFiniteNumber(coin.usd) ?? 0,
+      change24h: toFiniteNumber(coin.usd_24h_change) ?? 0,
+    };
+  }
+
+  return prices;
+}
+
+async function fetchCoinGeckoMarketPrices(): Promise<Partial<AssetPriceMap>> {
+  const marketRes = await fetch(
+    'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,hyperliquid&price_change_percentage=24h',
+    { headers: { Accept: 'application/json' } }
+  );
+
+  if (!marketRes.ok) {
+    throw new Error(`CoinGecko markets failed: ${marketRes.status}`);
+  }
+
+  const coins = await marketRes.json() as Array<Record<string, unknown>>;
+  const prices: Partial<AssetPriceMap> = {};
+
+  for (const key of Object.keys(ASSET_CONFIG) as AssetKey[]) {
+    const coin = coins.find((item) => item.id === ASSET_CONFIG[key].coingeckoId);
+    if (!coin) continue;
+
+    prices[key] = {
+      price: toFiniteNumber(coin.current_price) ?? 0,
+      change24h:
+        toFiniteNumber(coin.price_change_percentage_24h_in_currency) ??
+        toFiniteNumber(coin.price_change_percentage_24h) ??
+        0,
+    };
+  }
+
+  return prices;
+}
+
+async function fetchHyperliquidPrices(): Promise<Partial<AssetPriceMap>> {
+  const response = await fetch('https://api.hyperliquid.xyz/info', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ type: 'metaAndAssetCtxs' }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Hyperliquid prices failed: ${response.status}`);
+  }
+
+  const [meta, contexts] = await response.json() as [
+    { universe?: Array<{ name?: string }> },
+    Array<Record<string, unknown>>,
+  ];
+  const universe = meta.universe || [];
+  const prices: Partial<AssetPriceMap> = {};
+
+  for (const key of Object.keys(ASSET_CONFIG) as AssetKey[]) {
+    const symbol = ASSET_CONFIG[key].hyperliquidSymbol;
+    const index = universe.findIndex((asset) => asset.name === symbol);
+    const context = index >= 0 ? contexts[index] : undefined;
+    if (!context) continue;
+
+    const price =
+      toFiniteNumber(context.markPx) ??
+      toFiniteNumber(context.midPx) ??
+      toFiniteNumber(context.oraclePx) ??
+      0;
+    const prevDayPrice = toFiniteNumber(context.prevDayPx) ?? 0;
+    const change24h = price > 0 && prevDayPrice > 0
+      ? ((price - prevDayPrice) / prevDayPrice) * 100
+      : 0;
+
+    prices[key] = { price, change24h };
+  }
+
+  return prices;
+}
+
+async function fetchMarketMcpPrices(): Promise<Partial<AssetPriceMap>> {
+  const baseUrl = process.env.MARKET_DATA_URL?.replace(/\/+$/, '');
+  if (!baseUrl) return {};
+
+  const entries = await Promise.all(
+    (Object.keys(ASSET_CONFIG) as AssetKey[]).map(async (key) => {
+      const symbol = ASSET_CONFIG[key].hyperliquidSymbol;
+      const url = new URL('/snapshot', baseUrl);
+      url.searchParams.set('symbol', symbol);
+      url.searchParams.set('timeframe', '1h');
+      url.searchParams.set('limit', '25');
+
+      const response = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!response.ok) {
+        throw new Error(`Market MCP snapshot failed for ${symbol}: ${response.status}`);
+      }
+
+      const snapshot = await response.json() as {
+        price?: unknown;
+        candles?: { closes?: unknown[] };
+      };
+      const price = toFiniteNumber(snapshot.price) ?? 0;
+      const closes = snapshot.candles?.closes || [];
+      const referencePrice = toFiniteNumber(closes[0]) ?? 0;
+      const change24h = price > 0 && referencePrice > 0
+        ? ((price - referencePrice) / referencePrice) * 100
+        : 0;
+
+      return [key, { price, change24h }] as const;
+    })
+  );
+
+  return Object.fromEntries(entries) as Partial<AssetPriceMap>;
+}
+
+async function fetchAssetPrices(): Promise<AssetPriceMap> {
+  let assetPrices: AssetPriceMap = { ...EMPTY_ASSET_PRICES };
+
+  try {
+    assetPrices = mergeAssetPrices(assetPrices, await fetchMarketMcpPrices());
+  } catch (error) {
+    logger.warn({ error: (error as Error).message }, 'Market MCP price fetch failed');
+  }
+
+  try {
+    assetPrices = mergeAssetPrices(assetPrices, await fetchCoinGeckoSimplePrices());
+  } catch (error) {
+    logger.warn({ error: (error as Error).message }, 'Primary CoinGecko price fetch failed');
+  }
+
+  if (missingPriceAssets(assetPrices).length > 0) {
+    try {
+      assetPrices = mergeAssetPrices(assetPrices, await fetchCoinGeckoMarketPrices());
+    } catch (error) {
+      logger.warn({ error: (error as Error).message }, 'CoinGecko market price fallback failed');
+    }
+  }
+
+  if (missingPriceAssets(assetPrices).length > 0) {
+    try {
+      assetPrices = mergeAssetPrices(assetPrices, await fetchHyperliquidPrices());
+    } catch (error) {
+      logger.warn({ error: (error as Error).message }, 'Hyperliquid price fallback failed');
+    }
+  }
+
+  const missing = missingPriceAssets(assetPrices);
+  if (missing.length === Object.keys(ASSET_CONFIG).length) {
+    throw new Error('Unable to fetch asset prices from Market MCP, CoinGecko, or Hyperliquid');
+  }
+  if (missing.length > 0) {
+    logger.warn({ missing }, 'Some asset prices are unavailable after fallbacks');
+  }
+
+  return assetPrices;
+}
+
+// Fetch summary market data, using Market MCP first for asset prices.
+async function fetchPrices(): Promise<PriceData> {
+  const assetPrices = await fetchAssetPrices();
 
   // Fetch global market data
   let globalData: any = {};
@@ -320,22 +522,10 @@ async function fetchPrices(): Promise<PriceData> {
   }
 
   return {
-    btc: {
-      price: coins.bitcoin?.usd || 0,
-      change24h: coins.bitcoin?.usd_24h_change || 0,
-    },
-    eth: {
-      price: coins.ethereum?.usd || 0,
-      change24h: coins.ethereum?.usd_24h_change || 0,
-    },
-    sol: {
-      price: coins.solana?.usd || 0,
-      change24h: coins.solana?.usd_24h_change || 0,
-    },
-    hype: {
-      price: coins.hyperliquid?.usd || 0,
-      change24h: coins.hyperliquid?.usd_24h_change || 0,
-    },
+    btc: assetPrices.btc,
+    eth: assetPrices.eth,
+    sol: assetPrices.sol,
+    hype: assetPrices.hype,
     totalMarketCap: globalData.total_market_cap?.usd || 0,
     marketCapChange24h: globalData.market_cap_change_percentage_24h_usd || 0,
     fearGreedIndex: fearGreed.value,
